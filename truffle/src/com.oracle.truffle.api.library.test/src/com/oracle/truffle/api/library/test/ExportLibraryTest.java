@@ -164,4 +164,70 @@ public class ExportLibraryTest extends AbstractLibraryTest {
 
     @ExpectError("Primitive receiver types are not supported yet.")
     @ExportLibrary(value = ExportLibraryTestLibrary.class, receiverType = int.class)
-    public static class Primitiv
+    public static class PrimitiveInt {
+        @ExportMessage
+        static Object m0(int receiver) {
+            return receiver;
+        }
+    }
+
+    abstract static class NoLibrary extends Library {
+    }
+
+    @ExpectError("Class 'NoLibrary' is not a library annotated with @GenerateLibrary.")
+    @ExportLibrary(NoLibrary.class)
+    static class ExportsTestObjectError1 {
+    }
+
+    @ExportLibrary(ExportLibraryTestLibrary.class)
+    @ExpectError("The exported type must not be private. Increase visibility to resolve this.")
+    private static class ExportsTestObjectError2 {
+        @SuppressWarnings("static-method")
+        @ExportMessage
+        final Object m0() {
+            return null;
+        }
+    }
+
+    @ExportLibrary(ExportLibraryTestLibrary.class)
+    static class ExportsTestObjectError3 {
+        @SuppressWarnings("static-method")
+        @ExpectError("The exported method must not be private. Increase visibility to resolve this.")
+        @ExportMessage
+        private Object m0() {
+            return null;
+        }
+    }
+
+    @ExportLibrary(ExportLibraryTestLibrary.class)
+    static class ExportsTestObjectError4 {
+        @SuppressWarnings("static-method")
+        @ExportMessage
+        @ExpectError("The exported method must not be private. Increase visibility to resolve this.")
+        private Object m0(@SuppressWarnings("unused") @Cached("null") Object foo) {
+            return null;
+        }
+    }
+
+    @ExportLibrary(ExportLibraryTestLibrary.class)
+    static class ExportsTestObjectError5 {
+        @ExpectError("Exported message node class must not be private.")
+        @ExportMessage
+        private static class M0 {
+        }
+    }
+
+    @ExpectError("Using explicit receiver types is only supported for default exports or types that export DynamicDispatchLibrary.%n" +
+                    "To resolve this use one of the following strategies:%n" +
+                    "  - Make the receiver type implicit by applying '@ExportLibrary(ExportLibraryTestLibrary.class)' to the receiver type 'PrimitiveInt' instead.%n" +
+                    "  - Declare a default export on the 'ExportLibraryTestLibrary' library with '@DefaultExport(TestReceiver.class)'%n" +
+                    "  - Enable default exports with service providers using @GenerateLibrary(defaultExportLookupEnabled=true) on the library and specify an export priority%n" +
+                    "  - Enable dynamic dispatch by annotating the receiver type with '@ExportLibrary(DynamicDispatchLibrary.class)'.")
+    @ExportLibrary(value = ExportLibraryTestLibrary.class, receiverType = PrimitiveInt.class)
+    static class TestReceiver {
+        @ExportMessage
+        static class M0 {
+        }
+    }
+
+}
