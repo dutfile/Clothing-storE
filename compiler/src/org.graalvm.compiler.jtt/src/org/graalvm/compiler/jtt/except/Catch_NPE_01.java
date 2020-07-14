@@ -39,4 +39,23 @@ public class Catch_NPE_01 extends JTTTest {
             }
         } catch (NullPointerException npe) {
             return a;
-        
+        }
+        return -1;
+    }
+
+    @Test
+    public void run0() throws Throwable {
+        runTest("test", 0);
+    }
+
+    @Test
+    public void run1() throws Throwable {
+        runTest("test", 1);
+    }
+
+    @Test
+    public void run2() throws Throwable {
+        runTest("test", -2);
+    }
+
+}
