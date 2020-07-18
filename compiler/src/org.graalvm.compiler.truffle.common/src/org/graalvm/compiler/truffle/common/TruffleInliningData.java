@@ -27,4 +27,42 @@ package org.graalvm.compiler.truffle.common;
 import jdk.vm.ci.meta.JavaConstant;
 
 /**
- * An interface for communication bet
+ * An interface for communication between the compiler and runtime for Inlining related information.
+ */
+public interface TruffleInliningData {
+
+    /**
+     * Gets the runtime representation of the call node constant.
+     */
+    TruffleCallNode findCallNode(JavaConstant callNode);
+
+    /**
+     * If {@code node} represents an AST Node then return the nearest source information for it.
+     * Otherwise simply return null.
+     */
+    TruffleSourceLanguagePosition getPosition(JavaConstant node);
+
+    /**
+     * Records the given target to be dequed from the compilation queue at the end of the current
+     * compilation.
+     */
+    void addTargetToDequeue(CompilableTruffleAST target);
+
+    /**
+     * To be used from the compiler side. Sets how many calls in total are in the related
+     * compilation unit, and how many of those were inlined.
+     */
+    void setCallCounts(int total, int inlined);
+
+    /**
+     * @return How many calls were inlined.
+     */
+    int countInlinedCalls();
+
+    /**
+     * To be used from the compiler side.
+     *
+     * @param target register this target as inlined.
+     */
+    void addInlinedTarget(CompilableTruffleAST target);
+}
