@@ -23,4 +23,31 @@
 # COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
 # EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
 # GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
-# AND ON ANY THEORY OF LIABILITY, WH
+# AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+# OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+QUIETLY$(MX_VERBOSE)  = @
+
+default: dynLink/cycle/ref.bc
+
+# fake libB without dependecy to produce a cycle
+fake/libB$(SO_EXT): dynLink/cycle/b.c dynLink/cycle/Makefile
+	@mkdir -p $(shell dirname $@)
+	$(QUIETLY) $(CLANG) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) $(SO_LDFLAGS) -fPIC -shared -o $@ $<
+
+dynLink/cycle/libA$(SO_EXT): dynLink/cycle/a.c dynLink/cycle/Makefile fake/libB$(SO_EXT)
+	@mkdir -p $(shell dirname $@)
+	$(QUIETLY) $(CLANG) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) $(SO_LDFLAGS) -fPIC -shared -rpath $(ORIGIN_TOKEN) -Lfake -lB -o $@ $<
+
+dynLink/cycle/libB$(SO_EXT): dynLink/cycle/b.c dynLink/cycle/Makefile dynLink/cycle/libC$(SO_EXT)
+	@mkdir -p $(shell dirname $@)
+	$(QUIETLY) $(CLANG) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) $(SO_LDFLAGS) -fPIC -shared -rpath $(ORIGIN_TOKEN) -LdynLink/cycle -lC -o $@ $<
+
+dynLink/cycle/libC$(SO_EXT): dynLink/cycle/c.c dynLink/cycle/Makefile dynLink/cycle/libA$(SO_EXT)
+	@mkdir -p $(shell dirname $@)
+	$(QUIETLY) $(CLANG) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) $(SO_LDFLAGS) -fPIC -shared -rpath $(ORIGIN_TOKEN) -LdynLink/cycle -Lfake -lA -o $@ $<
+
+dynLink/cycle/ref.out: dynLink/cycle/main.c dynLink/cycle/Makefile dynLink/cycle/libA$(SO_EXT) dynLink/cycle/libB$(SO_EXT)
+	@mkdir -p $(shell dirname $@)
+	$(QUIETLY) $(CLANG) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -rpath $(ORIGIN_TOKEN) -LdynLink/cycle -lA -lB -o $@ $<
