@@ -817,4 +817,174 @@ public class UnsafeReplacementsTest extends MethodSubstitutionTest {
     }
 
     public static int unsafeGetPutInt() {
-   
+        Container container = new Container();
+        unsafe.putInt(container, intOffset, 0x01234567);
+        return unsafe.getInt(container, intOffset);
+    }
+
+    public static long unsafeGetPutLong() {
+        Container container = new Container();
+        unsafe.putLong(container, longOffset, 0x01234567890ABCDEFL);
+        return unsafe.getLong(container, longOffset);
+    }
+
+    public static float unsafeGetPutFloat() {
+        Container container = new Container();
+        unsafe.putFloat(container, floatOffset, 1.234F);
+        return unsafe.getFloat(container, floatOffset);
+    }
+
+    public static double unsafeGetPutDouble() {
+        Container container = new Container();
+        unsafe.putDouble(container, doubleOffset, 1.23456789);
+        return unsafe.getDouble(container, doubleOffset);
+    }
+
+    public static boolean unsafeGetPutBooleanOpaque() {
+        Container container = new Container();
+        unsafe.putBooleanOpaque(container, booleanOffset, true);
+        return unsafe.getBooleanOpaque(container, booleanOffset);
+    }
+
+    public static byte unsafeGetPutByteOpaque() {
+        Container container = new Container();
+        unsafe.putByteOpaque(container, byteOffset, (byte) 0x12);
+        return unsafe.getByteOpaque(container, byteOffset);
+    }
+
+    public static short unsafeGetPutShortOpaque() {
+        Container container = new Container();
+        unsafe.putShortOpaque(container, shortOffset, (short) 0x1234);
+        return unsafe.getShortOpaque(container, shortOffset);
+    }
+
+    public static char unsafeGetPutCharOpaque() {
+        Container container = new Container();
+        unsafe.putCharOpaque(container, charOffset, 'x');
+        return unsafe.getCharOpaque(container, charOffset);
+    }
+
+    public static int unsafeGetPutIntOpaque() {
+        Container container = new Container();
+        unsafe.putIntOpaque(container, intOffset, 0x01234567);
+        return unsafe.getIntOpaque(container, intOffset);
+    }
+
+    public static long unsafeGetPutLongOpaque() {
+        Container container = new Container();
+        unsafe.putLongOpaque(container, longOffset, 0x01234567890ABCDEFL);
+        return unsafe.getLongOpaque(container, longOffset);
+    }
+
+    public static float unsafeGetPutFloatOpaque() {
+        Container container = new Container();
+        unsafe.putFloatOpaque(container, floatOffset, 1.234F);
+        return unsafe.getFloatOpaque(container, floatOffset);
+    }
+
+    public static double unsafeGetPutDoubleOpaque() {
+        Container container = new Container();
+        unsafe.putDoubleOpaque(container, doubleOffset, 1.23456789);
+        return unsafe.getDoubleOpaque(container, doubleOffset);
+    }
+
+    public static boolean unsafeGetPutBooleanRA() {
+        Container container = new Container();
+        unsafe.putBooleanRelease(container, booleanOffset, true);
+        return unsafe.getBooleanAcquire(container, booleanOffset);
+    }
+
+    public static byte unsafeGetPutByteRA() {
+        Container container = new Container();
+        unsafe.putByteRelease(container, byteOffset, (byte) 0x12);
+        return unsafe.getByteAcquire(container, byteOffset);
+    }
+
+    public static short unsafeGetPutShortRA() {
+        Container container = new Container();
+        unsafe.putShortRelease(container, shortOffset, (short) 0x1234);
+        return unsafe.getShortAcquire(container, shortOffset);
+    }
+
+    public static char unsafeGetPutCharRA() {
+        Container container = new Container();
+        unsafe.putCharRelease(container, charOffset, 'x');
+        return unsafe.getCharAcquire(container, charOffset);
+    }
+
+    public static int unsafeGetPutIntRA() {
+        Container container = new Container();
+        unsafe.putIntRelease(container, intOffset, 0x01234567);
+        return unsafe.getIntAcquire(container, intOffset);
+    }
+
+    public static long unsafeGetPutLongRA() {
+        Container container = new Container();
+        unsafe.putLongRelease(container, longOffset, 0x01234567890ABCDEFL);
+        return unsafe.getLongAcquire(container, longOffset);
+    }
+
+    public static float unsafeGetPutFloatRA() {
+        Container container = new Container();
+        unsafe.putFloatRelease(container, floatOffset, 1.234F);
+        return unsafe.getFloatAcquire(container, floatOffset);
+    }
+
+    public static double unsafeGetPutDoubleRA() {
+        Container container = new Container();
+        unsafe.putDoubleRelease(container, doubleOffset, 1.23456789);
+        return unsafe.getDoubleAcquire(container, doubleOffset);
+    }
+
+    public static boolean unsafeGetPutBooleanVolatile() {
+        Container container = new Container();
+        unsafe.putBooleanVolatile(container, booleanOffset, true);
+        return unsafe.getBooleanVolatile(container, booleanOffset);
+    }
+
+    public static byte unsafeGetPutByteVolatile() {
+        Container container = new Container();
+        unsafe.putByteVolatile(container, byteOffset, (byte) 0x12);
+        return unsafe.getByteVolatile(container, byteOffset);
+    }
+
+    public static short unsafeGetPutShortVolatile() {
+        Container container = new Container();
+        unsafe.putShortVolatile(container, shortOffset, (short) 0x1234);
+        return unsafe.getShortVolatile(container, shortOffset);
+    }
+
+    public static char unsafeGetPutCharVolatile() {
+        Container container = new Container();
+        unsafe.putCharVolatile(container, charOffset, 'x');
+        return unsafe.getCharVolatile(container, charOffset);
+    }
+
+    public static int unsafeGetPutIntVolatile() {
+        Container container = new Container();
+        unsafe.putIntVolatile(container, intOffset, 0x01234567);
+        return unsafe.getIntVolatile(container, intOffset);
+    }
+
+    public static long unsafeGetPutLongVolatile() {
+        Container container = new Container();
+        unsafe.putLongVolatile(container, longOffset, 0x01234567890ABCDEFL);
+        return unsafe.getLongVolatile(container, longOffset);
+    }
+
+    public static float unsafeGetPutFloatVolatile() {
+        Container container = new Container();
+        unsafe.putFloatVolatile(container, floatOffset, 1.234F);
+        return unsafe.getFloatVolatile(container, floatOffset);
+    }
+
+    public static double unsafeGetPutDoubleVolatile() {
+        Container container = new Container();
+        unsafe.putDoubleVolatile(container, doubleOffset, 1.23456789);
+        return unsafe.getDoubleVolatile(container, doubleOffset);
+    }
+
+    public static short unsafeGetPutShortUnaligned() {
+        Container container = new Container();
+        unsafe.putShortUnaligned(container.byteArrayField, byteArrayBaseOffset + 1, (short) 0x1234);
+        return unsafe.getShortUnaligned(container.byteArrayField, byteA
