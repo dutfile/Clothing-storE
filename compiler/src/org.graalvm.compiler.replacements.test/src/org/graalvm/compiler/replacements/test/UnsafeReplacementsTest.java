@@ -324,3 +324,166 @@ public class UnsafeReplacementsTest extends MethodSubstitutionTest {
             success = unsafe.weakCompareAndSetIntPlain(container, intOffset, 0xcafebabe, 0xbabefafa);
         }
         return success;
+    }
+
+    public static boolean unsafeWeakCompareAndSetIntRelease() {
+        Container container = new Container();
+        boolean success = false;
+        for (int c = 0; c < WEAK_ATTEMPTS && !success; c++) {
+            success = unsafe.weakCompareAndSetIntRelease(container, intOffset, 0xcafebabe, 0xbabefafa);
+        }
+        return success;
+    }
+
+    public static boolean unsafeWeakCompareAndSetLong() {
+        Container container = new Container();
+        boolean success = false;
+        for (int c = 0; c < WEAK_ATTEMPTS && !success; c++) {
+            success = unsafe.weakCompareAndSetLong(container, longOffset, 0xdedababafafaL, 0xfafacecafafadedaL);
+        }
+        return success;
+    }
+
+    public static boolean unsafeWeakCompareAndSetLongAcquire() {
+        Container container = new Container();
+        boolean success = false;
+        for (int c = 0; c < WEAK_ATTEMPTS && !success; c++) {
+            success = unsafe.weakCompareAndSetLongAcquire(container, longOffset, 0xdedababafafaL, 0xfafacecafafadedaL);
+        }
+        return success;
+    }
+
+    public static boolean unsafeWeakCompareAndSetLongPlain() {
+        Container container = new Container();
+        boolean success = false;
+        for (int c = 0; c < WEAK_ATTEMPTS && !success; c++) {
+            success = unsafe.weakCompareAndSetLongPlain(container, longOffset, 0xdedababafafaL, 0xfafacecafafadedaL);
+        }
+        return success;
+    }
+
+    public static boolean unsafeWeakCompareAndSetLongRelease() {
+        Container container = new Container();
+        boolean success = false;
+        for (int c = 0; c < WEAK_ATTEMPTS && !success; c++) {
+            success = unsafe.weakCompareAndSetLongRelease(container, longOffset, 0xdedababafafaL, 0xfafacecafafadedaL);
+        }
+        return success;
+    }
+
+    public static boolean unsafeWeakCompareAndSetFloat() {
+        Container container = new Container();
+        boolean success = false;
+        for (int c = 0; c < WEAK_ATTEMPTS && !success; c++) {
+            success = unsafe.weakCompareAndSetFloat(container, floatOffset, 0.125f, 0.25f);
+        }
+        return success;
+    }
+
+    public static boolean unsafeWeakCompareAndSetFloatAcquire() {
+        Container container = new Container();
+        boolean success = false;
+        for (int c = 0; c < WEAK_ATTEMPTS && !success; c++) {
+            success = unsafe.weakCompareAndSetFloatAcquire(container, floatOffset, 0.125f, 0.25f);
+        }
+        return success;
+    }
+
+    public static boolean unsafeWeakCompareAndSetFloatPlain() {
+        Container container = new Container();
+        boolean success = false;
+        for (int c = 0; c < WEAK_ATTEMPTS && !success; c++) {
+            success = unsafe.weakCompareAndSetFloatPlain(container, floatOffset, 0.125f, 0.25f);
+        }
+        return success;
+    }
+
+    public static boolean unsafeWeakCompareAndSetFloatRelease() {
+        Container container = new Container();
+        boolean success = false;
+        for (int c = 0; c < WEAK_ATTEMPTS && !success; c++) {
+            success = unsafe.weakCompareAndSetFloatRelease(container, floatOffset, 0.125f, 0.25f);
+        }
+        return success;
+    }
+
+    public static boolean unsafeWeakCompareAndSetDouble() {
+        Container container = new Container();
+        boolean success = false;
+        for (int c = 0; c < WEAK_ATTEMPTS && !success; c++) {
+            success = unsafe.weakCompareAndSetDouble(container, doubleOffset, 0.125, 0.25);
+        }
+        return success;
+    }
+
+    public static boolean unsafeWeakCompareAndSetDoubleAcquire() {
+        Container container = new Container();
+        boolean success = false;
+        for (int c = 0; c < WEAK_ATTEMPTS && !success; c++) {
+            success = unsafe.weakCompareAndSetDoubleAcquire(container, doubleOffset, 0.125, 0.25);
+        }
+        return success;
+    }
+
+    public static boolean unsafeWeakCompareAndSetDoublePlain() {
+        Container container = new Container();
+        boolean success = false;
+        for (int c = 0; c < WEAK_ATTEMPTS && !success; c++) {
+            success = unsafe.weakCompareAndSetDoublePlain(container, doubleOffset, 0.125, 0.25);
+        }
+        return success;
+    }
+
+    public static boolean unsafeWeakCompareAndSetDoubleRelease() {
+        Container container = new Container();
+        boolean success = false;
+        for (int c = 0; c < WEAK_ATTEMPTS && !success; c++) {
+            success = unsafe.weakCompareAndSetDoubleRelease(container, doubleOffset, 0.125, 0.25);
+        }
+        return success;
+    }
+
+    @Test
+    public void testWeakCompareAndSet() {
+        testGraph("unsafeWeakCompareAndSetBoolean");
+        testGraph("unsafeWeakCompareAndSetBooleanAcquire");
+        testGraph("unsafeWeakCompareAndSetBooleanPlain");
+        testGraph("unsafeWeakCompareAndSetBooleanRelease");
+        testGraph("unsafeWeakCompareAndSetByte");
+        testGraph("unsafeWeakCompareAndSetByteAcquire");
+        testGraph("unsafeWeakCompareAndSetBytePlain");
+        testGraph("unsafeWeakCompareAndSetByteRelease");
+        testGraph("unsafeWeakCompareAndSetChar");
+        testGraph("unsafeWeakCompareAndSetCharAcquire");
+        testGraph("unsafeWeakCompareAndSetCharPlain");
+        testGraph("unsafeWeakCompareAndSetCharRelease");
+        testGraph("unsafeWeakCompareAndSetShort");
+        testGraph("unsafeWeakCompareAndSetShortAcquire");
+        testGraph("unsafeWeakCompareAndSetShortPlain");
+        testGraph("unsafeWeakCompareAndSetShortRelease");
+        testGraph("unsafeWeakCompareAndSetInt");
+        testGraph("unsafeWeakCompareAndSetIntAcquire");
+        testGraph("unsafeWeakCompareAndSetIntPlain");
+        testGraph("unsafeWeakCompareAndSetIntRelease");
+        testGraph("unsafeWeakCompareAndSetLong");
+        testGraph("unsafeWeakCompareAndSetLongAcquire");
+        testGraph("unsafeWeakCompareAndSetLongPlain");
+        testGraph("unsafeWeakCompareAndSetLongRelease");
+        testGraph("unsafeWeakCompareAndSetFloat");
+        testGraph("unsafeWeakCompareAndSetFloatAcquire");
+        testGraph("unsafeWeakCompareAndSetFloatPlain");
+        testGraph("unsafeWeakCompareAndSetFloatRelease");
+        testGraph("unsafeWeakCompareAndSetDouble");
+        testGraph("unsafeWeakCompareAndSetDoubleAcquire");
+        testGraph("unsafeWeakCompareAndSetDoublePlain");
+        testGraph("unsafeWeakCompareAndSetDoubleRelease");
+
+        test("unsafeWeakCompareAndSetFloat");
+        test("unsafeWeakCompareAndSetFloatAcquire");
+        test("unsafeWeakCompareAndSetFloatPlain");
+        test("unsafeWeakCompareAndSetFloatRelease");
+        test("unsafeWeakCompareAndSetDouble");
+        test("unsafeWeakCompareAndSetDoubleAcquire");
+        test("unsafeWeakCompareAndSetDoublePlain");
+        test("unsafeWeakCompareAndSetDoubleRelease");
+     
