@@ -486,4 +486,158 @@ public class UnsafeReplacementsTest extends MethodSubstitutionTest {
         test("unsafeWeakCompareAndSetDoubleAcquire");
         test("unsafeWeakCompareAndSetDoublePlain");
         test("unsafeWeakCompareAndSetDoubleRelease");
+        test("unsafeWeakCompareAndSetBoolean");
+        test("unsafeWeakCompareAndSetBooleanAcquire");
+        test("unsafeWeakCompareAndSetBooleanPlain");
+        test("unsafeWeakCompareAndSetBooleanRelease");
+        test("unsafeWeakCompareAndSetByte");
+        test("unsafeWeakCompareAndSetByteAcquire");
+        test("unsafeWeakCompareAndSetBytePlain");
+        test("unsafeWeakCompareAndSetByteRelease");
+        test("unsafeWeakCompareAndSetChar");
+        test("unsafeWeakCompareAndSetCharAcquire");
+        test("unsafeWeakCompareAndSetCharPlain");
+        test("unsafeWeakCompareAndSetCharRelease");
+        test("unsafeWeakCompareAndSetShort");
+        test("unsafeWeakCompareAndSetShortAcquire");
+        test("unsafeWeakCompareAndSetShortPlain");
+        test("unsafeWeakCompareAndSetShortRelease");
+        test("unsafeWeakCompareAndSetInt");
+        test("unsafeWeakCompareAndSetIntAcquire");
+        test("unsafeWeakCompareAndSetIntPlain");
+        test("unsafeWeakCompareAndSetIntRelease");
+        test("unsafeWeakCompareAndSetLong");
+        test("unsafeWeakCompareAndSetLongAcquire");
+        test("unsafeWeakCompareAndSetLongPlain");
+        test("unsafeWeakCompareAndSetLongRelease");
+    }
+
+    public static boolean unsafeCompareAndExchangeBoolean() {
+        Container container = new Container();
+        return unsafe.compareAndExchangeBoolean(container, booleanOffset, false, true);
+    }
+
+    public static boolean unsafeCompareAndExchangeBooleanAcquire() {
+        Container container = new Container();
+        return unsafe.compareAndExchangeBooleanAcquire(container, booleanOffset, false, true);
+    }
+
+    public static boolean unsafeCompareAndExchangeBooleanRelease() {
+        Container container = new Container();
+        return unsafe.compareAndExchangeBooleanRelease(container, booleanOffset, false, true);
+    }
+
+    public static byte unsafeCompareAndExchangeByte() {
+        Container container = new Container();
+        return unsafe.compareAndExchangeByte(container, byteOffset, (byte) -17, (byte) 31);
+    }
+
+    public static int unsafeCompareAndExchangeByteAcquire() {
+        Container container = new Container();
+        return unsafe.compareAndExchangeByteAcquire(container, byteOffset, (byte) -17, (byte) 31);
+    }
+
+    public static int unsafeCompareAndExchangeByteRelease() {
+        Container container = new Container();
+        return unsafe.compareAndExchangeByteRelease(container, byteOffset, (byte) -17, (byte) 31);
+    }
+
+    public static char unsafeCompareAndExchangeChar() {
+        Container container = new Container();
+        return unsafe.compareAndExchangeChar(container, charOffset, (char) 1025, (char) 4502);
+    }
+
+    public static int unsafeCompareAndExchangeCharAcquire() {
+        Container container = new Container();
+        return unsafe.compareAndExchangeCharAcquire(container, charOffset, (char) 1025, (char) 4502);
+    }
+
+    public static int unsafeCompareAndExchangeCharRelease() {
+        Container container = new Container();
+        return unsafe.compareAndExchangeCharRelease(container, charOffset, (char) 1025, (char) 4502);
+    }
+
+    public static short unsafeCompareAndExchangeShort() {
+        Container container = new Container();
+        return unsafe.compareAndExchangeShort(container, shortOffset, (short) -2232, (short) 8121);
+    }
+
+    public static int unsafeCompareAndExchangeShortAcquire() {
+        Container container = new Container();
+        return unsafe.compareAndExchangeShortAcquire(container, shortOffset, (short) -2232, (short) 8121);
+    }
+
+    public static int unsafeCompareAndExchangeShortRelease() {
+        Container container = new Container();
+        return unsafe.compareAndExchangeShortRelease(container, shortOffset, (short) -2232, (short) 8121);
+    }
+
+    public static int unsafeCompareAndExchangeInt() {
+        Container container = new Container();
+        return unsafe.compareAndExchangeInt(container, intOffset, 0xcafebabe, 0xbabefafa);
+    }
+
+    public static int unsafeCompareAndExchangeIntAcquire() {
+        Container container = new Container();
+        return unsafe.compareAndExchangeIntAcquire(container, intOffset, 0xcafebabe, 0xbabefafa);
+    }
+
+    public static int unsafeCompareAndExchangeIntRelease() {
+        Container container = new Container();
+        return unsafe.compareAndExchangeIntRelease(container, intOffset, 0xcafebabe, 0xbabefafa);
+    }
+
+    public static long unsafeCompareAndExchangeLong() {
+        Container container = new Container();
+        return unsafe.compareAndExchangeLong(container, longOffset, 0xdedababafafaL, 0xfafacecafafadedaL);
+    }
+
+    public static long unsafeCompareAndExchangeLongAcquire() {
+        Container container = new Container();
+        return unsafe.compareAndExchangeLongAcquire(container, longOffset, 0xdedababafafaL, 0xfafacecafafadedaL);
+    }
+
+    public static long unsafeCompareAndExchangeLongRelease() {
+        Container container = new Container();
+        return unsafe.compareAndExchangeLongRelease(container, longOffset, 0xdedababafafaL, 0xfafacecafafadedaL);
+    }
+
+    public static float unsafeCompareAndExchangeFloat() {
+        Container container = new Container();
+        return unsafe.compareAndExchangeFloat(container, floatOffset, 0.125f, 0.25f);
+    }
+
+    public static float unsafeCompareAndExchangeFloatAcquire() {
+        Container container = new Container();
+        return unsafe.compareAndExchangeFloatAcquire(container, floatOffset, 0.125f, 0.25f);
+    }
+
+    public static float unsafeCompareAndExchangeFloatRelease() {
+        Container container = new Container();
+        return unsafe.compareAndExchangeFloatRelease(container, floatOffset, 0.125f, 0.25f);
+    }
+
+    public static double unsafeCompareAndExchangeDouble() {
+        Container container = new Container();
+        return unsafe.compareAndExchangeDouble(container, doubleOffset, 0.125, 0.25);
+    }
+
+    public static double unsafeCompareAndExchangeDoubleAcquire() {
+        Container container = new Container();
+        return unsafe.compareAndExchangeDoubleAcquire(container, doubleOffset, 0.125, 0.25);
+    }
+
+    public static double unsafeCompareAndExchangeDoubleRelease() {
+        Container container = new Container();
+        return unsafe.compareAndExchangeDoubleRelease(container, doubleOffset, 0.125, 0.25);
+    }
+
+    @Test
+    public void testCompareAndExchange() {
+        testGraph("unsafeCompareAndExchangeBoolean");
+        testGraph("unsafeCompareAndExchangeBooleanAcquire");
+        testGraph("unsafeCompareAndExchangeBooleanRelease");
+        testGraph("unsafeCompareAndExchangeByte");
+        testGraph("unsafeCompareAndExchangeByteAcquire");
+        testGraph("unsafeCompareAndExchangeByteRelease");
      
