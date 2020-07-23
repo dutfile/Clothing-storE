@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2019, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,41 +22,34 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package org.graalvm.compiler.jtt.reflect;
+package org.graalvm.component.installer;
 
-import java.lang.reflect.InvocationTargetException;
+import java.util.Collection;
+import org.graalvm.component.installer.model.ComponentInfo;
 
-import org.junit.Test;
-
-import org.graalvm.compiler.jtt.JTTTest;
-
-/*
+/**
+ * A facade that represents a component collection.
+ * 
+ * @author sdedic
  */
-public class Invoke_main02 extends JTTTest {
-
-    public static class TestClass {
-        public static void main(String[] args) {
-            field = args[0];
-        }
+public interface ComponentCollection {
+    default ComponentInfo findComponent(String id) {
+        return findComponent(id, null);
     }
 
-    static String field;
+    boolean isAllowDistUpdate();
 
-    public static String test(String input) throws NoSuchMethodException, IllegalAccessException, InvocationTargetException {
-        field = null;
-        final String[] args = {input};
-        TestClass.class.getDeclaredMethod("main", String[].class).invoke(null, new Object[]{args});
-        return field;
+    void setAllowDistUpdate(boolean distUpgrade);
+
+    default ComponentInfo findComponent(String id, Version.Match vm) {
+        return findComponentMatch(id, vm, false);
     }
 
-    @Test
-    public void run0() throws Throwable {
-        runTest("test", "test1");
-    }
+    ComponentInfo findComponentMatch(String id, Version.Match vm, boolean exactId);
 
-    @Test
-    public void run1() throws Throwable {
-        runTest("test", "test2");
-    }
+    String shortenComponentId(ComponentInfo info);
 
+    Collection<String> getComponentIDs();
+
+    Collection<ComponentInfo> loadComponents(String id, Version.Match selector, boolean filelist);
 }
