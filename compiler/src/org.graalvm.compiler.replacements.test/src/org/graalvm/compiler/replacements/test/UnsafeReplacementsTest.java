@@ -640,4 +640,181 @@ public class UnsafeReplacementsTest extends MethodSubstitutionTest {
         testGraph("unsafeCompareAndExchangeByte");
         testGraph("unsafeCompareAndExchangeByteAcquire");
         testGraph("unsafeCompareAndExchangeByteRelease");
-     
+        testGraph("unsafeCompareAndExchangeChar");
+        testGraph("unsafeCompareAndExchangeCharAcquire");
+        testGraph("unsafeCompareAndExchangeCharRelease");
+        testGraph("unsafeCompareAndExchangeShort");
+        testGraph("unsafeCompareAndExchangeShortAcquire");
+        testGraph("unsafeCompareAndExchangeShortRelease");
+        testGraph("unsafeCompareAndExchangeInt");
+        testGraph("unsafeCompareAndExchangeIntAcquire");
+        testGraph("unsafeCompareAndExchangeIntRelease");
+        testGraph("unsafeCompareAndExchangeLong");
+        testGraph("unsafeCompareAndExchangeLongAcquire");
+        testGraph("unsafeCompareAndExchangeLongRelease");
+        testGraph("unsafeCompareAndExchangeFloat");
+        testGraph("unsafeCompareAndExchangeFloatAcquire");
+        testGraph("unsafeCompareAndExchangeFloatRelease");
+        testGraph("unsafeCompareAndExchangeDouble");
+        testGraph("unsafeCompareAndExchangeDoubleAcquire");
+        testGraph("unsafeCompareAndExchangeDoubleRelease");
+
+        test("unsafeCompareAndExchangeBoolean");
+        test("unsafeCompareAndExchangeBooleanAcquire");
+        test("unsafeCompareAndExchangeBooleanRelease");
+        test("unsafeCompareAndExchangeByte");
+        test("unsafeCompareAndExchangeByteAcquire");
+        test("unsafeCompareAndExchangeByteRelease");
+        test("unsafeCompareAndExchangeChar");
+        test("unsafeCompareAndExchangeCharAcquire");
+        test("unsafeCompareAndExchangeCharRelease");
+        test("unsafeCompareAndExchangeShort");
+        test("unsafeCompareAndExchangeShortAcquire");
+        test("unsafeCompareAndExchangeShortRelease");
+        test("unsafeCompareAndExchangeInt");
+        test("unsafeCompareAndExchangeIntAcquire");
+        test("unsafeCompareAndExchangeIntRelease");
+        test("unsafeCompareAndExchangeLong");
+        test("unsafeCompareAndExchangeLongAcquire");
+        test("unsafeCompareAndExchangeLongRelease");
+        test("unsafeCompareAndExchangeFloat");
+        test("unsafeCompareAndExchangeFloatAcquire");
+        test("unsafeCompareAndExchangeFloatRelease");
+        test("unsafeCompareAndExchangeDouble");
+        test("unsafeCompareAndExchangeDoubleAcquire");
+        test("unsafeCompareAndExchangeDoubleRelease");
+    }
+
+    public static int unsafeGetAndAddByte() {
+        Container container = new Container();
+        return unsafe.getAndAddByte(container, byteOffset, (byte) 2);
+    }
+
+    public static int unsafeGetAndAddBytePlusOne() {
+        Container container = new Container();
+        int value = unsafe.getAndAddByte(container, byteOffset, (byte) 2);
+        return value + 1;
+    }
+
+    public static int unsafeGetAndAddChar() {
+        Container container = new Container();
+        return unsafe.getAndAddChar(container, charOffset, (char) 250);
+    }
+
+    public static int unsafeGetAndAddShort() {
+        Container container = new Container();
+        return unsafe.getAndAddShort(container, shortOffset, (short) 1250);
+    }
+
+    public static int unsafeGetAndAddInt() {
+        Container container = new Container();
+        return unsafe.getAndAddInt(container, intOffset, 104501);
+    }
+
+    public static long unsafeGetAndAddLong() {
+        Container container = new Container();
+        return unsafe.getAndAddLong(container, longOffset, 0x123456abcdL);
+    }
+
+    @Test
+    public void testGetAndAdd() {
+        testGraph("unsafeGetAndAddByte");
+        testGraph("unsafeGetAndAddChar");
+        testGraph("unsafeGetAndAddShort");
+        testGraph("unsafeGetAndAddInt");
+        testGraph("unsafeGetAndAddLong");
+
+        test("unsafeGetAndAddByte");
+        test("unsafeGetAndAddBytePlusOne");
+        test("unsafeGetAndAddChar");
+        test("unsafeGetAndAddShort");
+        test("unsafeGetAndAddInt");
+        test("unsafeGetAndAddLong");
+    }
+
+    public static boolean unsafeGetAndSetBoolean() {
+        Container container = new Container();
+        return unsafe.getAndSetBoolean(container, booleanOffset, true);
+    }
+
+    public static byte unsafeGetAndSetByte() {
+        Container container = new Container();
+        return unsafe.getAndSetByte(container, byteOffset, (byte) 129);
+    }
+
+    public static int unsafeGetAndSetBytePlusOne() {
+        Container container = new Container();
+        int value = unsafe.getAndSetByte(container, byteOffset, (byte) 129);
+        return value + 1;
+    }
+
+    public static char unsafeGetAndSetChar() {
+        Container container = new Container();
+        return unsafe.getAndSetChar(container, charOffset, (char) 21111);
+    }
+
+    public static short unsafeGetAndSetShort() {
+        Container container = new Container();
+        return unsafe.getAndSetShort(container, shortOffset, (short) 21111);
+    }
+
+    public static int unsafeGetAndSetInt() {
+        Container container = new Container();
+        return unsafe.getAndSetInt(container, intOffset, 0x1234af);
+    }
+
+    public static long unsafeGetAndSetLong() {
+        Container container = new Container();
+        return unsafe.getAndSetLong(container, longOffset, 0x12345678abL);
+    }
+
+    @Test
+    public void testGetAndSet() {
+        testGraph("unsafeGetAndSetBoolean");
+        testGraph("unsafeGetAndSetByte");
+        testGraph("unsafeGetAndSetChar");
+        testGraph("unsafeGetAndSetShort");
+        testGraph("unsafeGetAndSetInt");
+        testGraph("unsafeGetAndSetLong");
+
+        test("unsafeGetAndSetBoolean");
+        test("unsafeGetAndSetByte");
+        test("unsafeGetAndSetBytePlusOne");
+        test("unsafeGetAndSetChar");
+        test("unsafeGetAndSetShort");
+        test("unsafeGetAndSetInt");
+        test("unsafeGetAndSetLong");
+    }
+
+    public static void assertEquals(Object seen, Object expected, String message) {
+        if (seen != expected) {
+            throw new AssertionError(message + " - seen: " + seen + ", expected: " + expected);
+        }
+    }
+
+    public static boolean unsafeGetPutBoolean() {
+        Container container = new Container();
+        unsafe.putBoolean(container, booleanOffset, true);
+        return unsafe.getBoolean(container, booleanOffset);
+    }
+
+    public static byte unsafeGetPutByte() {
+        Container container = new Container();
+        unsafe.putByte(container, byteOffset, (byte) 0x12);
+        return unsafe.getByte(container, byteOffset);
+    }
+
+    public static short unsafeGetPutShort() {
+        Container container = new Container();
+        unsafe.putShort(container, shortOffset, (short) 0x1234);
+        return unsafe.getShort(container, shortOffset);
+    }
+
+    public static char unsafeGetPutChar() {
+        Container container = new Container();
+        unsafe.putChar(container, charOffset, 'x');
+        return unsafe.getChar(container, charOffset);
+    }
+
+    public static int unsafeGetPutInt() {
+   
