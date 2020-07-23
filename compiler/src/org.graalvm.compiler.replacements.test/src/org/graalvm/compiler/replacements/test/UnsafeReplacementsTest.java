@@ -987,4 +987,152 @@ public class UnsafeReplacementsTest extends MethodSubstitutionTest {
     public static short unsafeGetPutShortUnaligned() {
         Container container = new Container();
         unsafe.putShortUnaligned(container.byteArrayField, byteArrayBaseOffset + 1, (short) 0x1234);
-        return unsafe.getShortUnaligned(container.byteArrayField, byteA
+        return unsafe.getShortUnaligned(container.byteArrayField, byteArrayBaseOffset + 1);
+    }
+
+    public static char unsafeGetPutCharUnaligned() {
+        Container container = new Container();
+        unsafe.putCharUnaligned(container.byteArrayField, byteArrayBaseOffset + 1, 'x');
+        return unsafe.getCharUnaligned(container.byteArrayField, byteArrayBaseOffset + 1);
+    }
+
+    public static int unsafeGetPutIntUnaligned() {
+        Container container = new Container();
+        unsafe.putIntUnaligned(container.byteArrayField, byteArrayBaseOffset + 1, 0x01234567);
+        unsafe.putIntUnaligned(container.byteArrayField, byteArrayBaseOffset + 3, 0x01234567);
+        return unsafe.getIntUnaligned(container.byteArrayField, byteArrayBaseOffset + 1) +
+                        unsafe.getIntUnaligned(container.byteArrayField, byteArrayBaseOffset + 3);
+    }
+
+    public static long unsafeGetPutLongUnaligned() {
+        Container container = new Container();
+        unsafe.putLongUnaligned(container.byteArrayField, byteArrayBaseOffset + 1, 0x01234567890ABCDEFL);
+        unsafe.putLongUnaligned(container.byteArrayField, byteArrayBaseOffset + 3, 0x01234567890ABCDEFL);
+        unsafe.putLongUnaligned(container.byteArrayField, byteArrayBaseOffset + 7, 0x01234567890ABCDEFL);
+        return unsafe.getLongUnaligned(container.byteArrayField, byteArrayBaseOffset + 1) +
+                        unsafe.getLongUnaligned(container.byteArrayField, byteArrayBaseOffset + 3) +
+                        unsafe.getLongUnaligned(container.byteArrayField, byteArrayBaseOffset + 7);
+    }
+
+    @Test
+    public void testUnsafeGetPutPlain() {
+        testGraph("unsafeGetPutBoolean");
+        testGraph("unsafeGetPutByte");
+        testGraph("unsafeGetPutShort");
+        testGraph("unsafeGetPutChar");
+        testGraph("unsafeGetPutInt");
+        testGraph("unsafeGetPutLong");
+        testGraph("unsafeGetPutFloat");
+        testGraph("unsafeGetPutDouble");
+
+        test("unsafeGetPutBoolean");
+        test("unsafeGetPutByte");
+        test("unsafeGetPutShort");
+        test("unsafeGetPutChar");
+        test("unsafeGetPutInt");
+        test("unsafeGetPutLong");
+        test("unsafeGetPutFloat");
+        test("unsafeGetPutDouble");
+    }
+
+    @Test
+    public void testUnsafeGetPutOpaque() {
+        testGraph("unsafeGetPutBooleanOpaque");
+        testGraph("unsafeGetPutByteOpaque");
+        testGraph("unsafeGetPutShortOpaque");
+        testGraph("unsafeGetPutCharOpaque");
+        testGraph("unsafeGetPutIntOpaque");
+        testGraph("unsafeGetPutLongOpaque");
+        testGraph("unsafeGetPutFloatOpaque");
+        testGraph("unsafeGetPutDoubleOpaque");
+
+        test("unsafeGetPutBooleanOpaque");
+        test("unsafeGetPutByteOpaque");
+        test("unsafeGetPutShortOpaque");
+        test("unsafeGetPutCharOpaque");
+        test("unsafeGetPutIntOpaque");
+        test("unsafeGetPutLongOpaque");
+        test("unsafeGetPutFloatOpaque");
+        test("unsafeGetPutDoubleOpaque");
+    }
+
+    @Test
+    public void testUnsafeGetPutReleaseAcquire() {
+        testGraph("unsafeGetPutBooleanRA");
+        testGraph("unsafeGetPutByteRA");
+        testGraph("unsafeGetPutShortRA");
+        testGraph("unsafeGetPutCharRA");
+        testGraph("unsafeGetPutIntRA");
+        testGraph("unsafeGetPutLongRA");
+        testGraph("unsafeGetPutFloatRA");
+        testGraph("unsafeGetPutDoubleRA");
+
+        test("unsafeGetPutBooleanRA");
+        test("unsafeGetPutByteRA");
+        test("unsafeGetPutShortRA");
+        test("unsafeGetPutCharRA");
+        test("unsafeGetPutIntRA");
+        test("unsafeGetPutLongRA");
+        test("unsafeGetPutFloatRA");
+        test("unsafeGetPutDoubleRA");
+    }
+
+    @Test
+    public void testUnsafeGetPutVolatile() {
+        testGraph("unsafeGetPutBooleanVolatile");
+        testGraph("unsafeGetPutByteVolatile");
+        testGraph("unsafeGetPutShortVolatile");
+        testGraph("unsafeGetPutCharVolatile");
+        testGraph("unsafeGetPutIntVolatile");
+        testGraph("unsafeGetPutLongVolatile");
+        testGraph("unsafeGetPutFloatVolatile");
+        testGraph("unsafeGetPutDoubleVolatile");
+
+        test("unsafeGetPutBooleanVolatile");
+        test("unsafeGetPutByteVolatile");
+        test("unsafeGetPutShortVolatile");
+        test("unsafeGetPutCharVolatile");
+        test("unsafeGetPutIntVolatile");
+        test("unsafeGetPutLongVolatile");
+        test("unsafeGetPutFloatVolatile");
+        test("unsafeGetPutDoubleVolatile");
+    }
+
+    @Test
+    public void testUnsafeGetPutUnaligned() {
+        testGraph("unsafeGetPutShortUnaligned");
+        testGraph("unsafeGetPutCharUnaligned");
+        testGraph("unsafeGetPutIntUnaligned");
+        testGraph("unsafeGetPutLongUnaligned");
+
+        test("unsafeGetPutShortUnaligned");
+        test("unsafeGetPutCharUnaligned");
+        test("unsafeGetPutIntUnaligned");
+        test("unsafeGetPutLongUnaligned");
+    }
+
+    public static Object unsafeGetUncompressedObject(long address) {
+        return unsafe.getUncompressedObject(address);
+    }
+
+    @Test
+    public void testUnsafeGetUncompressionObject() {
+        testGraph("unsafeGetUncompressedObject");
+        // Allocate some memory and fill it with non-zero values.
+        final int size = 32;
+        final long address = unsafe.allocateMemory(size);
+        unsafe.setMemory(address, size, (byte) 0x23);
+
+        // The only thing we can do is check for null-ness.
+        // So, store a null somewhere.
+        unsafe.putAddress(address + 16, 0);
+
+        Object nullObj = unsafe.getUncompressedObject(address + 16);
+        if (nullObj != null) {
+            throw new InternalError("should be null");
+        }
+
+        test("unsafeGetUncompressedObject", address + 16);
+        unsafe.freeMemory(address);
+    }
+}
