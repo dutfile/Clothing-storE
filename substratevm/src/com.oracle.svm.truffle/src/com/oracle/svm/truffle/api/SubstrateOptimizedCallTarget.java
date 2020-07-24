@@ -149,4 +149,12 @@ public class SubstrateOptimizedCallTarget extends OptimizedCallTarget implements
         return createInstalledCode();
     }
 
-    private Substrat
+    private SubstrateOptimizedCallTargetInstalledCode createInstalledCode() {
+        return new SubstrateOptimizedCallTargetInstalledCode(this);
+    }
+
+    interface CallBoundaryFunctionPointer extends CFunctionPointer {
+        @InvokeJavaFunctionPointer
+        Object invoke(OptimizedCallTarget receiver, Object[] args);
+    }
+}
