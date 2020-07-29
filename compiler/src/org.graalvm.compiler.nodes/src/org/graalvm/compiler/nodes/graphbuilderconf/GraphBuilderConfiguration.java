@@ -84,4 +84,169 @@ public final class GraphBuilderConfiguration {
         }
 
         public void appendNodePlugin(NodePlugin plugin) {
-            nodePlugins = Arrays.copyOf(no
+            nodePlugins = Arrays.copyOf(nodePlugins, nodePlugins.length + 1);
+            nodePlugins[nodePlugins.length - 1] = plugin;
+        }
+
+        public void prependNodePlugin(NodePlugin plugin) {
+            NodePlugin[] newPlugins = new NodePlugin[nodePlugins.length + 1];
+            System.arraycopy(nodePlugins, 0, newPlugins, 1, nodePlugins.length);
+            newPlugins[0] = plugin;
+            nodePlugins = newPlugins;
+        }
+
+        public ParameterPlugin[] getParameterPlugins() {
+            return parameterPlugins;
+        }
+
+        public void appendParameterPlugin(ParameterPlugin plugin) {
+            parameterPlugins = Arrays.copyOf(parameterPlugins, parameterPlugins.length + 1);
+            parameterPlugins[parameterPlugins.length - 1] = plugin;
+        }
+
+        public void prependParameterPlugin(ParameterPlugin plugin) {
+            ParameterPlugin[] newPlugins = new ParameterPlugin[parameterPlugins.length + 1];
+            System.arraycopy(parameterPlugins, 0, newPlugins, 1, parameterPlugins.length);
+            newPlugins[0] = plugin;
+            parameterPlugins = newPlugins;
+        }
+
+        public TypePlugin[] getTypePlugins() {
+            return typePlugins;
+        }
+
+        public void appendTypePlugin(TypePlugin plugin) {
+            typePlugins = Arrays.copyOf(typePlugins, typePlugins.length + 1);
+            typePlugins[typePlugins.length - 1] = plugin;
+        }
+
+        public InlineInvokePlugin[] getInlineInvokePlugins() {
+            return inlineInvokePlugins;
+        }
+
+        public void appendInlineInvokePlugin(InlineInvokePlugin plugin) {
+            inlineInvokePlugins = Arrays.copyOf(inlineInvokePlugins, inlineInvokePlugins.length + 1);
+            inlineInvokePlugins[inlineInvokePlugins.length - 1] = plugin;
+        }
+
+        public void prependInlineInvokePlugin(InlineInvokePlugin plugin) {
+            InlineInvokePlugin[] newPlugins = new InlineInvokePlugin[inlineInvokePlugins.length + 1];
+            System.arraycopy(inlineInvokePlugins, 0, newPlugins, 1, inlineInvokePlugins.length);
+            newPlugins[0] = plugin;
+            inlineInvokePlugins = newPlugins;
+        }
+
+        public void clearInlineInvokePlugins() {
+            inlineInvokePlugins = new InlineInvokePlugin[0];
+        }
+
+        public ClassInitializationPlugin getClassInitializationPlugin() {
+            return classInitializationPlugin;
+        }
+
+        public void setClassInitializationPlugin(ClassInitializationPlugin plugin) {
+            this.classInitializationPlugin = plugin;
+        }
+
+        public StampPair getOverridingStamp(GraphBuilderTool b, JavaType type, boolean nonNull) {
+            for (TypePlugin plugin : getTypePlugins()) {
+                StampPair stamp = plugin.interceptType(b, type, nonNull);
+                if (stamp != null) {
+                    return stamp;
+                }
+            }
+            return null;
+        }
+    }
+
+    private final boolean eagerResolving;
+    private final boolean unresolvedIsError;
+    private final BytecodeExceptionMode bytecodeExceptionMode;
+    private final boolean omitAssertions;
+    private final List<ResolvedJavaType> skippedExceptionTypes;
+    private final boolean insertFullInfopoints;
+    private final boolean trackNodeSourcePosition;
+    private final boolean retainLocalVariables;
+    private final Plugins plugins;
+    private final boolean replaceLocalsWithConstants;
+
+    public enum BytecodeExceptionMode {
+        /**
+         * This mode always explicitly checks for exceptions.
+         */
+        CheckAll,
+        /**
+         * This mode omits all explicit exception edges.
+         */
+        OmitAll,
+        /**
+         * This mode omits exception edges at invokes, but not for implicit null checks or bounds
+         * checks.
+         */
+        ExplicitOnly,
+        /**
+         * This mode uses profiling information to decide whether to use explicit exception edges.
+         */
+        Profile
+    }
+
+    private GraphBuilderConfiguration(boolean eagerResolving,
+                    boolean unresolvedIsError,
+                    BytecodeExceptionMode bytecodeExceptionMode,
+                    boolean omitAssertions,
+                    boolean insertFullInfopoints,
+                    boolean trackNodeSourcePosition,
+                    boolean retainLocalVariables,
+                    boolean replaceLocalsWithConstants,
+                    List<ResolvedJavaType> skippedExceptionTypes,
+                    Plugins plugins) {
+        this.eagerResolving = eagerResolving;
+        this.unresolvedIsError = unresolvedIsError;
+        this.bytecodeExceptionMode = bytecodeExceptionMode;
+        this.omitAssertions = omitAssertions;
+        this.insertFullInfopoints = insertFullInfopoints;
+        this.trackNodeSourcePosition = trackNodeSourcePosition;
+        this.retainLocalVariables = retainLocalVariables;
+        this.replaceLocalsWithConstants = replaceLocalsWithConstants;
+        this.skippedExceptionTypes = skippedExceptionTypes;
+        this.plugins = plugins;
+    }
+
+    /**
+     * Creates a copy of this configuration with all its plugins. The {@link InvocationPlugins} in
+     * this configuration become the parent of the {@link InvocationPlugins} in the copy.
+     */
+    public GraphBuilderConfiguration copy() {
+        Plugins newPlugins = new Plugins(plugins);
+        GraphBuilderConfiguration result = new GraphBuilderConfiguration(
+                        eagerResolving,
+                        unresolvedIsError,
+                        bytecodeExceptionMode,
+                        omitAssertions,
+                        insertFullInfopoints,
+                        trackNodeSourcePosition,
+                        retainLocalVariables,
+                        replaceLocalsWithConstants,
+                        skippedExceptionTypes,
+                        newPlugins);
+        return result;
+    }
+
+    /**
+     * Set the {@link #unresolvedIsError} flag. This flag can be set independently from
+     * {@link #eagerResolving}, i.e., even if eager resolving fails execution is assumed to be
+     * valid. This allows us for example to process unresolved types/methods/fields even when
+     * eagerly resolving elements.
+     */
+    public GraphBuilderConfiguration withUnresolvedIsError(boolean newUnresolvedIsError) {
+        return new GraphBuilderConfiguration(
+                        eagerResolving,
+                        newUnresolvedIsError,
+                        bytecodeExceptionMode,
+                        omitAssertions,
+                        insertFullInfopoints,
+                        trackNodeSourcePosition,
+                        retainLocalVariables,
+                        replaceLocalsWithConstants,
+                        skippedExceptionTypes,
+                        
