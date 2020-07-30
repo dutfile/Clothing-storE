@@ -249,4 +249,172 @@ public final class GraphBuilderConfiguration {
                         retainLocalVariables,
                         replaceLocalsWithConstants,
                         skippedExceptionTypes,
-                        
+                        plugins);
+    }
+
+    public GraphBuilderConfiguration withEagerResolving(boolean newEagerResolving) {
+        return new GraphBuilderConfiguration(
+                        newEagerResolving,
+                        unresolvedIsError,
+                        bytecodeExceptionMode,
+                        omitAssertions,
+                        insertFullInfopoints,
+                        trackNodeSourcePosition,
+                        retainLocalVariables,
+                        replaceLocalsWithConstants,
+                        skippedExceptionTypes,
+                        plugins);
+    }
+
+    public GraphBuilderConfiguration withSkippedExceptionTypes(ResolvedJavaType[] newSkippedExceptionTypes) {
+        return new GraphBuilderConfiguration(
+                        eagerResolving,
+                        unresolvedIsError,
+                        bytecodeExceptionMode,
+                        omitAssertions,
+                        insertFullInfopoints,
+                        trackNodeSourcePosition,
+                        retainLocalVariables,
+                        replaceLocalsWithConstants,
+                        Collections.unmodifiableList(Arrays.asList(newSkippedExceptionTypes)),
+                        plugins);
+    }
+
+    public GraphBuilderConfiguration withBytecodeExceptionMode(BytecodeExceptionMode newBytecodeExceptionMode) {
+        return new GraphBuilderConfiguration(eagerResolving,
+                        unresolvedIsError,
+                        newBytecodeExceptionMode,
+                        omitAssertions,
+                        insertFullInfopoints,
+                        trackNodeSourcePosition,
+                        retainLocalVariables,
+                        replaceLocalsWithConstants,
+                        skippedExceptionTypes,
+                        plugins);
+    }
+
+    public GraphBuilderConfiguration withOmitAssertions(boolean newOmitAssertions) {
+        return new GraphBuilderConfiguration(
+                        eagerResolving,
+                        unresolvedIsError,
+                        bytecodeExceptionMode,
+                        newOmitAssertions,
+                        insertFullInfopoints,
+                        trackNodeSourcePosition,
+                        retainLocalVariables,
+                        replaceLocalsWithConstants,
+                        skippedExceptionTypes,
+                        plugins);
+    }
+
+    public GraphBuilderConfiguration withFullInfopoints(boolean newInsertFullInfopoints) {
+        return new GraphBuilderConfiguration(
+                        eagerResolving,
+                        unresolvedIsError,
+                        bytecodeExceptionMode,
+                        omitAssertions,
+                        newInsertFullInfopoints,
+                        trackNodeSourcePosition,
+                        retainLocalVariables,
+                        replaceLocalsWithConstants,
+                        skippedExceptionTypes,
+                        plugins);
+    }
+
+    public GraphBuilderConfiguration withNodeSourcePosition(boolean newTrackNodeSourcePosition) {
+        return new GraphBuilderConfiguration(
+                        eagerResolving,
+                        unresolvedIsError,
+                        bytecodeExceptionMode,
+                        omitAssertions,
+                        insertFullInfopoints,
+                        newTrackNodeSourcePosition,
+                        retainLocalVariables,
+                        replaceLocalsWithConstants,
+                        skippedExceptionTypes,
+                        plugins);
+    }
+
+    public GraphBuilderConfiguration withRetainLocalVariables(boolean newRetainLocalVariables) {
+        return new GraphBuilderConfiguration(
+                        eagerResolving,
+                        unresolvedIsError,
+                        bytecodeExceptionMode,
+                        omitAssertions,
+                        insertFullInfopoints,
+                        trackNodeSourcePosition,
+                        newRetainLocalVariables,
+                        replaceLocalsWithConstants,
+                        skippedExceptionTypes,
+                        plugins);
+    }
+
+    public List<ResolvedJavaType> getSkippedExceptionTypes() {
+        return skippedExceptionTypes;
+    }
+
+    public boolean eagerResolving() {
+        return eagerResolving;
+    }
+
+    public BytecodeExceptionMode getBytecodeExceptionMode() {
+        return bytecodeExceptionMode;
+    }
+
+    public boolean omitAssertions() {
+        return omitAssertions;
+    }
+
+    public boolean trackNodeSourcePosition() {
+        return trackNodeSourcePosition;
+    }
+
+    public boolean retainLocalVariables() {
+        return retainLocalVariables;
+    }
+
+    public boolean insertFullInfopoints() {
+        return insertFullInfopoints;
+    }
+
+    public boolean replaceLocalsWithConstants() {
+        return this.replaceLocalsWithConstants;
+    }
+
+    public static GraphBuilderConfiguration getDefault(Plugins plugins) {
+        return new GraphBuilderConfiguration(
+                        /* eagerResolving: */ false,
+                        /* unresolvedIsError: */ false,
+                        BytecodeExceptionMode.Profile,
+                        /* omitAssertions: */ false,
+                        /* insertFullInfopoints: */ false,
+                        /* trackNodeSourcePosition: */ false,
+                        /* retainLocalVariables */ false,
+                        /* replaceLocalsWithConstants */ false,
+                        Collections.emptyList(),
+                        plugins);
+    }
+
+    public static GraphBuilderConfiguration getSnippetDefault(Plugins plugins) {
+        return new GraphBuilderConfiguration(
+                        /* eagerResolving: */ true,
+                        /* unresolvedIsError: */ true,
+                        BytecodeExceptionMode.OmitAll,
+                        /* omitAssertions: */ false,
+                        /* insertFullInfopoints: */ false,
+                        /* trackNodeSourcePosition: */ false,
+                        /* retainLocalVariables */ false,
+                        /* replaceLocalsWithConstants */ false,
+                        Collections.emptyList(),
+                        plugins);
+    }
+
+    /** Returns {@code true} if it is an error for a class/field/method resolution to fail. */
+    public boolean unresolvedIsError() {
+        return unresolvedIsError;
+    }
+
+    public Plugins getPlugins() {
+        return plugins;
+    }
+}
