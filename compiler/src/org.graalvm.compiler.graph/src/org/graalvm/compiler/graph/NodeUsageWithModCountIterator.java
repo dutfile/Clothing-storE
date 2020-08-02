@@ -1,10 +1,13 @@
+
 /*
- * Copyright (c) 2013, 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2014, 2018, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 only, as
- * published by the Free Software Foundation.
+ * published by the Free Software Foundation.  Oracle designates this
+ * particular file as subject to the "Classpath" exception as provided
+ * by Oracle in the LICENSE file that accompanied this code.
  *
  * This code is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
@@ -20,31 +23,31 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
+package org.graalvm.compiler.graph;
 
-package org.graalvm.visualizer.data;
+import java.util.ConcurrentModificationException;
 
-public abstract class ControllableChangedListener<T> implements ChangedListener<T> {
+class NodeUsageWithModCountIterator extends NodeUsageIterator {
 
-    private boolean enabled;
-
-    public ControllableChangedListener() {
-        enabled = true;
+    NodeUsageWithModCountIterator(Node n) {
+        super(n);
     }
 
-    public boolean isEnabled() {
-        return enabled;
-    }
+    private final int expectedModCount = node.usageModCount();
 
-    public void setEnabled(boolean b) {
-        enabled = b;
+    @Override
+    public boolean hasNext() {
+        if (expectedModCount != node.usageModCount()) {
+            throw new ConcurrentModificationException();
+        }
+        return super.hasNext();
     }
 
     @Override
-    public void changed(T source) {
-        if (enabled) {
-            filteredChanged(source);
+    public Node next() {
+        if (expectedModCount != node.usageModCount()) {
+            throw new ConcurrentModificationException();
         }
+        return super.next();
     }
-
-    public abstract void filteredChanged(T source);
 }
