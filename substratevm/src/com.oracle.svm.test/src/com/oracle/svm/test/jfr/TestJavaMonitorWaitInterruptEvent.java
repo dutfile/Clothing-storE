@@ -86,4 +86,80 @@ public class TestJavaMonitorWaitInterruptEvent extends JfrTest {
         Runnable interrupted = () -> {
             try {
                 helper.interrupt(); // must enter first
-                throw new RuntimeException("Was n
+                throw new RuntimeException("Was not interrupted!!");
+            } catch (InterruptedException e) {
+                // should get interrupted
+            }
+        };
+        interruptedThread = new Thread(interrupted);
+
+        Runnable interrupter = () -> {
+            try {
+                helper.interrupt();
+            } catch (InterruptedException e) {
+                Assert.fail(e.getMessage());
+            }
+        };
+
+        interrupterThread = new Thread(interrupter);
+        interruptedThread.start();
+        interruptedThread.join();
+        interrupterThread.join();
+    }
+
+    private void testWaitNotify() throws Exception {
+        Runnable simpleWaiter = () -> {
+            try {
+                helper.simpleNotify();
+            } catch (InterruptedException e) {
+                Assert.fail(e.getMessage());
+            }
+        };
+
+        Runnable simpleNotifier = () -> {
+            try {
+                helper.simpleNotify();
+            } catch (Exception e) {
+                Assert.fail(e.getMessage());
+            }
+        };
+
+        simpleWaitThread = new Thread(simpleWaiter);
+        simpleNotifyThread = new Thread(simpleNotifier);
+
+        simpleWaitThread.start();
+
+        simpleWaitThread.join();
+        simpleNotifyThread.join();
+    }
+
+    @Test
+    public void test() throws Exception {
+        testInterruption();
+        testWaitNotify();
+    }
+
+    private class Helper {
+        public synchronized void interrupt() throws InterruptedException {
+            if (Thread.currentThread().equals(interruptedThread)) {
+                // Ensure T1 enters critical section first
+                interrupterThread.start();
+                wait(); // allow T2 to enter section
+            } else if (Thread.currentThread().equals(interrupterThread)) {
+                // If T2 is in the critical section T1 is already waiting.
+                Thread.sleep(MILLIS);
+                interruptedThread.interrupt();
+            }
+        }
+
+        public synchronized void simpleNotify() throws InterruptedException {
+            if (Thread.currentThread().equals(simpleWaitThread)) {
+                simpleNotifyThread.start();
+                wait();
+            } else if (Thread.currentThread().equals(simpleNotifyThread)) {
+                Thread.sleep(MILLIS);
+                notify();
+            }
+        }
+    }
+}
