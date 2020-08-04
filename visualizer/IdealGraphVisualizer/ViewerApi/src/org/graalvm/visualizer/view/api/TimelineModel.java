@@ -66,4 +66,84 @@ public interface TimelineModel {
     static final String PROP_HIDE_DUPLICATES = "hideDuplicates"; // NOI18N
     
     /**
+     * Name of the 'partitions' property
+     */
+    static final String PROP_PARTITIONS = "partitions"; // NOI18N
     
+    /**
+     * @return current state of 'ignore duplicate' features
+     */
+    public boolean              isHideDuplicates();
+    
+    /**
+     * Sets ignoring of duplicate / unchanged graphs. When duplicates are selected,
+     * the provided {@link RangeSliderModel}s will report positions with only the
+     * first graph (and not immediately following ones) with the same content.
+     * 
+     * @param ignore enables duplicate ignores
+     */
+    public void                 setHideDuplicates(boolean ignore);
+    
+    /**
+     * @return primary graph type, see {@link InputGraph#getGraphType()}.
+     */
+    public String     getPrimaryType();
+    
+    /**
+     * Provides model for the primary range for the viewer
+     * @return primary range model
+     */
+    public RangeSliderModel     getPrimaryRange();
+    
+    /**
+     * @return primary graphs, ordered as in the dump.
+     */
+    public GraphContainer       getPrimaryPartition();
+    
+    /**
+     * Finds GraphInstance for the given position. 
+     * @param mod
+     * @param position
+     * @return 
+     */
+    public InputGraph           findGraph(RangeSliderModel mod, int position);
+    
+    /**
+     * Returns data partitions. Each partition eash its own {@link RangeSliderModel} 
+     * returned from {@link #getPartitionRange(org.graalvm.visualizer.data.GraphContainer)}.
+     * 
+     * @return individual partitions
+     */
+    public Set<GraphContainer>  getPartitions();
+
+    public Set<String>  getPartitionTypes();
+    
+    public GraphContainer getPartition(String type);
+    
+    /**
+     * Returns the range model for a specific graph type
+     * @param type
+     * @return  range model or {@code null} if not present
+     */
+    public RangeSliderModel     getPartitionRange(String type);
+    
+    public void addTimelineListener(TimelineListener l);
+    public void removeTimelineListener(TimelineListener l);
+    
+    public void addPropertyChangeListener(PropertyChangeListener l);
+    public void removePropertyChangeListener(PropertyChangeListener l);
+    
+    /**
+     * Sets the tracked nodes, which may result in color changes
+     * in the individual partitions.
+     * @param nodes 
+     */
+    public void setTrackedNodes(Set<Integer> nodes);
+    
+    
+    public Set<Integer> getTrackedNodes();
+    
+    public GraphContainer getSource();
+    
+    public Executor whenStable();
+}
