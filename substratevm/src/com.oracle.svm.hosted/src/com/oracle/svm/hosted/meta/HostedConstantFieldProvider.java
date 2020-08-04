@@ -59,4 +59,7 @@ public class HostedConstantFieldProvider extends SharedConstantFieldProvider {
     }
 
     @Override
-    protected AnalysisField asAnalysisField(Resolve
+    protected AnalysisField asAnalysisField(ResolvedJavaField field) {
+        return ((HostedField) field).getWrapped();
+    }
+}
