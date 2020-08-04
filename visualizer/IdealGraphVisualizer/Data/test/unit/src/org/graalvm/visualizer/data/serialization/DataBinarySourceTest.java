@@ -28,4 +28,22 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.channels.FileChannel;
-import java.nio.fi
+import java.nio.file.StandardOpenOption;
+import static org.junit.Assert.assertTrue;
+
+public class DataBinarySourceTest extends DataSourceTest {
+
+    @Override
+    protected DataSource createDataSource(URL bigv) throws IOException {
+        try {
+            File f = new File(bigv.toURI());
+            assertTrue("file exists: " + f, f.exists());
+            FileChannel fch2 = FileChannel.open(f.toPath(), StandardOpenOption.READ);
+            BinarySource scanSource = new BinarySource(null, fch2);
+            return scanSource;
+        } catch (URISyntaxException ex) {
+            throw new AssertionError("Canot convert " + bigv, ex);
+        }
+    }
+
+}
