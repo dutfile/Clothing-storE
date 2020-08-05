@@ -238,3 +238,36 @@
     
     <target name="spotbugs" depends="-spotbugs.init">
         <taskdef name="spotbugs" classname="edu.umd.cs.findbugs.anttask.FindBugsTask"
+                 classpathref="spotbugs.classpath"/>
+        
+        <path id="spotbugs.aux.path">
+            <fileset dir="${nbplatform.default.netbeans.dest.dir}">
+                <!-- Include just certain clusters -->
+                <include name="ide/**/*.jar"/>
+                <include name="nb/**/*.jar"/>
+                <include name="platform/**/*.jar"/>
+                <include name="java/**/*.jar"/>
+                <include name="webcommon/**/*.jar"/>
+                <!-- Also include Graal SDK and GraphIO -->
+            </fileset>
+        </path>
+        
+        <path id="spotbugs.analyze.path">
+            <fileset dir="${suite.build.dir}/cluster">
+                <exclude name="**/modules/ext/*.jar"/>
+                <include name="**/*.jar"/>
+            </fileset>
+        </path>
+        
+        <pathconvert property="spotbugs.analyze.arglist" refid="spotbugs.analyze.path" pathsep=" "/>
+        <pathconvert property="spotbugs.analyze.lines" refid="spotbugs.analyze.path" pathsep="${line.separator}&#09;"/>
+        <echo message="Running spotbugs on:${line.separator}&#09;${spotbugs.analyze.lines}"/>
+        <java jar="${spotbugs.main.jar}" classpathref="spotbugs.classpath" fork="true" failonerror="true">
+            <arg line="${spotbugs.run.arguments}"/>
+            <arg line="-auxclasspath"/>
+            <arg pathref="spotbugs.aux.path"/>
+            <arg line="-output ${spotbugs.results}"/>
+            <arg line="${spotbugs.analyze.arglist}"/>
+        </java>
+    </target>
+</project>
