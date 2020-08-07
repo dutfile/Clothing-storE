@@ -89,4 +89,8 @@ public abstract class LLVMBinaryIntrinsicNode extends LLVMIntrinsicNode {
 
     @Override
     public void generate(NodeLIRBuilderTool builder, ArithmeticLIRGeneratorTool gen) {
-      
+        builder.setResult(this, emitIntrinsic((LLVMIntrinsicGenerator) gen, builder.operand(arg1), builder.operand(arg2)));
+    }
+
+    protected abstract Value emitIntrinsic(LLVMIntrinsicGenerator gen, Value value1, Value value2);
+}
