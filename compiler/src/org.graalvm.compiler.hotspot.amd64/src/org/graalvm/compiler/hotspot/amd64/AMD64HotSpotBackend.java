@@ -337,4 +337,38 @@ public class AMD64HotSpotBackend extends HotSpotHostBackend implements LIRGenera
                             AMD64Assembler.AMD64MIOp.MOV.emit(asm, AMD64BaseAssembler.OperandSize.QWORD,
                                             new AMD64Address(thread, config.pendingFailedSpeculationOffset), (int) speculationAsLong);
                         } else {
-                            asm.movl(new AMD64Address(thread, config.pendingFailedSpeculationO
+                            asm.movl(new AMD64Address(thread, config.pendingFailedSpeculationOffset), (int) speculationAsLong);
+                            asm.movl(new AMD64Address(thread, config.pendingFailedSpeculationOffset + 4), (int) (speculationAsLong >> 32));
+                        }
+                    } else {
+                        assert deoptSpeculation.getJavaKind() == JavaKind.Int;
+                        int speculationAsInt = pendingImplicitException.state.deoptSpeculation.asInt();
+                        asm.movl(new AMD64Address(thread, config.pendingFailedSpeculationOffset), speculationAsInt);
+                    }
+
+                    AMD64Call.directCall(crb, asm, foreignCalls.lookupForeignCall(DEOPT_BLOB_UNCOMMON_TRAP), null, false, pendingImplicitException.state);
+                    crb.recordImplicitException(pendingImplicitException.codeOffset, pos, pendingImplicitException.state);
+                }
+            }
+            crb.recordMark(AMD64Call.directCall(crb, asm, foreignCalls.lookupForeignCall(EXCEPTION_HANDLER), null, false, null), HotSpotMarkId.EXCEPTION_HANDLER_ENTRY);
+            crb.recordMark(AMD64Call.directCall(crb, asm, foreignCalls.lookupForeignCall(DEOPT_BLOB_UNPACK), null, false, null), HotSpotMarkId.DEOPT_HANDLER_ENTRY);
+            if (config.supportsMethodHandleDeoptimizationEntry() && crb.needsMHDeoptHandler()) {
+                crb.recordMark(AMD64Call.directCall(crb, asm, foreignCalls.lookupForeignCall(DEOPT_BLOB_UNPACK), null, false, null), HotSpotMarkId.DEOPT_MH_HANDLER_ENTRY);
+            }
+        } else {
+            // No need to emit the stubs for entries back into the method since
+            // it has no calls that can cause such "return" entries
+
+            if (frameContext.omitFrame) {
+                // Cannot access slots in caller's frame if my frame is omitted
+                assert !frameMap.accessesCallerFrame();
+            }
+        }
+    }
+
+    @Override
+    public RegisterAllocationConfig newRegisterAllocationConfig(RegisterConfig registerConfig, String[] allocationRestrictedTo) {
+        RegisterConfig registerConfigNonNull = registerConfig == null ? getCodeCache().getRegisterConfig() : registerConfig;
+        return new AMD64HotSpotRegisterAllocationConfig(registerConfigNonNull, allocationRestrictedTo, config.preserveFramePointer);
+    }
+}
