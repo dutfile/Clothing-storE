@@ -82,4 +82,27 @@ public final class Class_isInterface01 extends JTTTest {
 
     @Test
     public void run4() throws Throwable {
-       
+        runTest("test", 4);
+    }
+
+    @Test
+    public void run5() throws Throwable {
+        runTest("test", 5);
+    }
+
+    @Test
+    public void run6() throws Throwable {
+        runTest("test", 6);
+    }
+
+    @Test
+    public void run7() throws Throwable {
+        runTest("test", 7);
+    }
+
+    @Test
+    public void run8() throws Throwable {
+        runTest("test", 8);
+    }
+
+}
