@@ -220,4 +220,121 @@ public class AMD64HotSpotBackend extends HotSpotHostBackend implements LIRGenera
                         !((AMD64FrameMap) frameMap).useStandardFrameProlog();
 
         Stub stub = gen.getStub();
-        AMD64MacroAssembler masm = new AMD64HotSpo
+        AMD64MacroAssembler masm = new AMD64HotSpotMacroAssembler(config, getTarget(), options, config.CPU_HAS_INTEL_JCC_ERRATUM);
+        HotSpotFrameContext frameContext = new HotSpotFrameContext(stub != null, omitFrame, config.preserveFramePointer);
+        DataBuilder dataBuilder = new HotSpotDataBuilder(getCodeCache().getTarget());
+        CompilationResultBuilder crb = factory.createBuilder(getProviders(), frameMap, masm, dataBuilder, frameContext, options, debug, compilationResult, Register.None);
+        crb.setTotalFrameSize(frameMap.totalFrameSize());
+        crb.setMaxInterpreterFrameSize(gen.getMaxInterpreterFrameSize());
+        crb.setMinDataSectionItemAlignment(getMinDataSectionItemAlignment());
+        StackSlot deoptimizationRescueSlot = gen.getDeoptimizationRescueSlot();
+        if (deoptimizationRescueSlot != null && stub == null) {
+            crb.compilationResult.setCustomStackAreaOffset(deoptimizationRescueSlot);
+        }
+
+        if (stub != null) {
+            updateStub(stub, gen, frameMap);
+        }
+
+        return crb;
+    }
+
+    @Override
+    public void emitCode(CompilationResultBuilder crb, LIR lir, ResolvedJavaMethod installedCodeOwner) {
+        AMD64MacroAssembler asm = (AMD64MacroAssembler) crb.asm;
+        FrameMap frameMap = crb.frameMap;
+        RegisterConfig regConfig = frameMap.getRegisterConfig();
+
+        // Emit the prefix
+        emitCodePrefix(installedCodeOwner, crb, asm, regConfig);
+
+        // Emit code for the LIR
+        emitCodeBody(installedCodeOwner, crb, lir);
+
+        // Emit the suffix
+        emitCodeSuffix(installedCodeOwner, crb, asm, frameMap);
+
+        // Profile assembler instructions
+        profileInstructions(lir, crb);
+    }
+
+    /**
+     * Emits the code prior to the verified entry point.
+     *
+     * @param installedCodeOwner see {@link LIRGenerationProvider#emitCode}
+     */
+    public void emitCodePrefix(ResolvedJavaMethod installedCodeOwner, CompilationResultBuilder crb, AMD64MacroAssembler asm, RegisterConfig regConfig) {
+        HotSpotProviders providers = getProviders();
+        if (installedCodeOwner != null && !installedCodeOwner.isStatic()) {
+            crb.recordMark(HotSpotMarkId.UNVERIFIED_ENTRY);
+            CallingConvention cc = regConfig.getCallingConvention(HotSpotCallingConventionType.JavaCallee, null, new JavaType[]{providers.getMetaAccess().lookupJavaType(Object.class)}, this);
+            Register inlineCacheKlass = rax; // see definition of IC_Klass in
+                                             // c1_LIRAssembler_x86.cpp
+            Register receiver = asRegister(cc.getArgument(0));
+            AMD64Address src = new AMD64Address(receiver, config.hubOffset);
+            int before;
+
+            if (config.useCompressedClassPointers) {
+                Register register = r10;
+                Register heapBase = providers.getRegisters().getHeapBaseRegister();
+                AMD64HotSpotMove.decodeKlassPointer(asm, register, heapBase, src, config);
+                if (config.narrowKlassBase != 0) {
+                    // The heap base register was destroyed above, so restore it
+                    if (config.narrowOopBase == 0L) {
+                        asm.xorq(heapBase, heapBase);
+                    } else {
+                        asm.movq(heapBase, config.narrowOopBase);
+                    }
+                }
+                before = asm.cmpqAndJcc(inlineCacheKlass, register, ConditionFlag.NotEqual, null, false);
+            } else {
+                before = asm.cmpqAndJcc(inlineCacheKlass, src, ConditionFlag.NotEqual, null, false);
+            }
+            crb.recordDirectCall(before, asm.position(), getForeignCalls().lookupForeignCall(IC_MISS_HANDLER), null);
+        }
+
+        asm.align(config.codeEntryAlignment);
+        crb.recordMark(crb.compilationResult.getEntryBCI() != -1 ? HotSpotMarkId.OSR_ENTRY : HotSpotMarkId.VERIFIED_ENTRY);
+    }
+
+    /**
+     * Emits the code which starts at the verified entry point.
+     *
+     * @param installedCodeOwner see {@link LIRGenerationProvider#emitCode}
+     */
+    public void emitCodeBody(ResolvedJavaMethod installedCodeOwner, CompilationResultBuilder crb, LIR lir) {
+        crb.emit(lir);
+    }
+
+    /**
+     * @param installedCodeOwner see {@link LIRGenerationProvider#emitCode}
+     */
+    public void emitCodeSuffix(ResolvedJavaMethod installedCodeOwner, CompilationResultBuilder crb, AMD64MacroAssembler asm, FrameMap frameMap) {
+        HotSpotProviders providers = getProviders();
+        HotSpotFrameContext frameContext = (HotSpotFrameContext) crb.frameContext;
+        if (!frameContext.isStub) {
+            HotSpotForeignCallsProvider foreignCalls = providers.getForeignCalls();
+            if (crb.getPendingImplicitExceptionList() != null) {
+                for (CompilationResultBuilder.PendingImplicitException pendingImplicitException : crb.getPendingImplicitExceptionList()) {
+                    // Insert stub code that stores the corresponding deoptimization action &
+                    // reason, as well as the failed speculation, and calls into
+                    // DEOPT_BLOB_UNCOMMON_TRAP. Note that we use the debugging info at the
+                    // exceptional PC that triggers this implicit exception, we cannot touch
+                    // any register/stack slot in this stub, so as to preserve a valid mapping for
+                    // constructing the interpreter frame.
+                    int pos = asm.position();
+                    Register thread = getProviders().getRegisters().getThreadRegister();
+                    // Store deoptimization reason and action into thread local storage.
+                    asm.movl(new AMD64Address(thread, config.pendingDeoptimizationOffset), pendingImplicitException.state.deoptReasonAndAction.asInt());
+
+                    JavaConstant deoptSpeculation = pendingImplicitException.state.deoptSpeculation;
+                    if (deoptSpeculation.getJavaKind() == JavaKind.Long) {
+                        // Store speculation into thread local storage. As AMD64 does not support
+                        // 64-bit long integer memory store, we break it into two 32-bit integer
+                        // store.
+                        long speculationAsLong = pendingImplicitException.state.deoptSpeculation.asLong();
+                        if (NumUtil.isInt(speculationAsLong)) {
+                            AMD64Assembler.AMD64MIOp.MOV.emit(asm, AMD64BaseAssembler.OperandSize.QWORD,
+                                            new AMD64Address(thread, config.pendingFailedSpeculationOffset), (int) speculationAsLong);
+                        } else {
+                            asm.movl(new AMD64Address(thread, config.pendingFailedSpeculationO
