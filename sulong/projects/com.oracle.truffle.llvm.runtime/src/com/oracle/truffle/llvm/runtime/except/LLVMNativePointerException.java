@@ -38,4 +38,7 @@ public final class LLVMNativePointerException extends LLVMException {
 
     private static final long serialVersionUID = 1L;
 
-    public LLVMNativePointerExce
+    public LLVMNativePointerException(Node location, String message, Throwable cause) {
+        super(location, message, cause);
+    }
+}
