@@ -49,4 +49,50 @@ public final class Target_java_lang_invoke_LambdaForm {
     void compileToBytecode() {
         /*
          * Those lambda form types are required to be precompiled to bytecode during method handles
- 
+         * bootstrapping to avoid a cyclic dependency. No further initialization is required since
+         * these forms are executed as intrinsics (@see MethodHandleIntrinsic)
+         */
+        if (lambdaName().equals("zero") || lambdaName().equals("identity")) {
+            vmentry = new Target_java_lang_invoke_MemberName();
+        }
+    }
+
+    /*
+     * We do not want invokers for lambda forms to be generated at runtime.
+     */
+    @Substitute
+    @SuppressWarnings("static-method")
+    private boolean forceInterpretation() {
+        return true;
+    }
+
+    @Alias
+    native Object interpretWithArguments(Object... argumentValues) throws Throwable;
+}
+
+final class LambdaFormCacheTransformer implements FieldValueTransformer {
+
+    @Override
+    public Object transform(Object receiver, Object originalValue) {
+        Class<?> lambdaFormClass = ReflectionUtil.lookupClass(false, "java.lang.invoke.LambdaForm");
+        if (lambdaFormClass.isInstance(originalValue)) {
+            // Stores the original LambdaForm for a customized one.
+            return originalValue;
+        }
+        return null;
+    }
+}
+
+@TargetClass(className = "java.lang.invoke.LambdaForm", innerClass = "NamedFunction")
+final class Target_java_lang_invoke_LambdaForm_NamedFunction {
+    @Alias
+    native Target_java_lang_invoke_MethodHandle resolvedHandle();
+
+    /*
+     * Avoid triggering the generation of an optimized invoker.
+     */
+    @Substitute
+    Object invokeWithArguments(Object... arguments) throws Throwable {
+        return resolvedHandle().invokeBasic(arguments);
+    }
+}
