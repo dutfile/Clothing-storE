@@ -19,4 +19,26 @@
  * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
  *
  * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
- * or visit www.oracle.com if yo
+ * or visit www.oracle.com if you need additional information or have any
+ * questions.
+ */
+package com.oracle.svm.core.reflect.target;
+
+import java.lang.reflect.Executable;
+import java.lang.reflect.Field;
+
+import com.oracle.svm.core.annotate.Delete;
+import com.oracle.svm.core.reflect.SubstrateAccessor;
+
+public interface ReflectionSubstitutionSupport {
+    SubstrateAccessor getOrCreateAccessor(Executable member);
+
+    /** Offset of the field or -1 if the field was not registered for unsafe access. */
+    int getFieldOffset(Field field, boolean checkUnsafeAccessed);
+
+    /**
+     * Returns the {@link Delete#value reason} why a field was deleted, or null if the field is not
+     * deleted.
+     */
+    String getDeletionReason(Field field);
+}
