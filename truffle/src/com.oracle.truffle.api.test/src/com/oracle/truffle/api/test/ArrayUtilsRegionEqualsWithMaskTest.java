@@ -83,4 +83,76 @@ public class ArrayUtilsRegionEqualsWithMaskTest {
         for (String s : haystacks) {
             for (int fromIndex : new int[]{0, 1, 15, 16, lipsum.length() - 16, lipsum.length() - 15}) {
                 for (int length : new int[]{1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65, lipsum.length()}) {
-                    if (withMask && s == lipsum && fromIndex > 0 || fromIndex + l
+                    if (withMask && s == lipsum && fromIndex > 0 || fromIndex + length > s.length()) {
+                        continue;
+                    }
+                    String sub1 = needle.substring(fromIndex, fromIndex + length);
+                    String sub2 = String.valueOf((char) (sub1.charAt(0) + 1)) + sub1.substring(1);
+                    String sub3 = sub1.substring(0, sub1.length() - 1) + String.valueOf((char) (sub1.charAt(sub1.length() - 1) - 1));
+                    String sub4 = sub1.substring(0, sub1.length() / 2) + String.valueOf((char) (sub1.charAt(sub1.length() / 2) + 1)) + sub1.substring((sub1.length() / 2) + 1);
+                    ret.add(dataRow(s, fromIndex, needle, fromIndex, sub1, true, withMask));
+                    ret.add(dataRow(s, fromIndex, sub1, 0, sub1, true, withMask));
+                    ret.add(dataRow(s, fromIndex, sub2, 0, sub2, false, withMask));
+                    ret.add(dataRow(s, fromIndex, sub3, 0, sub3, false, withMask));
+                    ret.add(dataRow(s, fromIndex, sub4, 0, sub4, false, withMask));
+                }
+            }
+        }
+        ret.add(dataRow(lipsum, 0, needle, lipsum.length(), 0, true, withMask));
+        ret.add(dataRow(lipsum, 0, needle, lipsum.length(), 1, false, withMask));
+        ret.add(dataRow(lipsum, lipsum.length(), needle, 0, 0, true, withMask));
+        ret.add(dataRow(lipsum, lipsum.length(), needle, 0, 1, false, withMask));
+        ret.add(dataRow(lipsum, lipsum.length() - 1, needle, lipsum.length() - 1, 2, false, withMask));
+        ret.add(dataRow(lipsum, lipsum.length() - 2, needle, lipsum.length() - 2, 2, true, withMask));
+        ret.add(dataRow(lipsum, 0, needle, 0, lipsum, true, withMask));
+        ret.add(dataRow(lipsum, 0, needle, 0, lipsum.length() + 1, false, withMask));
+        ret.add(new Object[]{strWithFF, 0, strWithFFFF, 0, null, strWithFFFF.length(), true, false});
+        if (withMask) {
+            ret.add(new Object[]{strWithFF, 0, strWithFF, 0, strWithFFMask, strWithFFMask.length(), true, true});
+            ret.add(new Object[]{strWithFF, 0, strWithFFFF, 0, strWithFFMask, strWithFFMask.length(), true, false});
+            ret.add(new Object[]{strWith7F, 0, strWithFF, 0, strWithFFMask, strWithFFMask.length(), true, true});
+            ret.add(new Object[]{strWith7F, 0, strWithFFFF, 0, strWithFFMask, strWithFFMask.length(), true, false});
+        }
+        return ret;
+    }
+
+    private static Object[] dataRow(String a1, int fromIndex1, String a2, int fromIndex2, String mask, boolean expected, boolean withMask) {
+        return new Object[]{a1, fromIndex1, a2, fromIndex2, withMask ? mask(mask) : null, mask.length(), expected, expected};
+    }
+
+    private static Object[] dataRow(String a1, int fromIndex1, String a2, int fromIndex2, int maskLength, boolean expected, boolean withMask) {
+        return new Object[]{a1, fromIndex1, a2, fromIndex2, withMask ? mask(maskLength) : null, maskLength, expected, expected};
+    }
+
+    @BeforeClass
+    public static void runWithWeakEncapsulationOnly() {
+        TruffleTestAssumptions.assumeWeakEncapsulation();
+    }
+
+    private final String a1;
+    private final int fromIndex1;
+    private final String a2;
+    private final int fromIndex2;
+    private final String mask;
+    private final int length;
+    private final boolean expectedByte;
+    private final boolean expectedChar;
+
+    public ArrayUtilsRegionEqualsWithMaskTest(String a1, int fromIndex1, String a2, int fromIndex2, String mask, int length, boolean expectedByte, boolean expectedChar) {
+        this.a1 = a1;
+        this.fromIndex1 = fromIndex1;
+        this.a2 = a2;
+        this.fromIndex2 = fromIndex2;
+        this.mask = mask;
+        this.length = length;
+        this.expectedByte = expectedByte;
+        this.expectedChar = expectedChar;
+    }
+
+    @Test
+    public void test() {
+        Assert.assertEquals(expectedByte, ArrayUtils.regionEqualsWithOrMask(toByteArray(a1), fromIndex1, toByteArray(a2), fromIndex2, length, toByteArray(mask)));
+        Assert.assertEquals(expectedChar, ArrayUtils.regionEqualsWithOrMask(a1.toCharArray(), fromIndex1, a2.toCharArray(), fromIndex2, length, mask == null ? null : mask.toCharArray()));
+        Assert.assertEquals(expectedChar, ArrayUtils.regionEqualsWithOrMask(a1, fromIndex1, a2, fromIndex2, length, mask));
+    }
+}
