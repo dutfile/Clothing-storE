@@ -1,6 +1,6 @@
 
 /*
- * Copyright (c) 2014, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2022, 2022, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -23,19 +23,25 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package org.graalvm.compiler.hotspot.word;
+package com.oracle.svm.core.jvmstat;
 
-import static org.graalvm.compiler.hotspot.word.HotSpotOperation.HotspotOpcode.POINTER_EQ;
-import static org.graalvm.compiler.hotspot.word.HotSpotOperation.HotspotOpcode.POINTER_NE;
+import static com.oracle.svm.core.jvmstat.PerfVariability.VARIABLE;
 
-/**
- * Marker type for a metaspace pointer to a method counters.
- */
-public abstract class MethodCountersPointer extends MetaspacePointer {
+import org.graalvm.nativeimage.Platform;
+import org.graalvm.nativeimage.Platforms;
 
-    @HotSpotOperation(opcode = POINTER_EQ)
-    public abstract boolean equal(MethodCountersPointer other);
+public class PerfLongVariable extends PerfLongVariant {
+    @Platforms(Platform.HOSTED_ONLY.class)
+    PerfLongVariable(String name, PerfUnit unit) {
+        super(name, unit);
+    }
 
-    @HotSpotOperation(opcode = POINTER_NE)
-    public abstract boolean notEqual(MethodCountersPointer other);
+    public void allocate() {
+        allocate(0);
+    }
+
+    @Override
+    public void allocate(long initialValue) {
+        allocate(VARIABLE, initialValue);
+    }
 }
