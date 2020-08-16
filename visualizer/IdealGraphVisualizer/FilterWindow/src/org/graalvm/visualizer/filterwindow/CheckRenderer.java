@@ -108,4 +108,42 @@ public class CheckRenderer extends NodeRenderer {
             }
         }
 
-    
+        @Override
+        protected void paintChildren(Graphics g) {
+        }
+        
+        @Override
+        public void paintComponent(Graphics g) {
+            Dimension dCheck = check.getSize();
+            Dimension dLabel = toPaint.getPreferredSize();
+            Insets insets = getInsets();
+            int x = insets.left;
+            int y = insets.top;
+            check.setBounds(x, y, dCheck.width, dCheck.height);
+            check.paint(g);
+            int yLabel = y;
+            if (dCheck.height >= dLabel.height) {
+                yLabel = (dCheck.height - dLabel.height) / 2;
+            }
+            x += dCheck.width;
+            g.translate(x, yLabel);
+            toPaint.paint(g);
+            g.translate(-x, -yLabel);
+        }
+
+        public Dimension getPreferredSize() {
+            Dimension cSize = check.getPreferredSize();
+            Dimension pSize = toPaint == null ? new Dimension(0, 0) : toPaint.getPreferredSize();
+            Insets ins = getInsets();
+            return new Dimension(
+                ins.left + ins.right + cSize.width + pSize.width,
+                ins.top + ins.bottom + Math.max(cSize.height, pSize.height)
+            );
+        }
+        
+        void setSelected(boolean enabled, boolean s) {
+            check.setEnabled(enabled);
+            check.setSelected(s);
+        }
+    }
+}
