@@ -128,4 +128,177 @@ public class EspressoInterop extends BaseInterop {
             return false;
         }
         Meta meta = receiver.getKlass().getMeta();
-        
+        return receiver.getKlass() == meta.java_lang_Byte || receiver.getKlass() == meta.java_lang_Short || receiver.getKlass() == meta.java_lang_Integer ||
+                        receiver.getKlass() == meta.java_lang_Long || receiver.getKlass() == meta.java_lang_Float ||
+                        receiver.getKlass() == meta.java_lang_Double;
+    }
+
+    @ExportMessage
+    static boolean fitsInByte(StaticObject receiver) {
+        receiver.checkNotForeign();
+        if (isNull(receiver)) {
+            return false;
+        }
+        Klass klass = receiver.getKlass();
+        if (isAtMostByte(klass)) {
+            return true;
+        }
+
+        Meta meta = klass.getMeta();
+        if (klass == meta.java_lang_Short) {
+            short content = meta.java_lang_Short_value.getShort(receiver);
+            return (byte) content == content;
+        }
+        if (klass == meta.java_lang_Integer) {
+            int content = meta.java_lang_Integer_value.getInt(receiver);
+            return (byte) content == content;
+        }
+        if (klass == meta.java_lang_Long) {
+            long content = meta.java_lang_Long_value.getLong(receiver);
+            return (byte) content == content;
+        }
+        if (klass == meta.java_lang_Float) {
+            float content = meta.java_lang_Float_value.getFloat(receiver);
+            return (byte) content == content && !isNegativeZero(content);
+        }
+        if (klass == meta.java_lang_Double) {
+            double content = meta.java_lang_Double_value.getDouble(receiver);
+            return (byte) content == content && !isNegativeZero(content);
+        }
+        return false;
+    }
+
+    @ExportMessage
+    static boolean fitsInShort(StaticObject receiver) {
+        receiver.checkNotForeign();
+        if (isNull(receiver)) {
+            return false;
+        }
+        Klass klass = receiver.getKlass();
+        if (isAtMostShort(klass)) {
+            return true;
+        }
+
+        Meta meta = klass.getMeta();
+        if (klass == meta.java_lang_Integer) {
+            int content = meta.java_lang_Integer_value.getInt(receiver);
+            return (short) content == content;
+        }
+        if (klass == meta.java_lang_Long) {
+            long content = meta.java_lang_Long_value.getLong(receiver);
+            return (short) content == content;
+        }
+        if (klass == meta.java_lang_Float) {
+            float content = meta.java_lang_Float_value.getFloat(receiver);
+            return (short) content == content && !isNegativeZero(content);
+        }
+        if (klass == meta.java_lang_Double) {
+            double content = meta.java_lang_Double_value.getDouble(receiver);
+            return (short) content == content && !isNegativeZero(content);
+        }
+        return false;
+    }
+
+    @ExportMessage
+    static boolean fitsInInt(StaticObject receiver) {
+        receiver.checkNotForeign();
+        if (isNull(receiver)) {
+            return false;
+        }
+        Klass klass = receiver.getKlass();
+        if (isAtMostInt(klass)) {
+            return true;
+        }
+
+        Meta meta = klass.getMeta();
+        if (klass == meta.java_lang_Long) {
+            long content = meta.java_lang_Long_value.getLong(receiver);
+            return (int) content == content;
+        }
+        if (klass == meta.java_lang_Float) {
+            float content = meta.java_lang_Float_value.getFloat(receiver);
+            return !isNegativeZero(content) && (int) content == content && (int) content != Integer.MAX_VALUE;
+        }
+        if (klass == meta.java_lang_Double) {
+            double content = meta.java_lang_Double_value.getDouble(receiver);
+            return (int) content == content && !isNegativeZero(content);
+        }
+        return false;
+    }
+
+    @ExportMessage
+    static boolean fitsInLong(StaticObject receiver) {
+        receiver.checkNotForeign();
+        if (isNull(receiver)) {
+            return false;
+        }
+        Klass klass = receiver.getKlass();
+        if (isAtMostLong(klass)) {
+            return true;
+        }
+
+        Meta meta = klass.getMeta();
+        if (klass == meta.java_lang_Float) {
+            float content = meta.java_lang_Float_value.getFloat(receiver);
+            return !isNegativeZero(content) && (long) content == content && (long) content != Long.MAX_VALUE;
+        }
+        if (klass == meta.java_lang_Double) {
+            double content = meta.java_lang_Double_value.getDouble(receiver);
+            return !isNegativeZero(content) && (long) content == content && (long) content != Long.MAX_VALUE;
+        }
+        return false;
+    }
+
+    @ExportMessage
+    static boolean fitsInFloat(StaticObject receiver) {
+        receiver.checkNotForeign();
+        if (isNull(receiver)) {
+            return false;
+        }
+        Klass klass = receiver.getKlass();
+        if (isAtMostFloat(klass)) {
+            return true;
+        }
+
+        Meta meta = klass.getMeta();
+        /*
+         * We might lose precision when we convert an int or a long to a float, however, we still
+         * perform the conversion. This is consistent with Truffle interop, see GR-22718 for more
+         * details.
+         */
+        if (klass == meta.java_lang_Integer) {
+            int content = meta.java_lang_Integer_value.getInt(receiver);
+            float floatContent = content;
+            return content != Integer.MAX_VALUE && (int) floatContent == content;
+        }
+        if (klass == meta.java_lang_Long) {
+            long content = meta.java_lang_Long_value.getLong(receiver);
+            float floatContent = content;
+            return content != Long.MAX_VALUE && (long) floatContent == content;
+        }
+        if (klass == meta.java_lang_Double) {
+            double content = meta.java_lang_Double_value.getDouble(receiver);
+            return !Double.isFinite(content) || (float) content == content;
+        }
+        return false;
+    }
+
+    @ExportMessage
+    static boolean fitsInDouble(StaticObject receiver) {
+        receiver.checkNotForeign();
+        if (isNull(receiver)) {
+            return false;
+        }
+        Klass klass = receiver.getKlass();
+        Meta meta = klass.getMeta();
+        if (isAtMostInt(klass) || klass == meta.java_lang_Double) {
+            return true;
+        }
+        if (klass == meta.java_lang_Long) {
+            long content = meta.java_lang_Long_value.getLong(receiver);
+            double doubleContent = content;
+            return content != Long.MAX_VALUE && (long) doubleContent == content;
+        }
+        if (klass == meta.java_lang_Float) {
+            float content = meta.java_lang_Float_value.getFloat(receiver);
+            return !Float.isFinite(content) || (double) con
