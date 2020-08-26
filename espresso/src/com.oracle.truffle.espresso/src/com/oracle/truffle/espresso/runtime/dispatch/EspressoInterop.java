@@ -707,4 +707,144 @@ public class EspressoInterop extends BaseInterop {
                         @CachedLibrary(limit = "3") InteropLibrary valueLib, // GR-37680
                         @Shared("error") @Cached BranchProfile error) throws InvalidArrayIndexException, UnsupportedTypeException {
             EspressoLanguage language = EspressoLanguage.get(receiverLib);
-            if (index < 0 || receiver.length(language) <= 
+            if (index < 0 || receiver.length(language) <= index) {
+                error.enter();
+                throw InvalidArrayIndexException.create(index);
+            }
+            StaticObject stringValue;
+            try {
+                stringValue = receiver.getKlass().getMeta().toGuestString(valueLib.asString(value));
+            } catch (UnsupportedMessageException e) {
+                error.enter();
+                throw UnsupportedTypeException.create(new Object[]{value}, getMessageBoundary(e));
+            }
+            receiver.<StaticObject[]> unwrap(language)[(int) index] = stringValue;
+        }
+
+        @Specialization(guards = {"receiver.isArray()", "!isStringArray(receiver)", "receiver.isEspressoObject()", "!isPrimitiveArray(receiver)"})
+        static void doEspressoObject(StaticObject receiver, long index, StaticObject value,
+                        @CachedLibrary("receiver") InteropLibrary receiverLib,
+                        @Shared("error") @Cached BranchProfile error) throws InvalidArrayIndexException, UnsupportedTypeException {
+            EspressoLanguage language = EspressoLanguage.get(receiverLib);
+            if (index < 0 || receiver.length(language) <= index) {
+                error.enter();
+                throw InvalidArrayIndexException.create(index);
+            }
+            Klass componentType = ((ArrayKlass) receiver.getKlass()).getComponentType();
+            if (StaticObject.isNull(value) || instanceOf(value, componentType)) {
+                receiver.<StaticObject[]> unwrap(language)[(int) index] = value;
+            } else {
+                error.enter();
+                throw UnsupportedTypeException.create(new Object[]{value}, "Incompatible types");
+            }
+        }
+
+        @TruffleBoundary
+        private static String getMessageBoundary(Throwable e) {
+            return e.getMessage();
+        }
+
+        @Specialization(guards = {"receiver.isArray()", "!isStringArray(receiver)", "receiver.isEspressoObject()", "!isPrimitiveArray(receiver)", "!isStaticObject(value)"})
+        static void doEspressoGeneric(StaticObject receiver, long index, Object value,
+                        @CachedLibrary("receiver") InteropLibrary receiverLib,
+                        @Shared("toEspresso") @Cached ToEspressoNode toEspressoNode,
+                        @Shared("error") @Cached BranchProfile error) throws InvalidArrayIndexException, UnsupportedTypeException {
+            EspressoLanguage language = EspressoLanguage.get(receiverLib);
+            if (index < 0 || receiver.length(language) <= index) {
+                error.enter();
+                throw InvalidArrayIndexException.create(index);
+            }
+            StaticObject espressoValue;
+            try {
+                Klass componentType = ((ArrayKlass) receiver.getKlass()).getComponentType();
+                espressoValue = (StaticObject) toEspressoNode.execute(value, componentType);
+            } catch (UnsupportedOperationException e) {
+                error.enter();
+                throw UnsupportedTypeException.create(new Object[]{value}, getMessageBoundary(e));
+            }
+            receiver.<StaticObject[]> unwrap(language)[(int) index] = espressoValue;
+        }
+
+        @SuppressWarnings("unused")
+        @Fallback
+        static void doOther(StaticObject receiver, long index, Object value) throws UnsupportedMessageException {
+            throw UnsupportedMessageException.create();
+        }
+    }
+
+    protected static boolean isBooleanArray(StaticObject object) {
+        return !isNull(object) && object.getKlass().equals(object.getKlass().getMeta()._boolean_array);
+    }
+
+    protected static boolean isCharArray(StaticObject object) {
+        return !isNull(object) && object.getKlass().equals(object.getKlass().getMeta()._char_array);
+    }
+
+    protected static boolean isByteArray(StaticObject object) {
+        return !isNull(object) && object.getKlass().equals(object.getKlass().getMeta()._byte_array);
+    }
+
+    protected static boolean isShortArray(StaticObject object) {
+        return !isNull(object) && object.getKlass().equals(object.getKlass().getMeta()._short_array);
+    }
+
+    protected static boolean isIntArray(StaticObject object) {
+        return !isNull(object) && object.getKlass().equals(object.getKlass().getMeta()._int_array);
+    }
+
+    protected static boolean isLongArray(StaticObject object) {
+        return !isNull(object) && object.getKlass().equals(object.getKlass().getMeta()._long_array);
+    }
+
+    protected static boolean isFloatArray(StaticObject object) {
+        return !isNull(object) && object.getKlass().equals(object.getKlass().getMeta()._float_array);
+    }
+
+    protected static boolean isDoubleArray(StaticObject object) {
+        return !isNull(object) && object.getKlass().equals(object.getKlass().getMeta()._double_array);
+    }
+
+    protected static boolean isStringArray(StaticObject object) {
+        return !isNull(object) && object.getKlass().equals(object.getKlass().getMeta().java_lang_String.array());
+    }
+
+    protected static boolean isPrimitiveArray(StaticObject object) {
+        return isBooleanArray(object) || isCharArray(object) || isByteArray(object) || isShortArray(object) || isIntArray(object) || isLongArray(object) || isFloatArray(object) ||
+                        isDoubleArray(object);
+    }
+
+    protected static boolean isStaticObject(Object object) {
+        return object instanceof StaticObject;
+    }
+
+    @ExportMessage
+    @ExportMessage(name = "isArrayElementModifiable")
+    static boolean isArrayElementReadable(StaticObject receiver, long index, @CachedLibrary("receiver") InteropLibrary receiverLib) {
+        receiver.checkNotForeign();
+        return receiver.isArray() && 0 <= index && index < receiver.length(EspressoLanguage.get(receiverLib));
+    }
+
+    @SuppressWarnings({"unused", "static-method"})
+    @ExportMessage
+    static boolean isArrayElementInsertable(StaticObject receiver, long index) {
+        return false;
+    }
+
+    // endregion ### Arrays
+
+    // region ### Members
+
+    @ExportMessage
+    static Object readMember(StaticObject receiver, String member,
+                    @Cached @Exclusive LookupInstanceFieldNode lookupField,
+                    @Cached @Exclusive LookupVirtualMethodNode lookupMethod) throws UnknownIdentifierException {
+        receiver.checkNotForeign();
+        if (notNull(receiver)) {
+            Field f = lookupField.execute(getInteropKlass(receiver), member);
+            if (f != null) {
+                return InteropUtils.unwrap(EspressoLanguage.get(lookupField), f.get(receiver), receiver.getKlass().getMeta());
+            }
+            try {
+                Method[] candidates = lookupMethod.execute(getInteropKlass(receiver), member, -1);
+                if (candidates != null) {
+                    if
