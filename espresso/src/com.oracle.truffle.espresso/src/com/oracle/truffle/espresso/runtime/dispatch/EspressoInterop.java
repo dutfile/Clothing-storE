@@ -847,4 +847,170 @@ public class EspressoInterop extends BaseInterop {
             try {
                 Method[] candidates = lookupMethod.execute(getInteropKlass(receiver), member, -1);
                 if (candidates != null) {
-                    if
+                    if (candidates.length == 1) {
+                        return EspressoFunction.createInstanceInvocable(candidates[0], receiver);
+                    }
+                }
+            } catch (ArityException e) {
+                /* Ignore */
+            }
+            // Class<T>.static == Klass<T>
+            if (CLASS_TO_STATIC.equals(member)) {
+                if (receiver.getKlass() == receiver.getKlass().getMeta().java_lang_Class) {
+                    return receiver.getMirrorKlass();
+                }
+            }
+            // Class<T>.class == Class<T>
+            if (STATIC_TO_CLASS.equals(member)) {
+                if (receiver.getKlass() == receiver.getKlass().getMeta().java_lang_Class) {
+                    return receiver;
+                }
+            }
+        }
+        throw UnknownIdentifierException.create(member);
+    }
+
+    @ExportMessage
+    static boolean hasMembers(StaticObject receiver) {
+        if (receiver.isForeignObject()) {
+            return false;
+        }
+        return notNull(receiver);
+    }
+
+    @ExportMessage
+    static boolean isMemberReadable(StaticObject receiver, String member,
+                    @Cached @Exclusive LookupInstanceFieldNode lookupField,
+                    @Cached @Exclusive LookupVirtualMethodNode lookupMethod) {
+        receiver.checkNotForeign();
+        Field f = lookupField.execute(getInteropKlass(receiver), member);
+        if (f != null) {
+            return true;
+        }
+        if (lookupMethod.isInvocable(getInteropKlass(receiver), member)) {
+            return true;
+        }
+        return notNull(receiver) && receiver.getKlass() == receiver.getKlass().getMeta().java_lang_Class //
+                        && (CLASS_TO_STATIC.equals(member) || STATIC_TO_CLASS.equals(member));
+    }
+
+    @ExportMessage
+    static boolean isMemberModifiable(StaticObject receiver, String member,
+                    @Cached @Exclusive LookupInstanceFieldNode lookup) {
+        receiver.checkNotForeign();
+        Field f = lookup.execute(getInteropKlass(receiver), member);
+        if (f != null) {
+            return !f.isFinalFlagSet();
+        }
+        return false;
+    }
+
+    @ExportMessage
+    static void writeMember(StaticObject receiver, String member, Object value,
+                    @Cached @Exclusive LookupInstanceFieldNode lookup,
+                    @Shared("toEspresso") @Cached ToEspressoNode toEspresso,
+                    @Shared("error") @Cached BranchProfile error) throws UnsupportedTypeException, UnknownIdentifierException, UnsupportedMessageException {
+        receiver.checkNotForeign();
+        Field f = lookup.execute(getInteropKlass(receiver), member);
+        if (f != null) {
+            if (f.isFinalFlagSet()) {
+                error.enter();
+                throw UnsupportedMessageException.create();
+            }
+            f.set(receiver, toEspresso.execute(value, f.resolveTypeKlass()));
+            return;
+        }
+        error.enter();
+        throw UnknownIdentifierException.create(member);
+    }
+
+    @ExportMessage
+    @SuppressWarnings("unused")
+    static boolean isMemberInsertable(StaticObject receiver, String member) {
+        return false;
+    }
+
+    private static final String[] CLASS_KEYS = {CLASS_TO_STATIC, STATIC_TO_CLASS};
+
+    public static ObjectKlass getInteropKlass(StaticObject receiver) {
+        if (receiver.getKlass().isArray()) {
+            return receiver.getKlass().getMeta().java_lang_Object;
+        } else {
+            assert !receiver.getKlass().isPrimitive() : "Static Object should not represent a primitive.";
+            return (ObjectKlass) receiver.getKlass();
+        }
+    }
+
+    @ExportMessage
+    @TruffleBoundary
+    static Object getMembers(StaticObject receiver,
+                    @SuppressWarnings("unused") boolean includeInternal) {
+        receiver.checkNotForeign();
+        if (isNull(receiver)) {
+            return EmptyKeysArray.INSTANCE;
+        }
+        ArrayList<String> members = new ArrayList<>();
+        if (receiver.getKlass() == receiver.getKlass().getMeta().java_lang_Class) {
+            // SVM does not like ArrayList.addAll(). Do manual copy.
+            for (String s : CLASS_KEYS) {
+                members.add(s);
+            }
+        }
+        ObjectKlass k = getInteropKlass(receiver);
+
+        for (Field f : k.getFieldTable()) {
+            if (f.isPublic() && !f.isRemoved()) {
+                members.add(f.getNameAsString());
+            }
+        }
+
+        for (Method.MethodVersion m : k.getVTable()) {
+            if (LookupVirtualMethodNode.isCandidate(m.getMethod())) {
+                // Note: If there are overloading, the same key may appear twice.
+                // TODO: Cache the keys array in the Klass.
+                members.add(m.getMethod().getInteropString());
+            }
+        }
+        // SVM does not like ArrayList.toArray(). Do manual copy.
+        String[] array = new String[members.size()];
+        int pos = 0;
+        for (String str : members) {
+            array[pos++] = str;
+        }
+        return new KeysArray(array);
+    }
+
+    @ExportMessage
+    static boolean isMemberInvocable(StaticObject receiver,
+                    String member,
+                    @Exclusive @Cached LookupVirtualMethodNode lookupMethod) {
+        receiver.checkNotForeign();
+        if (isNull(receiver)) {
+            return false;
+        }
+        ObjectKlass k = getInteropKlass(receiver);
+        return lookupMethod.isInvocable(k, member);
+    }
+
+    @ExportMessage
+    static Object invokeMember(StaticObject receiver,
+                    String member,
+                    Object[] arguments,
+                    @Exclusive @Cached LookupVirtualMethodNode lookupMethod,
+                    @Exclusive @Cached OverLoadedMethodSelectorNode selectorNode,
+                    @Exclusive @Cached InvokeEspressoNode invoke,
+                    @Exclusive @Cached ToEspressoNode toEspressoNode)
+                    throws ArityException, UnknownIdentifierException, UnsupportedTypeException {
+        Method[] candidates = lookupMethod.execute(receiver.getKlass(), member, arguments.length);
+        try {
+            if (candidates != null) {
+                if (candidates.length == 1) {
+                    // common case with no overloads
+                    Method m = candidates[0];
+                    assert !m.isStatic() && m.isPublic();
+                    assert member.startsWith(m.getNameAsString());
+                    if (!m.isVarargs()) {
+                        assert m.getParameterCount() == arguments.length;
+                        return invoke.execute(m, receiver, arguments);
+                    } else {
+                        Can
