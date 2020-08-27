@@ -1013,4 +1013,123 @@ public class EspressoInterop extends BaseInterop {
                         assert m.getParameterCount() == arguments.length;
                         return invoke.execute(m, receiver, arguments);
                     } else {
-                        Can
+                        CandidateMethodWithArgs matched = MethodArgsUtils.matchCandidate(m, arguments, m.resolveParameterKlasses(), toEspressoNode);
+                        if (matched != null) {
+                            matched = MethodArgsUtils.ensureVarArgsArrayCreated(matched, toEspressoNode);
+                            if (matched != null) {
+                                return invoke.execute(matched.getMethod(), receiver, matched.getConvertedArgs(), true);
+                            }
+                        }
+                    }
+                } else {
+                    // multiple overloaded methods found
+                    // find method with type matches
+                    CandidateMethodWithArgs typeMatched = selectorNode.execute(candidates, arguments);
+                    if (typeMatched != null) {
+                        // single match found!
+                        return invoke.execute(typeMatched.getMethod(), receiver, typeMatched.getConvertedArgs(), true);
+                    } else {
+                        // unable to select exactly one best candidate for the input args!
+                        throw UnknownIdentifierException.create(member);
+                    }
+                }
+            }
+        } catch (EspressoException e) {
+            Meta meta = e.getGuestException().getKlass().getMeta();
+            if (e.getGuestException().getKlass() == meta.polyglot.ForeignException) {
+                // rethrow the original foreign exception when leaving espresso interop
+                EspressoLanguage language = receiver.getKlass().getContext().getLanguage();
+                throw (AbstractTruffleException) meta.java_lang_Throwable_backtrace.getObject(e.getGuestException()).rawForeignObject(language);
+            }
+            throw e;
+        }
+        throw UnknownIdentifierException.create(member);
+    }
+
+    // endregion ### Members
+
+    // region ### Date/time conversions
+
+    @ExportMessage
+    static boolean isDate(StaticObject receiver) {
+        receiver.checkNotForeign();
+        if (isNull(receiver)) {
+            return false;
+        }
+        Meta meta = receiver.getKlass().getMeta();
+        return instanceOf(receiver, meta.java_time_LocalDate) ||
+                        instanceOf(receiver, meta.java_time_LocalDateTime) ||
+                        instanceOf(receiver, meta.java_time_Instant) ||
+                        instanceOf(receiver, meta.java_time_ZonedDateTime) ||
+                        instanceOf(receiver, meta.java_util_Date);
+    }
+
+    @ExportMessage
+    static @TruffleBoundary LocalDate asDate(StaticObject receiver,
+                    @Shared("error") @Cached BranchProfile error) throws UnsupportedMessageException {
+        receiver.checkNotForeign();
+        if (isDate(receiver)) {
+            Meta meta = receiver.getKlass().getMeta();
+            if (instanceOf(receiver, meta.java_time_LocalDate)) {
+                int year = (int) meta.java_time_LocalDate_year.get(receiver);
+                short month = (short) meta.java_time_LocalDate_month.get(receiver);
+                short day = (short) meta.java_time_LocalDate_day.get(receiver);
+                return LocalDate.of(year, month, day);
+            } else if (instanceOf(receiver, meta.java_time_LocalDateTime)) {
+                StaticObject localDate = (StaticObject) meta.java_time_LocalDateTime_toLocalDate.invokeDirect(receiver);
+                assert instanceOf(localDate, meta.java_time_LocalDate);
+                return asDate(localDate, error);
+            } else if (instanceOf(receiver, meta.java_time_Instant)) {
+                StaticObject zoneIdUTC = (StaticObject) meta.java_time_ZoneId_of.invokeDirect(null, meta.toGuestString("UTC"));
+                assert instanceOf(zoneIdUTC, meta.java_time_ZoneId);
+                StaticObject zonedDateTime = (StaticObject) meta.java_time_Instant_atZone.invokeDirect(receiver, zoneIdUTC);
+                assert instanceOf(zonedDateTime, meta.java_time_ZonedDateTime);
+                StaticObject localDate = (StaticObject) meta.java_time_ZonedDateTime_toLocalDate.invokeDirect(zonedDateTime);
+                assert instanceOf(localDate, meta.java_time_LocalDate);
+                return asDate(localDate, error);
+            } else if (instanceOf(receiver, meta.java_time_ZonedDateTime)) {
+                StaticObject localDate = (StaticObject) meta.java_time_ZonedDateTime_toLocalDate.invokeDirect(receiver);
+                assert instanceOf(localDate, meta.java_time_LocalDate);
+                return asDate(localDate, error);
+            } else if (instanceOf(receiver, meta.java_util_Date)) {
+                // return ((Date) obj).toInstant().atZone(UTC).toLocalDate();
+                int index = meta.java_util_Date_toInstant.getVTableIndex();
+                Method virtualToInstant = receiver.getKlass().vtableLookup(index);
+                StaticObject instant = (StaticObject) virtualToInstant.invokeDirect(receiver);
+                return asDate(instant, error);
+            }
+        }
+        error.enter();
+        throw UnsupportedMessageException.create();
+    }
+
+    @ExportMessage
+    static boolean isTime(StaticObject receiver) {
+        receiver.checkNotForeign();
+        if (isNull(receiver)) {
+            return false;
+        }
+        Meta meta = receiver.getKlass().getMeta();
+        return instanceOf(receiver, meta.java_time_LocalTime) ||
+                        instanceOf(receiver, meta.java_time_Instant) ||
+                        instanceOf(receiver, meta.java_time_ZonedDateTime) ||
+                        instanceOf(receiver, meta.java_util_Date);
+    }
+
+    @ExportMessage
+    static @TruffleBoundary LocalTime asTime(StaticObject receiver,
+                    @Shared("error") @Cached BranchProfile error) throws UnsupportedMessageException {
+        receiver.checkNotForeign();
+        if (isTime(receiver)) {
+            Meta meta = receiver.getKlass().getMeta();
+            if (instanceOf(receiver, meta.java_time_LocalTime)) {
+                byte hour = (byte) meta.java_time_LocalTime_hour.get(receiver);
+                byte minute = (byte) meta.java_time_LocalTime_minute.get(receiver);
+                byte second = (byte) meta.java_time_LocalTime_second.get(receiver);
+                int nano = (int) meta.java_time_LocalTime_nano.get(receiver);
+                return LocalTime.of(hour, minute, second, nano);
+            } else if (instanceOf(receiver, meta.java_time_LocalDateTime)) {
+                StaticObject localTime = (StaticObject) meta.java_time_LocalDateTime_toLocalTime.invokeDirect(receiver);
+                return asTime(localTime, error);
+            } else if (instanceOf(receiver, meta.java_time_ZonedDateTime)) {
+                StaticObject localTime = (StaticObject) meta.ja
