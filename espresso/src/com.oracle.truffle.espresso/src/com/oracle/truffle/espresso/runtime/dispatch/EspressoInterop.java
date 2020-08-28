@@ -1132,4 +1132,115 @@ public class EspressoInterop extends BaseInterop {
                 StaticObject localTime = (StaticObject) meta.java_time_LocalDateTime_toLocalTime.invokeDirect(receiver);
                 return asTime(localTime, error);
             } else if (instanceOf(receiver, meta.java_time_ZonedDateTime)) {
-                StaticObject localTime = (StaticObject) meta.ja
+                StaticObject localTime = (StaticObject) meta.java_time_ZonedDateTime_toLocalTime.invokeDirect(receiver);
+                return asTime(localTime, error);
+            } else if (instanceOf(receiver, meta.java_time_Instant)) {
+                // return ((Instant) obj).atZone(UTC).toLocalTime();
+                StaticObject zoneIdUTC = (StaticObject) meta.java_time_ZoneId_of.invokeDirect(null, meta.toGuestString("UTC"));
+                assert instanceOf(zoneIdUTC, meta.java_time_ZoneId);
+                StaticObject zonedDateTime = (StaticObject) meta.java_time_Instant_atZone.invokeDirect(receiver, zoneIdUTC);
+                assert instanceOf(zonedDateTime, meta.java_time_ZonedDateTime);
+                StaticObject localTime = (StaticObject) meta.java_time_ZonedDateTime_toLocalTime.invokeDirect(zonedDateTime);
+                assert instanceOf(localTime, meta.java_time_LocalTime);
+                return asTime(localTime, error);
+            } else if (instanceOf(receiver, meta.java_util_Date)) {
+                // return ((Date) obj).toInstant().atZone(UTC).toLocalTime();
+                int index = meta.java_util_Date_toInstant.getVTableIndex();
+                Method virtualToInstant = receiver.getKlass().vtableLookup(index);
+                StaticObject instant = (StaticObject) virtualToInstant.invokeDirect(receiver);
+                return asTime(instant, error);
+            }
+        }
+        error.enter();
+        throw UnsupportedMessageException.create();
+    }
+
+    @ExportMessage
+    static boolean isTimeZone(StaticObject receiver) {
+        receiver.checkNotForeign();
+        if (isNull(receiver)) {
+            return false;
+        }
+        Meta meta = receiver.getKlass().getMeta();
+        return instanceOf(receiver, meta.java_time_ZoneId) ||
+                        instanceOf(receiver, meta.java_time_Instant) ||
+                        instanceOf(receiver, meta.java_time_ZonedDateTime) ||
+                        instanceOf(receiver, meta.java_util_Date);
+    }
+
+    @ExportMessage
+    static @TruffleBoundary ZoneId asTimeZone(StaticObject receiver,
+                    @Shared("error") @Cached BranchProfile error) throws UnsupportedMessageException {
+        receiver.checkNotForeign();
+        if (isTimeZone(receiver)) {
+            Meta meta = receiver.getKlass().getMeta();
+            if (instanceOf(receiver, meta.java_time_ZoneId)) {
+                int index = meta.java_time_ZoneId_getId.getVTableIndex();
+                StaticObject zoneIdEspresso = (StaticObject) receiver.getKlass().vtableLookup(index).invokeDirect(receiver);
+                String zoneId = Meta.toHostStringStatic(zoneIdEspresso);
+                return ZoneId.of(zoneId, ZoneId.SHORT_IDS);
+            } else if (instanceOf(receiver, meta.java_time_ZonedDateTime)) {
+                StaticObject zoneId = (StaticObject) meta.java_time_ZonedDateTime_getZone.invokeDirect(receiver);
+                return asTimeZone(zoneId, error);
+            } else if (instanceOf(receiver, meta.java_time_Instant) ||
+                            instanceOf(receiver, meta.java_util_Date)) {
+                return ZoneId.of("UTC");
+            }
+        }
+        error.enter();
+        throw UnsupportedMessageException.create();
+    }
+
+    @ExportMessage
+    static @TruffleBoundary Instant asInstant(StaticObject receiver,
+                    @CachedLibrary("receiver") InteropLibrary receiverLibrary, @Shared("error") @Cached BranchProfile error) throws UnsupportedMessageException {
+        receiver.checkNotForeign();
+        if (receiverLibrary.isInstant(receiver)) {
+            StaticObject instant;
+            Meta meta = receiver.getKlass().getMeta();
+            if (instanceOf(receiver, meta.java_time_ZonedDateTime)) {
+                instant = (StaticObject) meta.java_time_ZonedDateTime_toInstant.invokeDirect(receiver);
+            } else if (instanceOf(receiver, meta.java_util_Date)) {
+                int index = meta.java_util_Date_toInstant.getVTableIndex();
+                Method virtualToInstant = receiver.getKlass().vtableLookup(index);
+                instant = (StaticObject) virtualToInstant.invokeDirect(receiver);
+            } else {
+                instant = receiver;
+            }
+            assert instanceOf(instant, meta.java_time_Instant);
+            long seconds = (long) meta.java_time_Instant_seconds.get(instant);
+            int nanos = (int) meta.java_time_Instant_nanos.get(instant);
+            return Instant.ofEpochSecond(seconds, nanos);
+        }
+        error.enter();
+        throw UnsupportedMessageException.create();
+    }
+
+    @ExportMessage
+    static boolean isDuration(StaticObject receiver) {
+        receiver.checkNotForeign();
+        if (isNull(receiver)) {
+            return false;
+        }
+        Meta meta = receiver.getKlass().getMeta();
+        return instanceOf(receiver, meta.java_time_Duration);
+    }
+
+    @ExportMessage
+    static Duration asDuration(StaticObject receiver,
+                    @Shared("error") @Cached BranchProfile error) throws UnsupportedMessageException {
+        receiver.checkNotForeign();
+        if (isDuration(receiver)) {
+            Meta meta = receiver.getKlass().getMeta();
+            // Avoid expensive calls to Duration.{getSeconds/getNano} by extracting the private
+            // fields directly.
+            long seconds = (long) meta.java_time_Duration_seconds.get(receiver);
+            int nanos = (int) meta.java_time_Duration_nanos.get(receiver);
+            return Duration.ofSeconds(seconds, nanos);
+        }
+        error.enter();
+        throw UnsupportedMessageException.create();
+    }
+
+    // endregion ### Date/time conversions
+}
