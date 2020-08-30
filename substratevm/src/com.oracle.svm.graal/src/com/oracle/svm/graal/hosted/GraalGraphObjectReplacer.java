@@ -290,4 +290,164 @@ public class GraalGraphObjectReplacer implements Function<Object, Object> {
         SubstrateFieldLocationIdentity dest = fieldLocationIdentities.get(original);
         if (dest == null) {
             SubstrateField destField = createField(original.getField());
-   
+            dest = new SubstrateFieldLocationIdentity(destField, original.isImmutable());
+            fieldLocationIdentities.put(original, dest);
+        }
+        return dest;
+    }
+
+    public SubstrateField getField(AnalysisField field) {
+        return fields.get(field);
+    }
+
+    public boolean removeField(AnalysisField field) {
+        return fields.remove(field) != null;
+    }
+
+    public boolean typeCreated(JavaType original) {
+        return types.containsKey(toAnalysisType(original));
+    }
+
+    public synchronized SubstrateType createType(JavaType original) {
+        assert !(original instanceof SubstrateType) : original;
+        if (original == null) {
+            return null;
+        }
+
+        AnalysisType aType = toAnalysisType(original);
+        VMError.guarantee(aType.isLinked(), "types reachable for JIT compilation must not have linkage errors");
+        SubstrateType sType = types.get(aType);
+
+        if (sType == null) {
+            assert !(original instanceof HostedType) : "too late to create new type";
+            aType.registerAsReachable("type reachable from Graal graphs");
+            DynamicHub hub = ((SVMHost) aUniverse.hostVM()).dynamicHub(aType);
+            sType = new SubstrateType(aType.getJavaKind(), hub);
+            types.put(aType, sType);
+            hub.setMetaType(sType);
+            aUniverse.getHeapScanner().rescanField(hub, dynamicHubMetaTypeField);
+
+            sType.setRawAllInstanceFields(createAllInstanceFields(aType));
+            aUniverse.getHeapScanner().rescanField(sType, substrateTypeRawAllInstanceFieldsField);
+            createType(aType.getSuperclass());
+            createType(aType.getComponentType());
+            for (AnalysisType aInterface : aType.getInterfaces()) {
+                createType(aInterface);
+            }
+        }
+        return sType;
+    }
+
+    private static AnalysisType toAnalysisType(JavaType original) {
+        if (original instanceof HostedType) {
+            return ((HostedType) original).getWrapped();
+        } else if (original instanceof AnalysisType) {
+            return (AnalysisType) original;
+        } else {
+            throw new InternalError("unexpected type " + original);
+        }
+    }
+
+    private SubstrateField[] createAllInstanceFields(ResolvedJavaType originalType) {
+        ResolvedJavaField[] originalFields = originalType.getInstanceFields(true);
+        SubstrateField[] sFields = new SubstrateField[originalFields.length];
+        for (int idx = 0; idx < originalFields.length; idx++) {
+            sFields[idx] = createField(originalFields[idx]);
+        }
+        return sFields;
+    }
+
+    private synchronized SubstrateSignature createSignature(Signature original) {
+        assert !(original instanceof SubstrateSignature) : original;
+
+        SubstrateSignature sSignature = signatures.get(original);
+        if (sSignature == null) {
+            sSignature = new SubstrateSignature();
+            signatures.put(original, sSignature);
+
+            SubstrateType[] parameterTypes = new SubstrateType[original.getParameterCount(false)];
+            for (int index = 0; index < original.getParameterCount(false); index++) {
+                parameterTypes[index] = createType(original.getParameterType(index, null));
+            }
+            /*
+             * The links to other meta objects must be set after adding to the signatures to avoid
+             * infinite recursion.
+             */
+            sSignature.setTypes(parameterTypes, createType(original.getReturnType(null)));
+        }
+        return sSignature;
+    }
+
+    /**
+     * Some meta data must be updated during analysis. This is done here.
+     */
+    public boolean updateDataDuringAnalysis() {
+        boolean result = false;
+        List<AnalysisMethod> aMethods = new ArrayList<>();
+        aMethods.addAll(methods.keySet());
+
+        int index = 0;
+        while (index < aMethods.size()) {
+            AnalysisMethod aMethod = aMethods.get(index++);
+            SubstrateMethod sMethod = methods.get(aMethod);
+
+            SubstrateMethod[] implementations = new SubstrateMethod[aMethod.getImplementations().length];
+            int idx = 0;
+            for (AnalysisMethod impl : aMethod.getImplementations()) {
+                SubstrateMethod sImpl = methods.get(impl);
+                if (sImpl == null) {
+                    sImpl = createMethod(impl);
+                    aMethods.add(impl);
+                    result = true;
+                }
+                implementations[idx++] = sImpl;
+            }
+            if (sMethod.setImplementations(implementations)) {
+                aUniverse.getHeapScanner().rescanField(sMethod, substrateMethodImplementationsField);
+                result = true;
+            }
+        }
+
+        for (Map.Entry<AnalysisMethod, SubstrateMethod> entry : methods.entrySet()) {
+            AnalysisMethod aMethod = entry.getKey();
+            SubstrateMethod sMethod = entry.getValue();
+            if (setAnnotationsEncoding(aMethod, sMethod, sMethod.getAnnotationsEncoding())) {
+                result = true;
+            }
+        }
+        for (Map.Entry<AnalysisField, SubstrateField> entry : fields.entrySet()) {
+            AnalysisField aField = entry.getKey();
+            SubstrateField sField = entry.getValue();
+            if (setAnnotationsEncoding(aField, sField, sField.getAnnotationsEncoding())) {
+                result = true;
+            }
+        }
+
+        return result;
+    }
+
+    private boolean setAnnotationsEncoding(AnalysisMethod aMethod, SubstrateMethod sMethod, Object oldEncoding) {
+        Object annotationsEncoding = AnnotationsProcessor.encodeAnnotations(aMetaAccess, aMethod.getAnnotations(), aMethod.getDeclaredAnnotations(), oldEncoding);
+        if (sMethod.setAnnotationsEncoding(annotationsEncoding)) {
+            aUniverse.getHeapScanner().rescanField(sMethod, substrateMethodAnnotationsEncodingField);
+            return true;
+        }
+        return false;
+    }
+
+    private boolean setAnnotationsEncoding(AnalysisField aField, SubstrateField sField, Object oldEncoding) {
+        Object annotationsEncoding = AnnotationsProcessor.encodeAnnotations(aMetaAccess, aField.getAnnotations(), aField.getDeclaredAnnotations(), oldEncoding);
+        if (sField.setAnnotationsEncoding(annotationsEncoding)) {
+            aUniverse.getHeapScanner().rescanField(sField, substrateFieldAnnotationsEncodingField);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Updates all relevant data from universe building. Object replacement is done during analysis.
+     * Therefore all substrate VM related data has to be updated after building the substrate
+     * universe.
+     */
+    @SuppressWarnings("try")
+    publi
