@@ -450,4 +450,77 @@ public class GraalGraphObjectReplacer implements Function<Object, Object> {
      * universe.
      */
     @SuppressWarnings("try")
-    publi
+    public void updateSubstrateDataAfterCompilation(HostedUniverse hUniverse, ConstantFieldProvider constantFieldProvider) {
+
+        for (Map.Entry<AnalysisType, SubstrateType> entry : types.entrySet()) {
+            AnalysisType aType = entry.getKey();
+            SubstrateType sType = entry.getValue();
+
+            if (!hUniverse.contains(aType)) {
+                continue;
+            }
+            HostedType hType = hUniverse.lookup(aType);
+
+            if (hType.getUniqueConcreteImplementation() != null) {
+                sType.setTypeCheckData(hType.getUniqueConcreteImplementation().getHub());
+            }
+
+            if (sType.getInstanceFieldCount() > 1) {
+                /*
+                 * What we do here is just a reordering of the instance fields array. The fields
+                 * array already contains all the fields, but in the order of the AnalysisType. As
+                 * the UniverseBuilder reorders the fields, we re-construct the fields array in the
+                 * order of the HostedType. The correct order is essential for materialization
+                 * during deoptimization.
+                 */
+                sType.setRawAllInstanceFields(createAllInstanceFields(hType));
+            }
+        }
+
+        for (Map.Entry<AnalysisField, SubstrateField> entry : fields.entrySet()) {
+            AnalysisField aField = entry.getKey();
+            SubstrateField sField = entry.getValue();
+            HostedField hField = hUniverse.lookup(aField);
+
+            JavaConstant constantValue = hField.isStatic() && ((HostedConstantFieldProvider) constantFieldProvider).isFinalField(hField, null) ? hField.readValue(null) : null;
+            sField.setSubstrateData(hField.getLocation(), hField.isAccessed(), hField.isWritten(), constantValue);
+        }
+    }
+
+    public void updateSubstrateDataAfterHeapLayout(HostedUniverse hUniverse) {
+        for (Map.Entry<AnalysisMethod, SubstrateMethod> entry : methods.entrySet()) {
+            AnalysisMethod aMethod = entry.getKey();
+            SubstrateMethod sMethod = entry.getValue();
+            HostedMethod hMethod = hUniverse.lookup(aMethod);
+            int vTableIndex = (hMethod.hasVTableIndex() ? hMethod.getVTableIndex() : -1);
+
+            /*
+             * We access the offset of methods in the image code section here. Therefore, this code
+             * can only run after the heap and code cache layout was done.
+             */
+            sMethod.setSubstrateData(vTableIndex, hMethod.isCodeAddressOffsetValid() ? hMethod.getCodeAddressOffset() : 0, hMethod.getDeoptOffsetInImage());
+        }
+    }
+
+    public void registerImmutableObjects(CompilationAccess access) {
+        for (SubstrateMethod method : methods.values()) {
+            access.registerAsImmutable(method);
+            access.registerAsImmutable(method.getRawImplementations());
+            access.registerAsImmutable(method.getEncodedLineNumberTable());
+        }
+        for (SubstrateField field : fields.values()) {
+            access.registerAsImmutable(field);
+        }
+        for (FieldLocationIdentity fieldLocationIdentity : fieldLocationIdentities.values()) {
+            access.registerAsImmutable(fieldLocationIdentity);
+        }
+        for (SubstrateType type : types.values()) {
+            access.registerAsImmutable(type);
+            access.registerAsImmutable(type.getRawAllInstanceFields());
+        }
+        for (SubstrateSignature signature : signatures.values()) {
+            access.registerAsImmutable(signature);
+            access.registerAsImmutable(signature.getRawParameterTypes());
+        }
+    }
+}
