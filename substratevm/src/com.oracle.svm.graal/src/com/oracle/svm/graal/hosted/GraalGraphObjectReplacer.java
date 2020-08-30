@@ -159,4 +159,135 @@ public class GraalGraphObjectReplacer implements Function<Object, Object> {
         } else if (source instanceof GraalHotSpotVMConfig) {
             throw new UnsupportedFeatureException("GraalHotSpotVMConfig should not appear in the image: " + source);
         } else if (source instanceof HotSpotBackendFactory) {
-            HotSpotBackendFact
+            HotSpotBackendFactory factory = (HotSpotBackendFactory) source;
+            Architecture hostArch = HotSpotJVMCIRuntime.runtime().getHostJVMCIBackend().getTarget().arch;
+            if (!factory.getArchitecture().equals(hostArch.getClass())) {
+                throw new UnsupportedFeatureException("Non-host archtecture HotSpotBackendFactory should not appear in the image: " + source);
+            }
+        } else if (source instanceof GraalRuntime) {
+            dest = sGraalRuntime;
+        } else if (source instanceof AnalysisConstantReflectionProvider) {
+            dest = sProviders.getConstantReflectionProvider();
+        } else if (source instanceof AnalysisConstantFieldProvider) {
+            dest = sProviders.getConstantFieldProvider();
+        } else if (source instanceof ForeignCallsProvider) {
+            dest = sProviders.getForeignCallsProvider();
+        } else if (source instanceof SnippetReflectionProvider) {
+            dest = sProviders.getSnippetReflectionProvider();
+
+        } else if (source instanceof MetricKey) {
+            /* Ensure lazily initialized name fields are computed. */
+            ((MetricKey) source).getName();
+        } else if (source instanceof NodeClass) {
+            /* Ensure lazily initialized shortName field is computed. */
+            ((NodeClass<?>) source).shortName();
+
+        } else if (source instanceof HotSpotResolvedJavaMethod) {
+            throw new UnsupportedFeatureException(source.toString());
+        } else if (source instanceof HotSpotResolvedJavaField) {
+            throw new UnsupportedFeatureException(source.toString());
+        } else if (source instanceof HotSpotResolvedJavaType) {
+            throw new UnsupportedFeatureException(source.toString());
+        } else if (source instanceof HotSpotSignature) {
+            throw new UnsupportedFeatureException(source.toString());
+        } else if (source instanceof HotSpotObjectConstant) {
+            throw new UnsupportedFeatureException(source.toString());
+        } else if (source instanceof ResolvedJavaMethod && !(source instanceof SubstrateMethod)) {
+            dest = createMethod((ResolvedJavaMethod) source);
+        } else if (source instanceof ResolvedJavaField && !(source instanceof SubstrateField)) {
+            dest = createField((ResolvedJavaField) source);
+        } else if (source instanceof ResolvedJavaType && !(source instanceof SubstrateType)) {
+            dest = createType((ResolvedJavaType) source);
+        } else if (source instanceof FieldLocationIdentity && !(source instanceof SubstrateFieldLocationIdentity)) {
+            dest = createFieldLocationIdentity((FieldLocationIdentity) source);
+        }
+
+        assert dest != null;
+        String className = dest.getClass().getName();
+        assert SubstrateUtil.isBuildingLibgraal() || !className.contains(".hotspot.") || className.contains(".svm.jtt.hotspot.") : "HotSpot object in image " + className;
+        assert !className.contains(".graal.reachability") : "Analysis meta object in image " + className;
+        assert !className.contains(".pointsto.meta.") : "Analysis meta object in image " + className;
+        assert !className.contains(".hosted.meta.") : "Hosted meta object in image " + className;
+        assert !SubstrateUtil.isBuildingLibgraal() || !className.contains(".svm.hosted.snippets.") : "Hosted snippet object in image " + className;
+
+        return dest;
+    }
+
+    public synchronized SubstrateMethod createMethod(ResolvedJavaMethod original) {
+        assert !(original instanceof SubstrateMethod) : original;
+
+        AnalysisMethod aMethod;
+        if (original instanceof AnalysisMethod) {
+            aMethod = (AnalysisMethod) original;
+        } else if (original instanceof HostedMethod) {
+            aMethod = ((HostedMethod) original).wrapped;
+        } else {
+            aMethod = aUniverse.lookup(original);
+        }
+        aMethod = aMethod.getMultiMethod(MultiMethod.ORIGINAL_METHOD);
+        assert aMethod != null;
+
+        SubstrateMethod sMethod = methods.get(aMethod);
+        if (sMethod == null) {
+            assert !(original instanceof HostedMethod) : "too late to create new method";
+            sMethod = new SubstrateMethod(aMethod, stringTable);
+            methods.put(aMethod, sMethod);
+
+            /*
+             * The links to other meta objects must be set after adding to the methods to avoid
+             * infinite recursion.
+             */
+            sMethod.setLinks(createSignature(aMethod.getSignature()), createType(aMethod.getDeclaringClass()));
+
+            /*
+             * Annotations are updated in every analysis iteration, but this is a starting point. It
+             * also ensures that all types used by annotations are created eagerly.
+             */
+            setAnnotationsEncoding(aMethod, sMethod, null);
+        }
+        return sMethod;
+    }
+
+    public synchronized SubstrateField createField(ResolvedJavaField original) {
+        assert !(original instanceof SubstrateField) : original;
+
+        AnalysisField aField;
+        if (original instanceof AnalysisField) {
+            aField = (AnalysisField) original;
+        } else if (original instanceof HostedField) {
+            aField = ((HostedField) original).wrapped;
+        } else {
+            throw new InternalError(original.toString());
+        }
+        SubstrateField sField = fields.get(aField);
+
+        if (sField == null) {
+            assert !(original instanceof HostedField) : "too late to create new field";
+
+            int modifiers = aField.getModifiers();
+            if (ReadableJavaField.injectFinalForRuntimeCompilation(aField.wrapped)) {
+                modifiers = modifiers | Modifier.FINAL;
+            }
+            sField = new SubstrateField(aField, modifiers, stringTable);
+            fields.put(aField, sField);
+
+            sField.setLinks(createType(aField.getType()), createType(aField.getDeclaringClass()));
+            aUniverse.getHeapScanner().rescanField(sField, substrateFieldTypeField);
+            aUniverse.getHeapScanner().rescanField(sField, substrateFieldDeclaringClassField);
+
+            /*
+             * Annotations are updated in every analysis iteration, but this is a starting point. It
+             * also ensures that all types used by annotations are created eagerly.
+             */
+            setAnnotationsEncoding(aField, sField, null);
+        }
+        return sField;
+    }
+
+    private synchronized SubstrateFieldLocationIdentity createFieldLocationIdentity(FieldLocationIdentity original) {
+        assert !(original instanceof SubstrateFieldLocationIdentity) : original;
+
+        SubstrateFieldLocationIdentity dest = fieldLocationIdentities.get(original);
+        if (dest == null) {
+            SubstrateField destField = createField(original.getField());
+   
