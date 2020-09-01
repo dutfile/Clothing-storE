@@ -246,4 +246,81 @@ public class StampFactory {
     }
 
     public static ObjectStamp object(TypeReference type, boolean nonNull) {
- 
+        if (type == null) {
+            return new ObjectStamp(null, false, nonNull, false, false);
+        } else {
+            return new ObjectStamp(type.getType(), type.isExact(), nonNull, false, false);
+        }
+    }
+
+    public static Stamp[] createParameterStamps(Assumptions assumptions, ResolvedJavaMethod method) {
+        return createParameterStamps(assumptions, method, false);
+    }
+
+    public static Stamp[] createParameterStamps(Assumptions assumptions, ResolvedJavaMethod method, boolean trustInterfaceTypes) {
+        Signature signature = method.getSignature();
+        Stamp[] result = new Stamp[signature.getParameterCount(method.hasReceiver())];
+
+        int index = 0;
+        ResolvedJavaType accessingClass = method.getDeclaringClass();
+        if (method.hasReceiver()) {
+            if (trustInterfaceTypes) {
+                result[index++] = StampFactory.objectNonNull(TypeReference.createTrusted(assumptions, accessingClass));
+            } else {
+                result[index++] = StampFactory.objectNonNull(TypeReference.create(assumptions, accessingClass));
+            }
+        }
+
+        for (int i = 0; i < signature.getParameterCount(false); i++) {
+            JavaType type = signature.getParameterType(i, accessingClass);
+            JavaKind kind = type.getJavaKind();
+
+            Stamp stamp;
+            if (kind == JavaKind.Object && type instanceof ResolvedJavaType) {
+                if (trustInterfaceTypes) {
+                    stamp = StampFactory.object(TypeReference.createTrusted(assumptions, (ResolvedJavaType) type));
+                } else {
+                    stamp = StampFactory.object(TypeReference.create(assumptions, (ResolvedJavaType) type));
+                }
+            } else {
+                stamp = StampFactory.forKind(kind);
+            }
+            result[index++] = stamp;
+        }
+
+        return result;
+    }
+
+    public static Stamp pointer() {
+        return rawPointer;
+    }
+
+    public static StampPair forDeclaredType(Assumptions assumptions, JavaType returnType, boolean nonNull) {
+        if (returnType.getJavaKind() == JavaKind.Object && returnType instanceof ResolvedJavaType) {
+            ResolvedJavaType resolvedJavaType = (ResolvedJavaType) returnType;
+            TypeReference reference = TypeReference.create(assumptions, resolvedJavaType);
+            ResolvedJavaType elementalType = resolvedJavaType.getElementalType();
+            if (elementalType.isInterface()) {
+                assert reference == null || !reference.getType().equals(resolvedJavaType);
+                TypeReference uncheckedType;
+                ResolvedJavaType elementalImplementor = elementalType.getSingleImplementor();
+                if (elementalImplementor != null && !elementalType.equals(elementalImplementor)) {
+                    ResolvedJavaType implementor = elementalImplementor;
+                    ResolvedJavaType t = resolvedJavaType;
+                    while (t.isArray()) {
+                        implementor = implementor.getArrayClass();
+                        t = t.getComponentType();
+                    }
+                    uncheckedType = TypeReference.createTrusted(assumptions, implementor);
+                } else {
+                    uncheckedType = TypeReference.createTrusted(assumptions, resolvedJavaType);
+                }
+                return StampPair.create(StampFactory.object(reference, nonNull), StampFactory.object(uncheckedType, nonNull));
+            }
+            return StampPair.createSingle(StampFactory.object(reference, nonNull));
+        } else {
+            return StampPair.createSingle(StampFactory.forKind(returnType.getJavaKind()));
+        }
+    }
+
+}
