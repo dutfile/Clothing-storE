@@ -123,4 +123,54 @@ final class ASTSuccessor implements JsonConvertible {
             if (lookBehind.getSuccessors().size() > 1 || lb.hasLookArounds()) {
                 throw new UnsupportedRegexException("nested look-behind assertions");
             }
-            CodePointSet intersection = getInitialTransitionCharSet(compilationBuff
+            CodePointSet intersection = getInitialTransitionCharSet(compilationBuffer).createIntersection(lb.getInitialTransitionCharSet(compilationBuffer), compilationBuffer);
+            if (intersection.matchesSomething()) {
+                canonicalizer.addArgument(lb.getInitialTransition(), intersection);
+            }
+        }
+        TransitionBuilder<RegexAST, Term, ASTTransition>[] mergedLookBehinds = canonicalizer.run(compilationBuffer);
+        Collections.addAll(mergedStates, mergedLookBehinds);
+        ArrayList<TransitionBuilder<RegexAST, Term, ASTTransition>> newMergedStates = new ArrayList<>();
+        for (ASTStep lookAhead : lookAheads) {
+            for (TransitionBuilder<RegexAST, Term, ASTTransition> state : mergedStates) {
+                addAllIntersecting(canonicalizer, state, lookAhead, newMergedStates, compilationBuffer);
+            }
+            ArrayList<TransitionBuilder<RegexAST, Term, ASTTransition>> tmp = mergedStates;
+            mergedStates = newMergedStates;
+            newMergedStates = tmp;
+            newMergedStates.clear();
+        }
+    }
+
+    private void addAllIntersecting(ASTTransitionCanonicalizer canonicalizer, TransitionBuilder<RegexAST, Term, ASTTransition> state, ASTStep lookAround,
+                    ArrayList<TransitionBuilder<RegexAST, Term, ASTTransition>> result, CompilationBuffer compilationBuffer) {
+        for (ASTSuccessor successor : lookAround.getSuccessors()) {
+            for (TransitionBuilder<RegexAST, Term, ASTTransition> lookAroundState : successor.getMergedStates(canonicalizer, compilationBuffer)) {
+                CodePointSet intersection = state.getCodePointSet().createIntersection(lookAroundState.getCodePointSet(), compilationBuffer);
+                if (intersection.matchesSomething()) {
+                    if (mergedTransitions == null) {
+                        mergedTransitions = new ObjectArrayBuffer<>();
+                    }
+                    mergedTransitions.clear();
+                    StateSet<RegexAST, Term> mergedStateSet = state.getTransitionSet().getTargetStateSet().copy();
+                    mergedTransitions.addAll(state.getTransitionSet().getTransitions());
+                    for (int i = 0; i < lookAroundState.getTransitionSet().size(); i++) {
+                        ASTTransition t = lookAroundState.getTransitionSet().getTransition(i);
+                        if (mergedStateSet.add(t.getTarget())) {
+                            mergedTransitions.add(t);
+                        }
+                    }
+                    result.add(new TransitionBuilder<>(mergedTransitions.toArray(new ASTTransition[mergedTransitions.length()]), mergedStateSet, intersection));
+                }
+            }
+        }
+    }
+
+    @TruffleBoundary
+    @Override
+    public JsonValue toJson() {
+        return Json.obj(Json.prop("lookAheads", lookAheads.stream().map(x -> Json.val(x.getRoot().getId())).collect(Collectors.toList())),
+                        Json.prop("lookBehinds", lookBehinds.stream().map(x -> Json.val(x.getRoot().getId())).collect(Collectors.toList())),
+                        Json.prop("mergedStates", mergedStates));
+    }
+}
