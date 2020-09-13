@@ -367,4 +367,142 @@ public class LoopFragmentInside extends LoopFragment {
 
     private void mergeRegularEarlyExit(FixedNode next, AbstractBeginNode exitBranchBegin, LoopExitNode oldExit, LoopBeginNode mainLoopBegin, StructuredGraph graph,
                     EconomicMap<Node, Node> new2OldPhis, LoopEx loop) {
-        AbstractMergeNode merge = ((End
+        AbstractMergeNode merge = ((EndNode) next).merge();
+        assert merge instanceof MergeNode : "Can only merge loop exits on regular merges";
+        assert exitBranchBegin.next() == null;
+        LoopExitNode lex = graph.add(new LoopExitNode(mainLoopBegin));
+        createExitStateForNewSegmentEarlyExit(graph, oldExit, lex, new2OldPhis);
+        EndNode end = graph.add(new EndNode());
+        exitBranchBegin.setNext(lex);
+        lex.setNext(end);
+        merge.addForwardEnd(end);
+        for (PhiNode phi : merge.phis()) {
+            ValueNode input = phi.valueAt((EndNode) next);
+            ValueNode replacement;
+            if (!loop.whole().contains(input)) {
+                // node is produced above the loop
+                replacement = input;
+            } else {
+                // if the node is inside this loop the input must be a proxy
+                replacement = patchProxyAtPhi(phi, lex, getNodeInExitPathFromUnrolledSegment((ProxyNode) input, new2OldPhis));
+            }
+            phi.addInput(replacement);
+        }
+    }
+
+    public static ValueNode patchProxyAtPhi(PhiNode phi, LoopExitNode lex, ValueNode proxyInput) {
+        if (phi instanceof ValuePhiNode) {
+            return phi.graph().addOrUnique(new ValueProxyNode(proxyInput, lex));
+        } else if (phi instanceof MemoryPhiNode) {
+            return phi.graph().addOrUnique(new MemoryProxyNode((MemoryKill) proxyInput, lex, ((MemoryPhiNode) phi).getLocationIdentity()));
+        } else if (phi instanceof GuardPhiNode) {
+            return phi.graph().addOrUnique(new GuardProxyNode((GuardingNode) proxyInput, lex));
+
+        } else {
+            throw GraalError.shouldNotReachHere("Unknown phi type " + phi); // ExcludeFromJacocoGeneratedReport
+        }
+    }
+
+    private void createExitStateForNewSegmentEarlyExit(StructuredGraph graph, LoopExitNode exit, LoopExitNode lex, EconomicMap<Node, Node> new2OldPhis) {
+        assert exit.stateAfter() != null;
+        FrameState exitState = exit.stateAfter();
+        FrameState duplicate = exitState.duplicateWithVirtualState();
+        graph.getDebug().dump(DebugContext.VERY_DETAILED_LEVEL, graph, "After duplicating state %s for new exit %s", exitState, lex);
+        duplicate.applyToNonVirtual(new NodePositionClosure<>() {
+            @Override
+            public void apply(Node from, Position p) {
+                ValueNode to = (ValueNode) p.get(from);
+                // all inputs that are proxied need replacing the other ones are implicitly not
+                // produced inside this loop
+                if (to instanceof ProxyNode) {
+                    ProxyNode originalProxy = (ProxyNode) to;
+                    if (originalProxy.proxyPoint() == exit) {
+                        // create a new proxy for this value
+                        ValueNode replacement = getNodeInExitPathFromUnrolledSegment(originalProxy, new2OldPhis);
+                        assert replacement != null : originalProxy;
+                        p.set(from, originalProxy.duplicateOn(lex, replacement));
+                    }
+                } else {
+                    if (original().contains(to)) {
+                        ValueNode replacement = getDuplicatedNode(to);
+                        assert replacement != null;
+                        p.set(from, replacement);
+                    }
+                }
+            }
+        });
+        graph.getDebug().dump(DebugContext.VERY_DETAILED_LEVEL, graph, "After duplicating state replacing values with inputs proxied %s", duplicate);
+        lex.setStateAfter(duplicate);
+
+    }
+
+    /**
+     * Get the value of the original iteration in the unrolled segment.
+     */
+    private ValueNode getNodeInExitPathFromUnrolledSegment(ProxyNode proxy, EconomicMap<Node, Node> new2OldPhis) {
+        ValueNode originalNode = proxy.getOriginalNode();
+        ValueNode replacement = null;
+        /*
+         * Either the node is part of the regular duplicated nodes and is thus in the original node
+         * set or its a phi for which we do not have the values of the duplicated iteration at the
+         * loop ends
+         */
+        if (original().contains(originalNode) || proxy.proxyPoint().loopBegin().isPhiAtMerge(originalNode)) {
+            ValueNode nextIterationVal = getDuplicatedNode(originalNode);
+            if (nextIterationVal == null) {
+                assert proxy.proxyPoint().loopBegin().isPhiAtMerge(originalNode);
+                LoopBeginNode mainLoopBegin = proxy.proxyPoint().loopBegin();
+                LoopEndNode endBeforeSegment = mainLoopBegin.getSingleLoopEnd();
+                PhiNode loopPhi = (PhiNode) originalNode;
+                ValueNode phiInputAtOriginalSegment = loopPhi.valueAt(endBeforeSegment);
+
+                // this is already the duplicated node since the segment is already added to the
+                // graph
+                replacement = (ValueNode) new2OldPhis.get(phiInputAtOriginalSegment);
+                if (replacement == null) {
+                    /*
+                     * Special case the input of the phi is not part of the loop
+                     */
+                    replacement = phiInputAtOriginalSegment;
+                }
+                assert replacement != null;
+            } else {
+                replacement = nextIterationVal;
+            }
+        } else {
+            /*
+             * Imprecise: We should never enter this branch, as this means there is a proxy for a
+             * node that is not actually part of a loop, however, this may happen sometimes for
+             * floating nodes and their, wrong, inclusion inside a loop, this question can only be
+             * really solved with a schedule which we do not have.
+             *
+             * Thus, this node must be dominating our loop entirely.
+             */
+            replacement = originalNode;
+        }
+        return replacement;
+    }
+
+    protected static EndNode getBlockEnd(FixedNode node) {
+        FixedNode curNode = node;
+        while (curNode instanceof FixedWithNextNode) {
+            curNode = ((FixedWithNextNode) curNode).next();
+        }
+        return (EndNode) curNode;
+    }
+
+    @Override
+    public NodeBitMap nodes() {
+        if (nodes == null) {
+            LoopFragmentWhole whole = loop().whole();
+            whole.nodes(); // init nodes bitmap in whole
+            nodes = whole.nodes.copy();
+            // remove the phis
+            LoopBeginNode loopBegin = loop().loopBegin();
+            for (PhiNode phi : loopBegin.phis()) {
+                nodes.clear(phi);
+            }
+            clearStateNodes(loopBegin);
+            for (LoopExitNode exit : exits()) {
+                clearStateNodes(exit);
+                for (Pr
