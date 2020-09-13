@@ -109,4 +109,151 @@ public class LoopFragmentInside extends LoopFragment {
         @Override
         public Node replacement(Node oriInput) {
             if (!(oriInput instanceof ValueNode)) {
-            
+                return oriInput;
+            }
+            return primAfter((ValueNode) oriInput);
+        }
+    };
+
+    public LoopFragmentInside(LoopEx loop) {
+        super(loop);
+    }
+
+    public LoopFragmentInside(LoopFragmentInside original) {
+        super(null, original);
+    }
+
+    @Override
+    public LoopFragmentInside duplicate() {
+        assert !isDuplicate();
+        return new LoopFragmentInside(this);
+    }
+
+    @Override
+    public LoopFragmentInside original() {
+        return (LoopFragmentInside) super.original();
+    }
+
+    @SuppressWarnings("unused")
+    public void appendInside(LoopEx loop) {
+        GraalError.unimplemented(); // ExcludeFromJacocoGeneratedReport
+    }
+
+    @Override
+    public LoopEx loop() {
+        assert !this.isDuplicate();
+        return super.loop();
+    }
+
+    @Override
+    public void insertBefore(LoopEx loop) {
+        assert this.isDuplicate() && this.original().loop() == loop;
+
+        patchNodes(dataFixBefore);
+
+        AbstractBeginNode end = mergeEnds();
+
+        mergeEarlyExits();
+
+        original().patchPeeling(this);
+
+        AbstractBeginNode entry = getDuplicatedNode(loop.loopBegin());
+        loop.entryPoint().replaceAtPredecessor(entry);
+        end.setNext(loop.entryPoint());
+    }
+
+    /**
+     * Duplicate the body within the loop after the current copy copy of the body, updating the
+     * iteration limit to account for the duplication.
+     */
+    public void insertWithinAfter(LoopEx loop, EconomicMap<LoopBeginNode, OpaqueNode> opaqueUnrolledStrides) {
+        assert isDuplicate() && original().loop() == loop;
+
+        patchNodes(dataFixWithinAfter);
+
+        /*
+         * Collect any new back edges values before updating them since they might reference each
+         * other.
+         */
+        LoopBeginNode mainLoopBegin = loop.loopBegin();
+        ArrayList<ValueNode> backedgeValues = new ArrayList<>();
+        EconomicMap<Node, Node> new2OldPhis = EconomicMap.create();
+        EconomicMap<Node, Node> originalPhi2Backedges = EconomicMap.create();
+        for (PhiNode mainPhiNode : mainLoopBegin.phis()) {
+            originalPhi2Backedges.put(mainPhiNode, mainPhiNode.valueAt(1));
+        }
+        for (PhiNode mainPhiNode : mainLoopBegin.phis()) {
+            ValueNode originalNode = mainPhiNode.valueAt(1);
+            ValueNode duplicatedNode = getDuplicatedNode(originalNode);
+            if (duplicatedNode == null) {
+                if (mainLoopBegin.isPhiAtMerge(originalNode)) {
+                    duplicatedNode = ((PhiNode) (originalNode)).valueAt(1);
+                } else {
+                    assert originalNode.isConstant() || loop.isOutsideLoop(originalNode) : "Not duplicated node " + originalNode;
+                }
+            }
+            if (duplicatedNode != null) {
+                new2OldPhis.put(duplicatedNode, originalNode);
+            }
+            backedgeValues.add(duplicatedNode);
+        }
+        int index = 0;
+        for (PhiNode mainPhiNode : mainLoopBegin.phis()) {
+            ValueNode duplicatedNode = backedgeValues.get(index++);
+            if (duplicatedNode != null) {
+                mainPhiNode.setValueAt(1, duplicatedNode);
+            }
+        }
+
+        CompareNode condition = placeNewSegmentAndCleanup(loop, new2OldPhis, originalPhi2Backedges);
+
+        // Remove any safepoints from the original copy leaving only the duplicated one, inverted
+        // ones have their safepoint between the limit check and the backedge that have been removed
+        // already.
+        assert loop.whole().nodes().filter(SafepointNode.class).count() == nodes().filter(SafepointNode.class).count() || loop.counted.isInverted();
+        for (SafepointNode safepoint : loop.whole().nodes().filter(SafepointNode.class)) {
+            graph().removeFixed(safepoint);
+        }
+
+        StructuredGraph graph = mainLoopBegin.graph();
+        if (opaqueUnrolledStrides != null) {
+            OpaqueNode opaque = opaqueUnrolledStrides.get(loop.loopBegin());
+            CountedLoopInfo counted = loop.counted();
+            ValueNode counterStride = counted.getLimitCheckedIV().strideNode();
+            if (opaque == null || opaque.isDeleted()) {
+                ValueNode limit = counted.getLimit();
+                opaque = new OpaqueNode(AddNode.add(counterStride, counterStride, NodeView.DEFAULT));
+                ValueNode newLimit = partialUnrollOverflowCheck(opaque, limit, counted);
+                GraalError.guarantee(condition.hasExactlyOneUsage(),
+                                "Unrolling loop %s with condition %s, which has multiple usages. Usages other than the loop exit check would get an incorrect condition.", loop.loopBegin(), condition);
+                condition.replaceFirstInput(limit, graph.addOrUniqueWithInputs(newLimit));
+                opaqueUnrolledStrides.put(loop.loopBegin(), opaque);
+            } else {
+                assert counted.getLimitCheckedIV().isConstantStride();
+                assert Math.addExact(counted.getLimitCheckedIV().constantStride(), counted.getLimitCheckedIV().constantStride()) == counted.getLimitCheckedIV().constantStride() * 2;
+                ValueNode previousValue = opaque.getValue();
+                opaque.setValue(graph.addOrUniqueWithInputs(AddNode.add(counterStride, previousValue, NodeView.DEFAULT)));
+                GraphUtil.tryKillUnused(previousValue);
+            }
+        }
+        mainLoopBegin.setUnrollFactor(mainLoopBegin.getUnrollFactor() * 2);
+        graph.getDebug().dump(DebugContext.DETAILED_LEVEL, graph, "LoopPartialUnroll %s", loop);
+
+        mainLoopBegin.getDebug().dump(DebugContext.VERBOSE_LEVEL, mainLoopBegin.graph(), "After insertWithinAfter %s", mainLoopBegin);
+    }
+
+    public static ValueNode partialUnrollOverflowCheck(OpaqueNode opaque, ValueNode limit, CountedLoopInfo counted) {
+        int bits = ((IntegerStamp) limit.stamp(NodeView.DEFAULT)).getBits();
+        ValueNode newLimit = SubNode.create(limit, opaque, NodeView.DEFAULT);
+        IntegerHelper helper = counted.getCounterIntegerHelper();
+        LogicNode overflowCheck;
+        ConstantNode extremum;
+        if (counted.getDirection() == InductionVariable.Direction.Up) {
+            // limit - counterStride could overflow negatively if limit - min <
+            // counterStride
+            extremum = ConstantNode.forIntegerBits(bits, helper.minValue());
+            overflowCheck = IntegerBelowNode.create(SubNode.create(limit, extremum, NodeView.DEFAULT), opaque, NodeView.DEFAULT);
+        } else {
+            assert counted.getDirection() == InductionVariable.Direction.Down;
+            // limit - counterStride could overflow if max - limit < -counterStride
+         
