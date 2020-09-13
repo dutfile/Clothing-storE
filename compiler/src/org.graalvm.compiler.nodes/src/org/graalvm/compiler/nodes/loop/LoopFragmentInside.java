@@ -689,4 +689,119 @@ public class LoopFragmentInside extends LoopFragment {
 
     private static void markStateNodes(StateSplit stateSplit, NodeBitMap marks) {
         FrameState exitState = stateSplit.stateAfter();
-     
+        if (exitState != null) {
+            exitState.applyToVirtual(v -> marks.markAndGrow(v));
+        }
+    }
+
+    /**
+     * Gets the corresponding value in this fragment.
+     *
+     * @param b original value
+     * @return corresponding value in the peel
+     */
+    @Override
+    protected ValueNode prim(ValueNode b) {
+        assert isDuplicate();
+        LoopBeginNode loopBegin = original().loop().loopBegin();
+        if (loopBegin.isPhiAtMerge(b)) {
+            PhiNode phi = (PhiNode) b;
+            return phi.valueAt(loopBegin.forwardEnd());
+        } else if (nodesReady) {
+            ValueNode v = getDuplicatedNode(b);
+            if (v == null) {
+                return b;
+            }
+            return v;
+        } else {
+            return b;
+        }
+    }
+
+    protected ValueNode primAfter(ValueNode b) {
+        assert isDuplicate();
+        LoopBeginNode loopBegin = original().loop().loopBegin();
+        if (loopBegin.isPhiAtMerge(b)) {
+            PhiNode phi = (PhiNode) b;
+            assert phi.valueCount() == 2;
+            return phi.valueAt(1);
+        } else if (nodesReady) {
+            ValueNode v = getDuplicatedNode(b);
+            if (v == null) {
+                return b;
+            }
+            return v;
+        } else {
+            return b;
+        }
+    }
+
+    @SuppressWarnings("try")
+    private AbstractBeginNode mergeEnds() {
+        assert isDuplicate();
+        List<EndNode> endsToMerge = new LinkedList<>();
+        // map peel exits to the corresponding loop exits
+        EconomicMap<AbstractEndNode, LoopEndNode> reverseEnds = EconomicMap.create(Equivalence.IDENTITY);
+        LoopBeginNode loopBegin = original().loop().loopBegin();
+        for (LoopEndNode le : loopBegin.loopEnds()) {
+            AbstractEndNode duplicate = getDuplicatedNode(le);
+            if (duplicate != null) {
+                endsToMerge.add((EndNode) duplicate);
+                reverseEnds.put(duplicate, le);
+            }
+        }
+        mergedInitializers = EconomicMap.create(Equivalence.IDENTITY);
+        AbstractBeginNode newExit;
+        StructuredGraph graph = graph();
+        if (endsToMerge.size() == 1) {
+            AbstractEndNode end = endsToMerge.get(0);
+            assert end.hasNoUsages();
+            try (DebugCloseable position = end.withNodeSourcePosition()) {
+                newExit = graph.add(new BeginNode());
+                end.replaceAtPredecessor(newExit);
+                end.safeDelete();
+            }
+        } else {
+            assert endsToMerge.size() > 1;
+            AbstractMergeNode newExitMerge = graph.add(new MergeNode());
+            newExit = newExitMerge;
+            FrameState state = loopBegin.stateAfter();
+            FrameState duplicateState = null;
+            if (state != null) {
+                duplicateState = state.duplicateWithVirtualState();
+                newExitMerge.setStateAfter(duplicateState);
+            }
+            for (EndNode end : endsToMerge) {
+                newExitMerge.addForwardEnd(end);
+            }
+
+            for (final PhiNode phi : loopBegin.phis().snapshot()) {
+                if (phi.hasNoUsages()) {
+                    continue;
+                }
+                final PhiNode firstPhi = phi.duplicateOn(newExitMerge);
+                firstPhi.setNodeSourcePosition(newExitMerge.getNodeSourcePosition());
+                for (AbstractEndNode end : newExitMerge.forwardEnds()) {
+                    LoopEndNode loopEnd = reverseEnds.get(end);
+                    ValueNode prim = prim(phi.valueAt(loopEnd));
+                    assert prim != null;
+                    firstPhi.addInput(prim);
+                }
+                ValueNode initializer = firstPhi;
+                if (duplicateState != null) {
+                    // fix the merge's state after
+                    duplicateState.applyToNonVirtual(new NodePositionClosure<>() {
+                        @Override
+                        public void apply(Node from, Position p) {
+                            if (p.get(from) == phi) {
+                                p.set(from, firstPhi);
+                            }
+                        }
+                    });
+                }
+                mergedInitializers.put(phi, initializer);
+            }
+        }
+        return newExit;
+    }
+}
