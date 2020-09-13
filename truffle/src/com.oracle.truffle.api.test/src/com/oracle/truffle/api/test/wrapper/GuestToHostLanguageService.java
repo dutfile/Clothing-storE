@@ -85,4 +85,108 @@ public class GuestToHostLanguageService extends AbstractHostLanguageService {
     }
 
     @Override
-    public Object asHostStaticClass(Object co
+    public Object asHostStaticClass(Object context, Class<?> value) {
+        // this should be supported by serializing the class name and loading it on the host
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Object findDynamicClass(Object context, String classValue) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Object findStaticClass(Object context, String classValue) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public <T> T toHostType(Object hostNode, Object targetNode, Object hostContext, Object value, Class<T> targetType, Type genericType) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean isHostValue(Object value) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Object unboxHostObject(Object hostValue) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Object unboxProxyObject(Object hostValue) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Throwable unboxHostException(Throwable hostValue) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Object toHostObject(Object context, Object value) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public RuntimeException toHostException(Object hostContext, Throwable exception) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean isHostException(Object exception) {
+        return false;
+    }
+
+    @Override
+    public boolean isHostFunction(Object obj) {
+        return false;
+    }
+
+    @Override
+    public boolean isHostObject(Object obj) {
+        return false;
+    }
+
+    @Override
+    public boolean isHostSymbol(Object obj) {
+        return false;
+    }
+
+    @Override
+    public Object createHostAdapter(Object hostContextObject, Object[] types, Object classOverrides) {
+        return null;
+    }
+
+    @Override
+    public boolean isHostProxy(Object value) {
+        return false;
+    }
+
+    @Override
+    public Object migrateValue(Object hostContext, Object value, Object valueContext) {
+        return null;
+    }
+
+    @Override
+    public Error toHostResourceError(Throwable hostException) {
+        return null;
+    }
+
+    @Override
+    public int findNextGuestToHostStackTraceElement(StackTraceElement firstElement, StackTraceElement[] hostStack, int nextElementIndex) {
+        return -1;
+    }
+
+    @Override
+    public void pin(Object receiver) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void hostExit(int exitCode) {
+        System.exit(exitCode);
+    }
+}
