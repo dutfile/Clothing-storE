@@ -256,4 +256,115 @@ public class LoopFragmentInside extends LoopFragment {
         } else {
             assert counted.getDirection() == InductionVariable.Direction.Down;
             // limit - counterStride could overflow if max - limit < -counterStride
-         
+            // i.e., counterStride < limit - max
+            extremum = ConstantNode.forIntegerBits(bits, helper.maxValue());
+            overflowCheck = IntegerBelowNode.create(opaque, SubNode.create(limit, extremum, NodeView.DEFAULT), NodeView.DEFAULT);
+        }
+        return ConditionalNode.create(overflowCheck, extremum, newLimit, NodeView.DEFAULT);
+    }
+
+    protected CompareNode placeNewSegmentAndCleanup(LoopEx loop, EconomicMap<Node, Node> new2OldPhis, @SuppressWarnings("unused") EconomicMap<Node, Node> originalPhi2Backedges) {
+        CountedLoopInfo mainCounted = loop.counted();
+        LoopBeginNode mainLoopBegin = loop.loopBegin();
+        // Discard the segment entry and its flow, after if merging it into the loop
+        StructuredGraph graph = mainLoopBegin.graph();
+        IfNode loopTest = mainCounted.getLimitTest();
+        IfNode newSegmentLoopTest = getDuplicatedNode(loopTest);
+
+        graph.getDebug().dump(DebugContext.DETAILED_LEVEL, graph, "After duplicating segment");
+
+        if (mainCounted.getBody() != loop.loopBegin()) {
+            // regular loop
+            AbstractBeginNode falseSuccessor = newSegmentLoopTest.falseSuccessor();
+            for (Node usage : falseSuccessor.anchored().snapshot()) {
+                usage.replaceFirstInput(falseSuccessor, loopTest.falseSuccessor());
+            }
+            AbstractBeginNode trueSuccessor = newSegmentLoopTest.trueSuccessor();
+            for (Node usage : trueSuccessor.anchored().snapshot()) {
+                usage.replaceFirstInput(trueSuccessor, loopTest.trueSuccessor());
+            }
+
+            assert graph.isBeforeStage(StageFlag.VALUE_PROXY_REMOVAL) || mainLoopBegin.loopExits().count() <= 1 : "Can only merge early loop exits if graph has value proxies " +
+                            mainLoopBegin;
+
+            mergeEarlyLoopExits(graph, mainLoopBegin, mainCounted, new2OldPhis, loop);
+
+            // remove if test
+            graph.removeSplitPropagate(newSegmentLoopTest, loopTest.trueSuccessor() == mainCounted.getBody() ? trueSuccessor : falseSuccessor);
+
+            graph.getDebug().dump(DebugContext.DETAILED_LEVEL, graph, "Before placing segment");
+            if (mainCounted.getBody().next() instanceof LoopEndNode) {
+                GraphUtil.killCFG(getDuplicatedNode(mainLoopBegin));
+            } else {
+                AbstractBeginNode newSegmentBegin = getDuplicatedNode(mainLoopBegin);
+                FixedNode newSegmentFirstNode = newSegmentBegin.next();
+                EndNode newSegmentEnd = getBlockEnd((FixedNode) getDuplicatedNode(mainLoopBegin.loopEnds().first().predecessor()));
+                FixedWithNextNode newSegmentLastNode = (FixedWithNextNode) newSegmentEnd.predecessor();
+                LoopEndNode loopEndNode = mainLoopBegin.getSingleLoopEnd();
+                FixedWithNextNode lastCodeNode = (FixedWithNextNode) loopEndNode.predecessor();
+
+                newSegmentBegin.clearSuccessors();
+                if (newSegmentBegin.hasAnchored()) {
+                    /*
+                     * LoopPartialUnrollPhase runs after guard lowering, thus we cannot see any
+                     * floating guards here except multi-guard nodes (pointing to abstract begins)
+                     * and other anchored nodes. We need to ensure anything anchored on the original
+                     * loop begin will be anchored on the unrolled iteration. Thus we create an
+                     * anchor point here ensuring nothing can flow above the original iteration.
+                     */
+                    if (!(lastCodeNode instanceof GuardingNode) || !(lastCodeNode instanceof AnchoringNode)) {
+                        ValueAnchorNode newAnchoringPointAfterPrevIteration = graph.add(new ValueAnchorNode(null));
+                        graph.addAfterFixed(lastCodeNode, newAnchoringPointAfterPrevIteration);
+                        lastCodeNode = newAnchoringPointAfterPrevIteration;
+                    }
+                    newSegmentBegin.replaceAtUsages(lastCodeNode, InputType.Guard, InputType.Anchor);
+                }
+                lastCodeNode.replaceFirstSuccessor(loopEndNode, newSegmentFirstNode);
+                newSegmentLastNode.replaceFirstSuccessor(newSegmentEnd, loopEndNode);
+
+                newSegmentBegin.safeDelete();
+                newSegmentEnd.safeDelete();
+            }
+            graph.getDebug().dump(DebugContext.DETAILED_LEVEL, graph, "After placing segment");
+            return (CompareNode) loopTest.condition();
+        } else {
+            throw GraalError.shouldNotReachHere("Cannot unroll inverted loop"); // ExcludeFromJacocoGeneratedReport
+        }
+    }
+
+    /**
+     *
+     * For counted loops we have a special nomenclature regarding loop exits, the counted loop exit
+     * is the regular loop exit after all iterations finished, all other loop exits exit the loop
+     * earlier, thus we call them early exits.
+     *
+     * Merge early, non-counted, loop exits of the loop for unrolling, this currently requires value
+     * proxies to properly proxy all values along the way.
+     *
+     * Unrolling loops with multiple exits is special in the way the exits are handled.
+     * Pre-Main-Post creation will merge them.
+     */
+    protected void mergeEarlyLoopExits(StructuredGraph graph, LoopBeginNode mainLoopBegin, CountedLoopInfo mainCounted, EconomicMap<Node, Node> new2OldPhis, LoopEx loop) {
+        if (mainLoopBegin.loopExits().count() <= 1) {
+            return;
+        }
+        assert graph.isBeforeStage(StageFlag.VALUE_PROXY_REMOVAL) : "Unrolling with multiple exits requires proxies";
+        // rewire non-counted exits with the follow nodes: merges or sinks
+        for (LoopExitNode exit : mainLoopBegin.loopExits().snapshot()) {
+            // regular path along we unroll
+            if (exit == mainCounted.getCountedExit()) {
+                continue;
+            }
+            FixedNode next = exit.next();
+            AbstractBeginNode begin = getDuplicatedNode(exit);
+            if (next instanceof EndNode) {
+                mergeRegularEarlyExit(next, begin, exit, mainLoopBegin, graph, new2OldPhis, loop);
+            } else {
+                GraalError.shouldNotReachHere("Can only unroll loops where the early exits which merge " + next + " duplicated node is " + begin + " main loop begin is " + mainLoopBegin); // ExcludeFromJacocoGeneratedReport
+            }
+        }
+    }
+
+    private void mergeRegularEarlyExit(FixedNode next, AbstractBeginNode exitBranchBegin, LoopExitNode oldExit, LoopBeginNode mainLoopBegin, StructuredGraph graph,
+                    EconomicMap<Node, Node> new2OldPhis, LoopEx loop) {
+        AbstractMergeNode merge = ((End
