@@ -505,4 +505,188 @@ public class LoopFragmentInside extends LoopFragment {
             clearStateNodes(loopBegin);
             for (LoopExitNode exit : exits()) {
                 clearStateNodes(exit);
-                for (Pr
+                for (ProxyNode proxy : exit.proxies()) {
+                    nodes.clear(proxy);
+                }
+            }
+        }
+        return nodes;
+    }
+
+    private void clearStateNodes(StateSplit stateSplit) {
+        FrameState loopState = stateSplit.stateAfter();
+        if (loopState != null) {
+            loopState.applyToVirtual(v -> {
+                /*
+                 * Frame states can reuse virtual object mappings thus n can be new
+                 */
+                if (v.usages().filter(n -> !nodes.isNew(n) && nodes.isMarked(n) && n != stateSplit).isEmpty()) {
+                    nodes.clear(v);
+                }
+            });
+        }
+
+    }
+
+    public NodeIterable<LoopExitNode> exits() {
+        return loop().loopBegin().loopExits();
+    }
+
+    @Override
+    @SuppressWarnings("try")
+    protected DuplicationReplacement getDuplicationReplacement() {
+        final LoopBeginNode loopBegin = loop().loopBegin();
+        final StructuredGraph graph = graph();
+        return new DuplicationReplacement() {
+
+            private EconomicMap<Node, Node> seenNode = EconomicMap.create(Equivalence.IDENTITY);
+
+            @Override
+            public Node replacement(Node original) {
+                try (DebugCloseable position = original.withNodeSourcePosition()) {
+                    if (original == loopBegin) {
+                        Node value = seenNode.get(original);
+                        if (value != null) {
+                            return value;
+                        }
+                        AbstractBeginNode newValue = graph.add(new BeginNode());
+                        seenNode.put(original, newValue);
+                        return newValue;
+                    }
+                    if (original instanceof LoopExitNode && ((LoopExitNode) original).loopBegin() == loopBegin) {
+                        Node value = seenNode.get(original);
+                        if (value != null) {
+                            return value;
+                        }
+                        AbstractBeginNode newValue = graph.add(new BeginNode());
+                        seenNode.put(original, newValue);
+                        return newValue;
+                    }
+                    if (original instanceof LoopEndNode && ((LoopEndNode) original).loopBegin() == loopBegin) {
+                        Node value = seenNode.get(original);
+                        if (value != null) {
+                            return value;
+                        }
+                        EndNode newValue = graph.add(new EndNode());
+                        seenNode.put(original, newValue);
+                        return newValue;
+                    }
+                    return original;
+                }
+            }
+        };
+    }
+
+    @Override
+    protected void beforeDuplication() {
+        // Nothing to do
+    }
+
+    private EconomicMap<PhiNode, PhiNode> old2NewPhi;
+
+    public EconomicMap<PhiNode, PhiNode> getOld2NewPhi() {
+        return old2NewPhi;
+    }
+
+    private void patchPeeling(LoopFragmentInside peel) {
+        LoopBeginNode loopBegin = loop().loopBegin();
+        List<PhiNode> newPhis = new LinkedList<>();
+
+        NodeBitMap usagesToPatch = nodes.copy();
+        for (LoopExitNode exit : exits()) {
+            markStateNodes(exit, usagesToPatch);
+            for (ProxyNode proxy : exit.proxies()) {
+                usagesToPatch.markAndGrow(proxy);
+            }
+        }
+        markStateNodes(loopBegin, usagesToPatch);
+
+        List<PhiNode> oldPhis = loopBegin.phis().snapshot();
+
+        if (peel.old2NewPhi == null) {
+            peel.old2NewPhi = EconomicMap.create();
+        }
+
+        for (PhiNode phi : oldPhis) {
+            if (phi.hasNoUsages()) {
+                peel.old2NewPhi.put(phi, null);
+                continue;
+            }
+            ValueNode first;
+            if (loopBegin.loopEnds().count() == 1) {
+                ValueNode b = phi.valueAt(loopBegin.loopEnds().first()); // back edge value
+                if (b == null) {
+                    assert phi instanceof GuardPhiNode;
+                    first = null;
+                } else {
+                    first = peel.prim(b); // corresponding value in the peel
+                }
+            } else {
+                first = peel.mergedInitializers.get(phi);
+            }
+            // create a new phi (we don't patch the old one since some usages of the old one may
+            // still be valid)
+            PhiNode newPhi = phi.duplicateOn(loopBegin);
+            newPhi.setNodeSourcePosition(phi.getNodeSourcePosition());
+            peel.old2NewPhi.put(phi, newPhi);
+            newPhi.addInput(first);
+            for (LoopEndNode end : loopBegin.orderedLoopEnds()) {
+                newPhi.addInput(phi.valueAt(end));
+            }
+            peel.putDuplicatedNode(phi, newPhi);
+            newPhis.add(newPhi);
+            for (Node usage : phi.usages().snapshot()) {
+                // patch only usages that should use the new phi ie usages that were peeled
+                if (usagesToPatch.isMarkedAndGrow(usage)) {
+                    usage.replaceFirstInput(phi, newPhi);
+                }
+            }
+        }
+        // check new phis to see if they have as input some old phis, replace those inputs with the
+        // new corresponding phis
+        for (PhiNode phi : newPhis) {
+            for (int i = 0; i < phi.valueCount(); i++) {
+                ValueNode v = phi.valueAt(i);
+                if (loopBegin.isPhiAtMerge(v)) {
+                    PhiNode newV = peel.getDuplicatedNode((PhiNode) v);
+                    if (newV != null) {
+                        phi.setValueAt(i, newV);
+                    }
+                }
+            }
+        }
+
+        boolean progress = true;
+        while (progress) {
+            progress = false;
+            int i = 0;
+            outer: while (i < oldPhis.size()) {
+                PhiNode oldPhi = oldPhis.get(i);
+                for (Node usage : oldPhi.usages()) {
+                    if (usage instanceof PhiNode && oldPhis.contains(usage)) {
+                        // Do not mark.
+                    } else {
+                        // Mark alive by removing from delete set.
+                        oldPhis.remove(i);
+                        progress = true;
+                        continue outer;
+                    }
+                }
+                i++;
+            }
+        }
+
+        for (PhiNode deadPhi : oldPhis) {
+            deadPhi.clearInputs();
+        }
+
+        for (PhiNode deadPhi : oldPhis) {
+            if (deadPhi.isAlive()) {
+                GraphUtil.killWithUnusedFloatingInputs(deadPhi);
+            }
+        }
+    }
+
+    private static void markStateNodes(StateSplit stateSplit, NodeBitMap marks) {
+        FrameState exitState = stateSplit.stateAfter();
+     
