@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2021, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -38,19 +38,20 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package com.oracle.truffle.polyglot;
+package com.oracle.truffle.api.test.wrapper;
 
-import java.lang.reflect.Type;
-import java.util.function.Function;
+import org.graalvm.polyglot.Context;
 
-class PolyglotListAndFunction<T> extends PolyglotList<T> implements Function<Object, Object> {
+public final class HostContext {
 
-    PolyglotListAndFunction(Class<T> elementClass, Type elementType, Object array, PolyglotLanguageContext languageContext) {
-        super(elementClass, elementType, array, languageContext);
-    }
+    final HostEngine engine;
+    final long remoteContext;
+    final Context localContext;
 
-    public Object apply(Object t) {
-        return cache.apply.call(languageContext, guestObject, t);
+    HostContext(HostEngine engine, long id, Context localContext) {
+        this.engine = engine;
+        this.remoteContext = id;
+        this.localContext = localContext;
     }
 
 }

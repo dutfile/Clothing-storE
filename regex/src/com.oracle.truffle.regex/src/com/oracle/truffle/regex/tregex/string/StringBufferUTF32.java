@@ -1,5 +1,6 @@
+
 /*
- * Copyright (c) 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2020, 2020, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -38,19 +39,43 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package com.oracle.truffle.polyglot;
+package com.oracle.truffle.regex.tregex.string;
 
-import java.lang.reflect.Type;
-import java.util.function.Function;
+import com.oracle.truffle.regex.tregex.buffer.IntArrayBuffer;
+import com.oracle.truffle.regex.tregex.string.Encodings.Encoding;
 
-class PolyglotListAndFunction<T> extends PolyglotList<T> implements Function<Object, Object> {
+public final class StringBufferUTF32 extends IntArrayBuffer implements AbstractStringBuffer {
 
-    PolyglotListAndFunction(Class<T> elementClass, Type elementType, Object array, PolyglotLanguageContext languageContext) {
-        super(elementClass, elementType, array, languageContext);
+    public StringBufferUTF32() {
+        this(16);
     }
 
-    public Object apply(Object t) {
-        return cache.apply.call(languageContext, guestObject, t);
+    public StringBufferUTF32(int capacity) {
+        super(capacity);
     }
 
+    @Override
+    public Encoding getEncoding() {
+        return Encodings.UTF_32;
+    }
+
+    @Override
+    public void append(int codepoint) {
+        add(codepoint);
+    }
+
+    @Override
+    public void appendOR(int c1, int c2) {
+        add(c1 | c2);
+    }
+
+    @Override
+    public void appendXOR(int c1, int c2) {
+        add(c1 ^ c2);
+    }
+
+    @Override
+    public StringUTF32 materialize() {
+        return new StringUTF32(toArray());
+    }
 }
