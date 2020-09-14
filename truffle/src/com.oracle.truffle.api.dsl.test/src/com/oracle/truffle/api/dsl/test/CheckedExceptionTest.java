@@ -46,4 +46,135 @@ import org.junit.Test;
 import com.oracle.truffle.api.dsl.Cached;
 import com.oracle.truffle.api.dsl.Fallback;
 import com.oracle.truffle.api.dsl.GenerateInline;
-import 
+import com.oracle.truffle.api.dsl.Idempotent;
+import com.oracle.truffle.api.dsl.Specialization;
+import com.oracle.truffle.api.dsl.test.CheckedExceptionTestFactory.Default1NodeGen;
+import com.oracle.truffle.api.dsl.test.CheckedExceptionTestFactory.Default2NodeGen;
+import com.oracle.truffle.api.nodes.Node;
+
+@SuppressWarnings({"truffle-inlining", "truffle-neverdefault", "truffle-sharing", "unused"})
+public class CheckedExceptionTest {
+
+    @SuppressWarnings("serial")
+    static class CheckedException extends Exception {
+    }
+
+    @GenerateInline(false)
+    abstract static class Default1Node extends Node {
+
+        abstract void execute(Object arg) throws CheckedException;
+
+        @Specialization
+        void s0(int a) throws CheckedException {
+            throw new CheckedException();
+        }
+
+        @Specialization
+        void s1(double a) throws CheckedException {
+            throw new CheckedException();
+        }
+    }
+
+    @Test
+    public void testDefault1() {
+        try {
+            Default1NodeGen.create().execute(42);
+            Assert.fail();
+        } catch (CheckedException e) {
+        }
+    }
+
+    @GenerateInline(false)
+    abstract static class Default2Node extends Node {
+
+        abstract void execute(Object arg) throws CheckedException;
+
+        @Specialization
+        void s0(int a) throws CheckedException {
+            throw new CheckedException();
+        }
+
+        @Specialization(guards = "guard()")
+        void s1(double a) throws CheckedException {
+            throw new CheckedException();
+        }
+
+        @Idempotent
+        static boolean guard() throws CheckedException {
+            throw new CheckedException();
+        }
+
+        @Fallback
+        void f(Object a) {
+        }
+    }
+
+    @Test
+    public void testDefault2() {
+        try {
+            Default2NodeGen.create().execute(42);
+            Assert.fail();
+        } catch (CheckedException e) {
+        }
+    }
+
+    abstract static class Error1Node extends Node {
+
+        abstract void execute();
+
+        @ExpectError("Specialization guard method or cache initializer declares an undeclared checked exception [com.oracle.truffle.api.dsl.test.CheckedExceptionTest.CheckedException]. " +
+                        "Only checked exceptions are allowed that were declared in the execute signature. Allowed exceptions are: [].")
+        @Specialization
+        void s0() throws CheckedException {
+            throw new CheckedException();
+        }
+
+    }
+
+    abstract static class Error2Node extends Node {
+
+        abstract void execute();
+
+        @ExpectError("Specialization guard method or cache initializer declares an undeclared checked exception [com.oracle.truffle.api.dsl.test.CheckedExceptionTest.CheckedException]. " +
+                        "Only checked exceptions are allowed that were declared in the execute signature. Allowed exceptions are: [].")
+        @Specialization(guards = "guard()")
+        void s0() {
+        }
+
+        static boolean guard() throws CheckedException {
+            throw new CheckedException();
+        }
+
+    }
+
+    abstract static class Error3Node extends Node {
+
+        abstract void execute();
+
+        @ExpectError("Specialization guard method or cache initializer declares an undeclared checked exception [com.oracle.truffle.api.dsl.test.CheckedExceptionTest.CheckedException]. " +
+                        "Only checked exceptions are allowed that were declared in the execute signature. Allowed exceptions are: [].")
+        @Specialization
+        void s0(@Cached("initializer()") Object o) {
+        }
+
+        static Object initializer() throws CheckedException {
+            return null;
+        }
+
+    }
+
+    abstract static class ExceptionTestNode extends Node {
+
+        protected Node createSubnode() throws Exception {
+            return null;
+        }
+
+        public abstract Object execute() throws Exception;
+
+        @Specialization
+        Object callDirectCached(@Cached("createSubnode()") Node subNode) {
+            return null;
+        }
+    }
+
+}
