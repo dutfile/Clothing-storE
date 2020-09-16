@@ -80,4 +80,149 @@ import com.oracle.truffle.espresso.vm.structs.GenerateStructs.KnownStruct;
                                 }, //
                                 types = {
                                                 INT,
-                    
+                                                POINTER,
+                                                OBJECT,
+                                }),
+                /*-
+                 * struct jdk_version_info {
+                 *     unsigned int jdk_version; // <- The only one we are interested in.
+                 *     unsigned int update_version : 8;
+                 *     unsigned int special_update_version : 8;
+                 *     unsigned int reserved1 : 16;
+                 *     unsigned int reserved2;
+                 *     unsigned int thread_park_blocker : 1;
+                 *     unsigned int post_vm_init_hook_enabled : 1;
+                 *     unsigned int pending_list_uses_discovered_field : 1;
+                 *     unsigned int : 29;
+                 *     unsigned int : 32;
+                 *     unsigned int : 32;
+                 * };
+                 */
+                @KnownStruct(structName = "jdk_version_info", //
+                                memberNames = {
+                                                "jdk_version",
+                                }, //
+                                types = {
+                                                INT,
+                                }),
+                /*-
+                 * struct member_info {
+                 *     char* id;
+                 *     size_t offset;
+                 *     struct member_info *next;
+                 * };
+                 */
+                @KnownStruct(structName = "member_info", //
+                                memberNames = {
+                                                "id",
+                                                "offset",
+                                                "next",
+                                }, //
+                                types = {
+                                                POINTER,
+                                                LONG,
+                                                POINTER,
+                                }),
+                /*-
+                 * struct _jvmtiThreadInfo {
+                 *     char* name;
+                 *     jint priority;
+                 *     jboolean is_daemon;
+                 *     jthreadGroup thread_group;
+                 *     jobject context_class_loader;
+                 * };
+                 */
+                @KnownStruct(structName = "_jvmtiThreadInfo", //
+                                memberNames = {
+                                                "name",
+                                                "priority",
+                                                "is_daemon",
+                                                "thread_group",
+                                                "context_class_loader"
+                                }, //
+                                types = {
+                                                POINTER,
+                                                INT,
+                                                BOOLEAN,
+                                                OBJECT,
+                                                OBJECT
+                                }),
+                /*-
+                 * struct _jvmtiMonitorStackDepthInfo {
+                 *     jobject monitor;
+                 *     jint stack_depth;
+                 * };
+                 */
+                @KnownStruct(structName = "_jvmtiMonitorStackDepthInfo", //
+                                memberNames = {
+                                                "monitor",
+                                                "stack_depth",
+                                }, //
+                                types = {
+                                                OBJECT,
+                                                INT,
+                                }),
+                /*-
+                 * struct _jvmtiThreadGroupInfo {
+                 *     jthreadGroup parent;
+                 *     char* name;
+                 *     jint max_priority;
+                 *     jboolean is_daemon;
+                 * };
+                 *
+                 */
+                @KnownStruct(structName = "_jvmtiThreadGroupInfo", //
+                                memberNames = {
+                                                "parent",
+                                                "name",
+                                                "max_priority",
+                                                "is_daemon",
+                                }, //
+                                types = {
+                                                OBJECT,
+                                                POINTER,
+                                                INT,
+                                                BOOLEAN,
+                                }),
+                /*-
+                 * struct _jvmtiFrameInfo {
+                 *     jmethodID method;
+                 *     jlocation location;
+                 * };
+                 */
+                @KnownStruct(structName = "_jvmtiFrameInfo", //
+                                memberNames = {
+                                                "method",
+                                                "location",
+                                }, //
+                                types = {
+                                                LONG,
+                                                LONG,
+                                }),
+                /*-
+                 * struct _jvmtiStackInfo {
+                 *     jthread thread;
+                 *     jint state;
+                 *     jvmtiFrameInfo* frame_buffer;
+                 *     jint frame_count;
+                 * };
+                 */
+                @KnownStruct(structName = "_jvmtiStackInfo", //
+                                memberNames = {
+                                                "thread",
+                                                "state",
+                                                "frame_buffer",
+                                                "frame_count",
+                                }, //
+                                types = {
+                                                OBJECT,
+                                                INT,
+                                                POINTER,
+                                                INT,
+                                }),
+                /*-
+                 * struct _jvmtiHeapReferenceInfoField {
+                 *     jint index;
+                 * };
+                 */
+                @KnownStruct(structName = "
