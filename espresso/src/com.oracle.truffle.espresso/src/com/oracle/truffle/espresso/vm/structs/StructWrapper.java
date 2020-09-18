@@ -496,4 +496,141 @@ import com.oracle.truffle.espresso.vm.structs.GenerateStructs.KnownStruct;
                  *     char* id;
                  *     char* short_description;
                  *     jint param_count;
-      
+                 *     jvmtiParamInfo* params;
+                 *     jint error_count;
+                 *     jvmtiError* errors;
+                 * };
+                 */
+                @KnownStruct(structName = "_jvmtiExtensionFunctionInfo", //
+                                memberNames = {
+                                                "func",
+                                                "id",
+                                                "short_description",
+                                                "param_count",
+                                                "params",
+                                                "error_count",
+                                                "errors",
+                                }, //
+                                types = {
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                INT,
+                                                POINTER,
+                                                INT,
+                                                POINTER,
+                                }),
+                /*-
+                 * struct _jvmtiExtensionEventInfo {
+                 *     jint extension_event_index;
+                 *     char* id;
+                 *     char* short_description;
+                 *     jint param_count;
+                 *     jvmtiParamInfo* params;
+                 * };
+                 */
+                @KnownStruct(structName = "_jvmtiExtensionEventInfo", //
+                                memberNames = {
+                                                "extension_event_index",
+                                                "id",
+                                                "short_description",
+                                                "param_count",
+                                                "params",
+                                }, //
+                                types = {
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                INT,
+                                                POINTER,
+                                }),
+                /*-
+                 * struct _jvmtiTimerInfo {
+                 *     jlong max_value;
+                 *     jboolean may_skip_forward;
+                 *     jboolean may_skip_backward;
+                 *     jvmtiTimerKind kind;
+                 *     jlong reserved1;
+                 *     jlong reserved2;
+                 * };
+                 */
+                @KnownStruct(structName = "_jvmtiTimerInfo", //
+                                memberNames = {
+                                                "max_value",
+                                                "may_skip_forward",
+                                                "may_skip_backward",
+                                                "kind",
+                                                "reserved1",
+                                                "reserved2",
+                                }, //
+                                types = {
+                                                LONG,
+                                                BOOLEAN,
+                                                BOOLEAN,
+                                                INT,
+                                                LONG,
+                                                LONG,
+                                }),
+                /*-
+                 * struct _jvmtiAddrLocationMap {
+                 *     const void* start_address;
+                 *     jlocation location;
+                 * };
+                 */
+                @KnownStruct(structName = "_jvmtiAddrLocationMap", //
+                                memberNames = {
+                                                "start_address",
+                                                "location",
+                                }, //
+                                types = {
+                                                POINTER,
+                                                LONG,
+                                }),
+                /*-
+                * typedef struct {
+                //   50 : VM Initialization Event
+                jvmtiEventVMInit VMInit;
+                //   51 : VM Death Event
+                jvmtiEventVMDeath VMDeath;
+                //   52 : Thread Start
+                jvmtiEventThreadStart ThreadStart;
+                //   53 : Thread End
+                jvmtiEventThreadEnd ThreadEnd;
+                //   54 : Class File Load Hook
+                jvmtiEventClassFileLoadHook ClassFileLoadHook;
+                //   55 : Class Load
+                jvmtiEventClassLoad ClassLoad;
+                //   56 : Class Prepare
+                jvmtiEventClassPrepare ClassPrepare;
+                //   57 : VM Start Event
+                jvmtiEventVMStart VMStart;
+                //   58 : Exception
+                jvmtiEventException Exception;
+                //   59 : Exception Catch
+                jvmtiEventExceptionCatch ExceptionCatch;
+                //   60 : Single Step
+                jvmtiEventSingleStep SingleStep;
+                //   61 : Frame Pop
+                jvmtiEventFramePop FramePop;
+                //   62 : Breakpoint
+                jvmtiEventBreakpoint Breakpoint;
+                //   63 : Field Access
+                jvmtiEventFieldAccess FieldAccess;
+                //   64 : Field Modification
+                jvmtiEventFieldModification FieldModification;
+                //   65 : Method Entry
+                jvmtiEventMethodEntry MethodEntry;
+                //   66 : Method Exit
+                jvmtiEventMethodExit MethodExit;
+                //   67 : Native Method Bind
+                jvmtiEventNativeMethodBind NativeMethodBind;
+                //   68 : Compiled Method Load
+                jvmtiEventCompiledMethodLoad CompiledMethodLoad;
+                //   69 : Compiled Method Unload
+                jvmtiEventCompiledMethodUnload CompiledMethodUnload;
+                //   70 : Dynamic Code Generated
+                jvmtiEventDynamicCodeGenerated DynamicCodeGenerated;
+                //   71 : Data Dump Request
+                jvmtiEventDataDumpRequest DataDumpRequest;
+                //   72
+                jvmtiEventReserved reserve
