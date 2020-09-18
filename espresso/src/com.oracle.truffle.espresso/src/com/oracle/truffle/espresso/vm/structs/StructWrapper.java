@@ -633,4 +633,133 @@ import com.oracle.truffle.espresso.vm.structs.GenerateStructs.KnownStruct;
                 //   71 : Data Dump Request
                 jvmtiEventDataDumpRequest DataDumpRequest;
                 //   72
-                jvmtiEventReserved reserve
+                jvmtiEventReserved reserved72;
+                //   73 : Monitor Wait
+                jvmtiEventMonitorWait MonitorWait;
+                //   74 : Monitor Waited
+                jvmtiEventMonitorWaited MonitorWaited;
+                //   75 : Monitor Contended Enter
+                jvmtiEventMonitorContendedEnter MonitorContendedEnter;
+                //   76 : Monitor Contended Entered
+                jvmtiEventMonitorContendedEntered MonitorContendedEntered;
+                //   77
+                jvmtiEventReserved reserved77;
+                //   78
+                jvmtiEventReserved reserved78;
+                //   79
+                jvmtiEventReserved reserved79;
+                //   80 : Resource Exhausted
+                jvmtiEventResourceExhausted ResourceExhausted;
+                //   81 : Garbage Collection Start
+                jvmtiEventGarbageCollectionStart GarbageCollectionStart;
+                //   82 : Garbage Collection Finish
+                jvmtiEventGarbageCollectionFinish GarbageCollectionFinish;
+                //   83 : Object Free
+                jvmtiEventObjectFree ObjectFree;
+                //   84 : VM Object Allocation
+                jvmtiEventVMObjectAlloc VMObjectAlloc;
+                //   85
+                jvmtiEventReserved reserved85;
+                //   86 : Sampled Object Allocation
+                jvmtiEventSampledObjectAlloc SampledObjectAlloc;
+                } jvmtiEventCallbacks;
+                */
+                @KnownStruct(structName = "_jvmtiEventCallbacks", //
+                                memberNames = {
+                                                "VMInit",
+                                                "VMDeath",
+                                                "ThreadStart",
+                                                "ThreadEnd",
+                                                "ClassFileLoadHook",
+                                                "ClassLoad",
+                                                "ClassPrepare",
+                                                "VMStart",
+                                                "Exception",
+                                                "ExceptionCatch",
+                                                "SingleStep",
+                                                "FramePop",
+                                                "Breakpoint",
+                                                "FieldAccess",
+                                                "FieldModification",
+                                                "MethodEntry",
+                                                "MethodExit",
+                                                "NativeMethodBind",
+                                                "CompiledMethodLoad",
+                                                "CompiledMethodUnload",
+                                                "DynamicCodeGenerated",
+                                                "DataDumpRequest",
+                                                "reserved72",
+                                                "MonitorWait",
+                                                "MonitorWaited",
+                                                "MonitorContendedEnter",
+                                                "MonitorContendedEntered",
+                                                "reserved77",
+                                                "reserved78",
+                                                "reserved79",
+                                                "ResourceExhausted",
+                                                "GarbageCollectionStart",
+                                                "GarbageCollectionFinish",
+                                                "ObjectFree",
+                                                "VMObjectAlloc",
+                                                "reserved85",
+                                                "SampledObjectAlloc",
+                                }, //
+                                types = {
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                }),
+})
+public abstract class StructWrapper {
+    private final JNIHandles handles;
+
+    private final TruffleObject pointer;
+    private final ByteBuffer buffer;
+
+    public TruffleObject pointer() {
+        return pointer;
+    }
+
+    public void free(NativeAccess nativeAccess) {
+        nativeAccess.freeMemory(pointer);
+    }
+
+    protected StructWrapper(JniEnv jni, TruffleObject pointer, long capacity) {
+        this.handles = jni.getHandles();
+
+        this.pointer = pointer;
+        this.buffer = N
