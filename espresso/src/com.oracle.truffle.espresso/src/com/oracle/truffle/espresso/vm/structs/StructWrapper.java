@@ -225,4 +225,137 @@ import com.oracle.truffle.espresso.vm.structs.GenerateStructs.KnownStruct;
                  *     jint index;
                  * };
                  */
-                @KnownStruct(structName = "
+                @KnownStruct(structName = "_jvmtiHeapReferenceInfoField", //
+                                memberNames = {"index"}, //
+                                types = {INT}),
+                /*-
+                 * struct _jvmtiHeapReferenceInfoArray {
+                 *     jint index;
+                 * };
+                 */
+                @KnownStruct(structName = "_jvmtiHeapReferenceInfoArray", //
+                                memberNames = {"index"}, //
+                                types = {INT}),
+                /*-
+                 * struct _jvmtiHeapReferenceInfoConstantPool {
+                 *     jint index;
+                 * };
+                 */
+                @KnownStruct(structName = "_jvmtiHeapReferenceInfoConstantPool", //
+                                memberNames = {"index"}, //
+                                types = {INT}),
+                /*-
+                 * struct _jvmtiHeapReferenceInfoStackLocal {
+                 *     jlong thread_tag;
+                 *     jlong thread_id;
+                 *     jint depth;
+                 *     jmethodID method;
+                 *     jlocation location;
+                 *     jint slot;
+                 * };
+                 */
+                @KnownStruct(structName = "_jvmtiHeapReferenceInfoStackLocal", //
+                                memberNames = {
+                                                "thread_tag",
+                                                "thread_id",
+                                                "depth",
+                                                "method",
+                                                "location",
+                                                "slot",
+                                }, //
+                                types = {
+                                                LONG,
+                                                LONG,
+                                                INT,
+                                                LONG,
+                                                LONG,
+                                                INT,
+                                }),
+                /*-
+                 * struct _jvmtiHeapReferenceInfoJniLocal {
+                 *     jlong thread_tag;
+                 *     jlong thread_id;
+                 *     jint depth;
+                 *     jmethodID method;
+                 * };
+                 */
+                @KnownStruct(structName = "_jvmtiHeapReferenceInfoJniLocal", //
+                                memberNames = {
+                                                "thread_tag",
+                                                "thread_id",
+                                                "depth",
+                                                "method",
+                                }, //
+                                types = {
+                                                LONG,
+                                                LONG,
+                                                INT,
+                                                LONG,
+                                }),
+                /*-
+                 * struct _jvmtiHeapReferenceInfoReserved {
+                 *     jlong reserved1;
+                 *     jlong reserved2;
+                 *     jlong reserved3;
+                 *     jlong reserved4;
+                 *     jlong reserved5;
+                 *     jlong reserved6;
+                 *     jlong reserved7;
+                 *     jlong reserved8;
+                 * };
+                 */
+                @KnownStruct(structName = "_jvmtiHeapReferenceInfoReserved", //
+                                memberNames = {
+                                                "reserved1",
+                                                "reserved2",
+                                                "reserved3",
+                                                "reserved4",
+                                                "reserved5",
+                                                "reserved6",
+                                                "reserved7",
+                                                "reserved8",
+                                }, //
+                                types = {
+                                                LONG,
+                                                LONG,
+                                                LONG,
+                                                LONG,
+                                                LONG,
+                                                LONG,
+                                                LONG,
+                                                LONG,
+                                }),
+                /*-
+                 * struct _jvmtiHeapCallbacks {
+                 *     jvmtiHeapIterationCallback heap_iteration_callback;
+                 *     jvmtiHeapReferenceCallback heap_reference_callback;
+                 *     jvmtiPrimitiveFieldCallback primitive_field_callback;
+                 *     jvmtiArrayPrimitiveValueCallback array_primitive_value_callback;
+                 *     jvmtiStringPrimitiveValueCallback string_primitive_value_callback;
+                 *     jvmtiReservedCallback reserved5;
+                 *     jvmtiReservedCallback reserved6;
+                 *     jvmtiReservedCallback reserved7;
+                 *     jvmtiReservedCallback reserved8;
+                 *     jvmtiReservedCallback reserved9;
+                 *     jvmtiReservedCallback reserved10;
+                 *     jvmtiReservedCallback reserved11;
+                 *     jvmtiReservedCallback reserved12;
+                 *     jvmtiReservedCallback reserved13;
+                 *     jvmtiReservedCallback reserved14;
+                 *     jvmtiReservedCallback reserved15;
+                 * };
+                 */
+                @KnownStruct(structName = "_jvmtiHeapCallbacks", //
+                                memberNames = {
+                                                "heap_iteration_callback",
+                                                "heap_reference_callback",
+                                                "primitive_field_callback",
+                                                "array_primitive_value_callback",
+                                                "string_primitive_value_callback",
+                                                "reserved5",
+                                                "reserved6",
+                                                "reserved7",
+                                                "reserved8",
+                                                "reserved9",
+                                                "reserved10",
+             
