@@ -358,4 +358,142 @@ import com.oracle.truffle.espresso.vm.structs.GenerateStructs.KnownStruct;
                                                 "reserved8",
                                                 "reserved9",
                                                 "reserved10",
-             
+                                                "reserved11",
+                                                "reserved12",
+                                                "reserved13",
+                                                "reserved14",
+                                                "reserved15",
+                                }, //
+                                types = {
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                }),
+                /*-
+                 * struct _jvmtiClassDefinition {
+                 *     jclass klass;
+                 *     jint class_byte_count;
+                 *     const unsigned char* class_bytes;
+                 * };
+                 */
+                @KnownStruct(structName = "_jvmtiClassDefinition", //
+                                memberNames = {
+                                                "klass",
+                                                "class_byte_count",
+                                                "class_bytes",
+                                }, //
+                                types = {
+                                                OBJECT,
+                                                INT,
+                                                POINTER,
+                                }),
+                /*-
+                 * struct _jvmtiMonitorUsage {
+                 *     jthread owner;
+                 *     jint entry_count;
+                 *     jint waiter_count;
+                 *     jthread* waiters;
+                 *     jint notify_waiter_count;
+                 *     jthread* notify_waiters;
+                 * };
+                 */
+                @KnownStruct(structName = "_jvmtiMonitorUsage", //
+                                memberNames = {
+                                                "owner",
+                                                "entry_count",
+                                                "waiter_count",
+                                                "waiters",
+                                                "notify_waiter_count",
+                                                "notify_waiters",
+                                }, //
+                                types = {
+                                                OBJECT,
+                                                INT,
+                                                INT,
+                                                POINTER,
+                                                INT,
+                                                POINTER,
+                                }),
+                /*-
+                 * struct _jvmtiLineNumberEntry {
+                 *     jlocation start_location;
+                 *     jint line_number;
+                 * };
+                 */
+                @KnownStruct(structName = "_jvmtiLineNumberEntry", //
+                                memberNames = {
+                                                "start_location",
+                                                "line_number",
+                                }, //
+                                types = {
+                                                LONG,
+                                                INT,
+                                }),
+                /*-
+                 * struct _jvmtiLocalVariableEntry {
+                 *     jlocation start_location;
+                 *     jint length;
+                 *     char* name;
+                 *     char* signature;
+                 *     char* generic_signature;
+                 *     jint slot;
+                 * };
+                 */
+                @KnownStruct(structName = "_jvmtiLocalVariableEntry", //
+                                memberNames = {
+                                                "start_location",
+                                                "length",
+                                                "name",
+                                                "signature",
+                                                "generic_signature",
+                                                "slot",
+                                }, //
+                                types = {
+                                                LONG,
+                                                INT,
+                                                POINTER,
+                                                POINTER,
+                                                POINTER,
+                                                INT,
+                                }),
+                /*-
+                 * struct _jvmtiParamInfo {
+                 *     char* name;
+                 *     jvmtiParamKind kind;
+                 *     jvmtiParamTypes base_type;
+                 *     jboolean null_ok;
+                 * };
+                 */
+                @KnownStruct(structName = "_jvmtiParamInfo", //
+                                memberNames = {
+                                                "name",
+                                                "kind",
+                                                "base_type",
+                                                "null_ok",
+                                }, //
+                                types = {
+                                                POINTER,
+                                                INT,
+                                                INT,
+                                                BOOLEAN,
+                                }),
+                /*-
+                 * struct _jvmtiExtensionFunctionInfo {
+                 *     jvmtiExtensionFunction func;
+                 *     char* id;
+                 *     char* short_description;
+                 *     jint param_count;
+      
