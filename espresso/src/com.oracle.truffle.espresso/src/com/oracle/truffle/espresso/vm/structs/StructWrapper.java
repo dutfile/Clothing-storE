@@ -762,4 +762,86 @@ public abstract class StructWrapper {
         this.handles = jni.getHandles();
 
         this.pointer = pointer;
-        this.buffer = N
+        this.buffer = NativeUtils.directByteBuffer(pointer, capacity);
+    }
+
+    protected boolean getBoolean(int offset) {
+        return buffer.get(offset) != 0;
+    }
+
+    protected void putBoolean(int offset, boolean value) {
+        buffer.put(offset, (byte) (value ? 1 : 0));
+    }
+
+    protected byte getByte(int offset) {
+        return buffer.get(offset);
+    }
+
+    protected void putByte(int offset, byte value) {
+        buffer.put(offset, value);
+    }
+
+    protected char getChar(int offset) {
+        return buffer.getChar(offset);
+    }
+
+    protected void putChar(int offset, char value) {
+        buffer.putChar(offset, value);
+    }
+
+    protected short getShort(int offset) {
+        return buffer.getShort(offset);
+    }
+
+    protected void putShort(int offset, short value) {
+        buffer.putShort(offset, value);
+    }
+
+    protected int getInt(int offset) {
+        return buffer.getInt(offset);
+    }
+
+    protected void putInt(int offset, int value) {
+        buffer.putInt(offset, value);
+    }
+
+    protected float getFloat(int offset) {
+        return buffer.getFloat(offset);
+    }
+
+    protected void putFloat(int offset, float value) {
+        buffer.putFloat(offset, value);
+    }
+
+    protected long getLong(int offset) {
+        return buffer.getLong(offset);
+    }
+
+    protected void putLong(int offset, long value) {
+        buffer.putLong(offset, value);
+    }
+
+    protected double getDouble(int offset) {
+        return buffer.getDouble(offset);
+    }
+
+    protected void putDouble(int offset, double value) {
+        buffer.putDouble(offset, value);
+    }
+
+    protected TruffleObject getPointer(int offset) {
+        return RawPointer.create(buffer.getLong(offset));
+    }
+
+    protected void putPointer(int offset, TruffleObject value) {
+        buffer.putLong(offset, NativeUtils.interopAsPointer(value));
+    }
+
+    protected StaticObject getObject(int offset) {
+        return handles.get(Math.toIntExact(buffer.getLong(offset)));
+    }
+
+    protected void putObject(int offset, StaticObject value) {
+        buffer.putLong(offset, handles.createLocal(value));
+    }
+}
