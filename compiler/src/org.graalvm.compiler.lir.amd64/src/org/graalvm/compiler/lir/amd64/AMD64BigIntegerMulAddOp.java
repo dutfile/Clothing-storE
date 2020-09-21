@@ -205,4 +205,103 @@ public final class AMD64BigIntegerMulAddOp extends AMD64LIRInstruction {
 
         masm.movq(op1, new AMD64Address(in, len, Stride.S4, 8));
         masm.rorq(op1, 32);
-        masm.movq(sum, new
+        masm.movq(sum, new AMD64Address(out, offset, Stride.S4, 8));
+        masm.rorq(sum, 32);
+        if (useBMI2Instructions(masm)) {
+            multiplyAdd64Bmi2(masm, sum, op1, op2, carry, raxReg);
+        } else {
+            multiplyAdd64(masm, sum, op1, op2, carry, rdxReg, raxReg);
+        }
+        // Store back in big endian from little endian
+        masm.rorq(sum, 0x20);
+        masm.movq(new AMD64Address(out, offset, Stride.S4, 8), sum);
+
+        masm.movq(op1, new AMD64Address(in, len, Stride.S4, 0));
+        masm.rorq(op1, 32);
+        masm.movq(sum, new AMD64Address(out, offset, Stride.S4, 0));
+        masm.rorq(sum, 32);
+        if (useBMI2Instructions(masm)) {
+            multiplyAdd64Bmi2(masm, sum, op1, op2, carry, raxReg);
+        } else {
+            multiplyAdd64(masm, sum, op1, op2, carry, rdxReg, raxReg);
+        }
+        // Store back in big endian from little endian
+        masm.rorq(sum, 0x20);
+        masm.movq(new AMD64Address(out, offset, Stride.S4, 0), sum);
+
+        masm.jmp(lFirstLoop);
+        masm.bind(lFirstLoopExit);
+    }
+
+    static void mulAdd(AMD64MacroAssembler masm, Register out, Register in, Register offs, Register len, Register k,
+                    Register tmp1, Register tmp2, Register tmp3, Register tmp4, Register tmp5,
+                    Register rdxReg, Register raxReg) {
+        Label lCarry = new Label();
+        Label lLastIn = new Label();
+        Label lDone = new Label();
+
+        Register op2 = tmp2;
+        Register sum = tmp3;
+        Register op1 = tmp4;
+        Register carry = tmp5;
+
+        if (useBMI2Instructions(masm)) {
+            op2 = rdxReg;
+            masm.movl(op2, k);
+        } else {
+            masm.movl(op2, k);
+        }
+
+        masm.xorq(carry, carry);
+
+        // First loop
+
+        // Multiply in[] by k in a 4 way unrolled loop using 128 bit by 32 bit multiply
+        // The carry is in tmp5
+        mulAdd128X32Loop(masm, out, in, offs, len, tmp1, tmp2, tmp3, tmp4, tmp5, rdxReg, raxReg);
+
+        // Multiply the trailing in[] entry using 64 bit by 32 bit, if any
+        masm.declAndJcc(len, ConditionFlag.Negative, lCarry, true);
+        masm.declAndJcc(len, ConditionFlag.Negative, lLastIn, true);
+
+        masm.movq(op1, new AMD64Address(in, len, Stride.S4, 0));
+        masm.rorq(op1, 32);
+
+        masm.subl(offs, 2);
+        masm.movq(sum, new AMD64Address(out, offs, Stride.S4, 0));
+        masm.rorq(sum, 32);
+
+        if (useBMI2Instructions(masm)) {
+            multiplyAdd64Bmi2(masm, sum, op1, op2, carry, raxReg);
+        } else {
+            multiplyAdd64(masm, sum, op1, op2, carry, rdxReg, raxReg);
+        }
+
+        // Store back in big endian from little endian
+        masm.rorq(sum, 0x20);
+        masm.movq(new AMD64Address(out, offs, Stride.S4, 0), sum);
+
+        masm.testlAndJcc(len, len, ConditionFlag.Zero, lCarry, true);
+
+        // Multiply the last in[] entry, if any
+        masm.bind(lLastIn);
+        masm.movl(op1, new AMD64Address(in, 0));
+        masm.movl(sum, new AMD64Address(out, offs, Stride.S4, -4));
+
+        masm.movl(raxReg, k);
+        masm.mull(op1); // tmp4 * eax -> edx:eax
+        masm.addl(sum, carry);
+        masm.adcl(rdxReg, 0);
+        masm.addl(sum, raxReg);
+        masm.adcl(rdxReg, 0);
+        masm.movl(carry, rdxReg);
+
+        masm.movl(new AMD64Address(out, offs, Stride.S4, -4), sum);
+
+        masm.bind(lCarry);
+        // return tmp5/carry as carry in rax
+        masm.movl(rax, carry);
+
+        masm.bind(lDone);
+    }
+}
