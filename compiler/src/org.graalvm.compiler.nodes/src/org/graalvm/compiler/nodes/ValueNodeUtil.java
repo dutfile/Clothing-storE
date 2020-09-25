@@ -24,4 +24,31 @@
  */
 package org.graalvm.compiler.nodes;
 
-import static java.lang.Ch
+import static java.lang.Character.toLowerCase;
+
+import org.graalvm.compiler.nodeinfo.Verbosity;
+import org.graalvm.compiler.nodes.memory.MemoryKill;
+
+public class ValueNodeUtil {
+
+    /**
+     * Converts a given instruction to a value string. The representation of an node as a value is
+     * formed by concatenating the {@linkplain jdk.vm.ci.meta.JavaKind#getTypeChar character}
+     * denoting its {@linkplain ValueNode#getStackKind kind} and its id. For example, {@code "i13"}.
+     *
+     * @param value the instruction to convert to a value string. If {@code value == null}, then "-"
+     *            is returned.
+     * @return the instruction representation as a string
+     */
+    public static String valueString(ValueNode value) {
+        return (value == null) ? "-" : ("" + toLowerCase(value.getStackKind().getTypeChar()) + value.toString(Verbosity.Id));
+    }
+
+    public static ValueNode asNode(MemoryKill node) {
+        if (node == null) {
+            return null;
+        } else {
+            return node.asNode();
+        }
+    }
+}
