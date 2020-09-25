@@ -780,4 +780,39 @@ final class LongDoubleUtil {
                 long doubleExponent = getUnbiasedExponent(expSignFraction) + DoubleHelper.EXPONENT_BIAS;
                 /* 48bits from expSignFraction, with 4 bits shift left. */
                 long doubleFraction = (expSignFraction & FP128Number.FRACTION_MASK) << (FP128Number.DOUBLE_FRACTION_BIT_WIDTH - FP128Number.EXPONENT_POSITION);
-       
+                // 4bits from fraction
+                doubleFraction |= fraction >>> (Long.SIZE - (FP128Number.DOUBLE_FRACTION_BIT_WIDTH - FP128Number.EXPONENT_POSITION));
+                long signBit = (getSign(expSignFraction) ? 1L : 0L) << FP128Number.DOUBLE_SIGN_POS;
+
+                // TODO: overflow case. Test this.
+                long shiftedExponent = doubleExponent << FP128Number.DOUBLE_FRACTION_BIT_WIDTH;
+                long rawVal = doubleFraction | shiftedExponent | signBit;
+                return Double.longBitsToDouble(rawVal);
+
+            } catch (InvalidBufferOffsetException ex) {
+                throw UnsupportedMessageException.create();
+            }
+        }
+
+        private static boolean getSign(long expSignFraction) {
+            return (expSignFraction & FP128Number.SIGN_MASK) != 0;
+        }
+
+        @TruffleBoundary
+        private static String format(long fraction, long exponent) {
+            return String.format("0xK%04x%028x", exponent, fraction);
+        }
+
+        @ExportMessage
+        String toDisplayString(@SuppressWarnings("unused") boolean allowSideEffects,
+                        @CachedLibrary("this.buffer") InteropLibrary interop) {
+            try {
+                long fraction = interop.readBufferLong(buffer, ByteOrder.LITTLE_ENDIAN, 0);
+                long exponent = interop.readBufferLong(buffer, ByteOrder.LITTLE_ENDIAN, 8);
+                return format(fraction, exponent);
+            } catch (UnsupportedMessageException | InvalidBufferOffsetException ex) {
+                return "<invalid FP128>";
+            }
+        }
+    }
+}
