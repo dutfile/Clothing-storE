@@ -635,4 +635,149 @@ final class LongDoubleUtil {
         @SuppressWarnings("static-method")
         boolean fitsInDouble() {
             /*
-             * Technically this is not correct, but there is no higher precision type a
+             * Technically this is not correct, but there is no higher precision type available in
+             * interop, so if we would return false here, there would be no way to get any number
+             * out.
+             */
+            return true;
+        }
+
+        @ExportMessage
+        byte asByte(@CachedLibrary("this.buffer") InteropLibrary interop) throws UnsupportedMessageException {
+            long value = asLong(interop);
+            if (value != (byte) value) {
+                throw UnsupportedMessageException.create();
+            }
+            return (byte) value;
+        }
+
+        @ExportMessage
+        short asShort(@CachedLibrary("this.buffer") InteropLibrary interop) throws UnsupportedMessageException {
+            long value = asLong(interop);
+            if (value != (short) value) {
+                throw UnsupportedMessageException.create();
+            }
+            return (short) value;
+        }
+
+        @ExportMessage
+        int asInt(@CachedLibrary("this.buffer") InteropLibrary interop) throws UnsupportedMessageException {
+            long value = asLong(interop);
+            if (value != (int) value) {
+                throw UnsupportedMessageException.create();
+            }
+            return (int) value;
+        }
+
+        @ExportMessage
+        long asLong(@CachedLibrary("this.buffer") InteropLibrary interop) throws UnsupportedMessageException {
+            try {
+                long fraction = interop.readBufferLong(buffer, ByteOrder.LITTLE_ENDIAN, 0);
+                long expSignFraction = interop.readBufferLong(buffer, ByteOrder.LITTLE_ENDIAN, 8);
+                if ((expSignFraction & FP128Number.EXPONENT_MASK) == FP128Number.EXPONENT_MASK) {
+                    // NaN or infinity
+                    throw UnsupportedMessageException.create();
+                }
+
+                long unbiasedExponent = getUnbiasedExponent(expSignFraction);
+                long returnFraction = (1L << unbiasedExponent);
+                if (unbiasedExponent < 0) {
+                    return 0;
+                } else if (unbiasedExponent <= 48) {
+                    returnFraction |= (expSignFraction & FP128Number.FRACTION_MASK) >>> ((FP128Number.EXPONENT_POSITION) - unbiasedExponent);
+                } else if (unbiasedExponent < 64) {
+                    returnFraction |= (expSignFraction & FP128Number.FRACTION_MASK) << (unbiasedExponent - FP128Number.EXPONENT_POSITION);
+                    returnFraction |= fraction >>> (Long.SIZE - (unbiasedExponent - FP128Number.EXPONENT_POSITION));
+                } else {
+                    returnFraction = 0L;
+                }
+
+                if ((expSignFraction & FP128Number.SIGN_MASK) == 0) {
+                    return returnFraction;
+                } else {
+                    return -returnFraction;
+                }
+
+            } catch (InvalidBufferOffsetException ex) {
+                throw UnsupportedMessageException.create();
+            }
+        }
+
+        @ExportMessage
+        BigInteger asBigInteger(@CachedLibrary("this.buffer") InteropLibrary interop) throws UnsupportedMessageException {
+            long expSignFraction;
+            long fractionLong;
+            try {
+                expSignFraction = interop.readBufferLong(buffer, ByteOrder.LITTLE_ENDIAN, 8);
+                if ((expSignFraction & FP128Number.EXPONENT_MASK) == FP128Number.EXPONENT_MASK) {
+                    // NaN or infinity
+                    throw UnsupportedMessageException.create();
+                }
+
+                fractionLong = interop.readBufferLong(buffer, ByteOrder.LITTLE_ENDIAN, 0);
+            } catch (InvalidBufferOffsetException ex) {
+                throw UnsupportedMessageException.create();
+            }
+            return toBigInteger(fractionLong, expSignFraction);
+        }
+
+        @TruffleBoundary
+        private static BigInteger toBigInteger(long longFraction, long expSignFraction) throws UnsupportedMessageException {
+            if (longFraction == 0 && (expSignFraction & (~FP128Number.SIGN_MASK)) == 0) {
+                return BigInteger.ZERO;
+            }
+
+            long unbiasedExponent = getUnbiasedExponent(expSignFraction);
+            BigInteger bigIntegerFraction = fractionToUnsignedBigInteger(longFraction, expSignFraction);
+            int shift = (int) (FP128Number.FRACTION_BIT_WIDTH - unbiasedExponent);
+            BigInteger ret;
+            if (shift > 0) {
+                ret = bigIntegerFraction.shiftRight(shift);
+                BigInteger fractionBack = ret.shiftLeft(shift);
+                if (!bigIntegerFraction.equals(fractionBack)) {
+                    // not a whole number
+                    throw UnsupportedMessageException.create();
+                }
+            } else {
+                ret = bigIntegerFraction.shiftLeft(-shift);
+            }
+
+            if ((expSignFraction & FP128Number.SIGN_MASK) == 0) {
+                return ret;
+            } else {
+                return ret.negate();
+            }
+        }
+
+        private static BigInteger fractionToUnsignedBigInteger(long fraction, long expSignFraction) {
+            long extractedFraction = (expSignFraction & FP128Number.FRACTION_MASK) + (1L << FP128Number.EXPONENT_POSITION);
+            long upperFraction = ((extractedFraction << 1) + (fraction >>> 63));
+            long lowerFraction = (fraction & Long.MAX_VALUE);
+            return (BigInteger.valueOf(upperFraction).shiftLeft(63).add(BigInteger.valueOf(lowerFraction)));
+        }
+
+        @ExportMessage
+        float asFloat(@CachedLibrary("this.buffer") InteropLibrary interop) throws UnsupportedMessageException {
+            return (float) asDouble(interop);
+        }
+
+        private static long getUnbiasedExponent(long expSignFraction) {
+            return ((expSignFraction & FP128Number.EXPONENT_MASK) >>> (FP128Number.EXPONENT_POSITION)) - (FP128Number.EXPONENT_BIAS);
+        }
+
+        @ExportMessage
+        double asDouble(@CachedLibrary("this.buffer") InteropLibrary interop) throws UnsupportedMessageException {
+            try {
+                long fraction = interop.readBufferLong(buffer, ByteOrder.LITTLE_ENDIAN, 0);
+                long expSignFraction = interop.readBufferLong(buffer, ByteOrder.LITTLE_ENDIAN, 8);
+                if (fraction == 0) {
+                    if (expSignFraction == 0) {
+                        return 0.0;
+                    } else if (expSignFraction == FP128Number.SIGN_MASK) {
+                        return -0.0;
+                    }
+                }
+                long doubleExponent = getUnbiasedExponent(expSignFraction) + DoubleHelper.EXPONENT_BIAS;
+                /* 48bits from expSignFraction, with 4 bits shift left. */
+                long doubleFraction = (expSignFraction & FP128Number.FRACTION_MASK) << (FP128Number.DOUBLE_FRACTION_BIT_WIDTH - FP128Number.EXPONENT_POSITION);
+       
