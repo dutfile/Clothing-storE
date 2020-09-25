@@ -281,4 +281,181 @@ final class LongDoubleUtil {
                     long doubleFraction = rawValue & DoubleHelper.FRACTION_MASK;
                     // 112 - 52 = 60
                     long shiftAmount = FRACTION_BIT_WIDTH - DOUBLE_FRACTION_BIT_WIDTH;
-                    long fraction = doubleFraction << (s
+                    long fraction = doubleFraction << (shiftAmount);
+                    // 64 - 60 = 4
+                    long biasedExponentFraction = ((long) biasedExponent << EXPONENT_POSITION) | (doubleFraction >> (Long.SIZE - shiftAmount));
+                    bufferInterop.writeBufferLong(buffer, ByteOrder.nativeOrder(), 0, fraction);
+                    bufferInterop.writeBufferLong(buffer, ByteOrder.nativeOrder(), 8, (sign | biasedExponentFraction));
+                } catch (UnsupportedMessageException | InvalidBufferOffsetException ex) {
+                    throw CompilerDirectives.shouldNotReachHere(ex);
+                }
+            }
+        }
+    }
+
+    @ExportLibrary(value = InteropLibrary.class, delegateTo = "buffer")
+    static final class FP80Buffer implements TruffleObject {
+
+        final Object buffer;
+
+        FP80Buffer(Object buffer) {
+            this.buffer = buffer;
+        }
+
+        @ExportMessage
+        boolean isNumber(@CachedLibrary("this.buffer") InteropLibrary interop) {
+            return interop.hasBufferElements(buffer);
+        }
+
+        @ExportMessage
+        boolean fitsInByte(@CachedLibrary("this.buffer") InteropLibrary interop) {
+            try {
+                long value = asLong(interop);
+                return value == (byte) value;
+            } catch (UnsupportedMessageException ex) {
+                return false;
+            }
+        }
+
+        @ExportMessage
+        boolean fitsInShort(@CachedLibrary("this.buffer") InteropLibrary interop) {
+            try {
+                long value = asLong(interop);
+                return value == (short) value;
+            } catch (UnsupportedMessageException ex) {
+                return false;
+            }
+        }
+
+        @ExportMessage
+        boolean fitsInInt(@CachedLibrary("this.buffer") InteropLibrary interop) {
+            try {
+                long value = asLong(interop);
+                return value == (int) value;
+            } catch (UnsupportedMessageException ex) {
+                return false;
+            }
+        }
+
+        @ExportMessage
+        boolean fitsInLong(@CachedLibrary("this.buffer") InteropLibrary interop) {
+            try {
+                asLong(interop);
+                return true;
+            } catch (UnsupportedMessageException ex) {
+                return false;
+            }
+        }
+
+        @ExportMessage
+        boolean fitsInBigInteger(@CachedLibrary("this.buffer") InteropLibrary interop) {
+            try {
+                asBigInteger(interop);
+                return true;
+            } catch (UnsupportedMessageException ex) {
+                return false;
+            }
+        }
+
+        @ExportMessage
+        boolean fitsInFloat(@CachedLibrary("this.buffer") InteropLibrary interop) {
+            if (fitsInDouble()) {
+                try {
+                    double value = asDouble(interop);
+                    return value == (float) value;
+                } catch (UnsupportedMessageException ex) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+
+        @ExportMessage
+        @SuppressWarnings("static-method")
+        boolean fitsInDouble() {
+            /*
+             * Technically this is not correct, but there is no higher precision type available in
+             * interop, so if we would return false here, there would be no way to get any number
+             * out.
+             */
+            return true;
+        }
+
+        @ExportMessage
+        byte asByte(@CachedLibrary("this.buffer") InteropLibrary interop) throws UnsupportedMessageException {
+            long value = asLong(interop);
+            if (value != (byte) value) {
+                throw UnsupportedMessageException.create();
+            }
+            return (byte) value;
+        }
+
+        @ExportMessage
+        short asShort(@CachedLibrary("this.buffer") InteropLibrary interop) throws UnsupportedMessageException {
+            long value = asLong(interop);
+            if (value != (short) value) {
+                throw UnsupportedMessageException.create();
+            }
+            return (short) value;
+        }
+
+        @ExportMessage
+        int asInt(@CachedLibrary("this.buffer") InteropLibrary interop) throws UnsupportedMessageException {
+            long value = asLong(interop);
+            if (value != (int) value) {
+                throw UnsupportedMessageException.create();
+            }
+            return (int) value;
+        }
+
+        @ExportMessage
+        long asLong(@CachedLibrary("this.buffer") InteropLibrary interop) throws UnsupportedMessageException {
+            try {
+                short exponent = interop.readBufferShort(buffer, ByteOrder.LITTLE_ENDIAN, 8);
+                if ((exponent & FP80Number.EXPONENT_MASK) == FP80Number.EXPONENT_MASK) {
+                    // NaN or infinity
+                    throw UnsupportedMessageException.create();
+                }
+
+                int unbiasedExponent = (exponent & FP80Number.EXPONENT_MASK) - FP80Number.EXPONENT_BIAS;
+                long fraction = interop.readBufferLong(buffer, ByteOrder.LITTLE_ENDIAN, 0);
+                int shift = FP80Number.FRACTION_BITS - unbiasedExponent - 1;
+                long ret = fraction >>> shift;
+                if (ret < 0 || fraction != (ret << shift)) {
+                    // overflow or not a whole number
+                    throw UnsupportedMessageException.create();
+                }
+
+                if ((exponent & FP80Number.SIGN_MASK) == 0) {
+                    return ret;
+                } else {
+                    return -ret;
+                }
+            } catch (InvalidBufferOffsetException ex) {
+                throw UnsupportedMessageException.create();
+            }
+        }
+
+        @ExportMessage
+        BigInteger asBigInteger(@CachedLibrary("this.buffer") InteropLibrary interop) throws UnsupportedMessageException {
+            int unbiasedExponent;
+            short exponent;
+            long fractionLong;
+            try {
+                exponent = interop.readBufferShort(buffer, ByteOrder.LITTLE_ENDIAN, 8);
+                if ((exponent & FP80Number.EXPONENT_MASK) == FP80Number.EXPONENT_MASK) {
+                    // NaN or infinity
+                    throw UnsupportedMessageException.create();
+                }
+
+                unbiasedExponent = (exponent & FP80Number.EXPONENT_MASK) - FP80Number.EXPONENT_BIAS;
+                fractionLong = interop.readBufferLong(buffer, ByteOrder.LITTLE_ENDIAN, 0);
+            } catch (InvalidBufferOffsetException ex) {
+                throw UnsupportedMessageException.create();
+            }
+            return toBigInteger(fractionLong, exponent, unbiasedExponent);
+        }
+
+        @TruffleBoundary
+        private static BigInteger toBig
