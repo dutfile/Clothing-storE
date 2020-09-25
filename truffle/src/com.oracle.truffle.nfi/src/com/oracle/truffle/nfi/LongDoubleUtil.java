@@ -155,3 +155,130 @@ final class LongDoubleUtil {
                             @CachedLibrary("self.number") InteropLibrary numberInterop,
                             @CachedLibrary("buffer") InteropLibrary bufferInterop) {
                 try {
+                    double number = numberInterop.asDouble(self.number);
+                    long rawValue = Double.doubleToRawLongBits(number);
+                    int sign = rawValue < 0 ? SIGN_MASK : 0;
+
+                    long absRaw = Math.abs(rawValue);
+                    if (absRaw == 0) {
+                        // positive or negative zero
+                        bufferInterop.writeBufferLong(buffer, ByteOrder.nativeOrder(), 0, 0);
+                        bufferInterop.writeBufferShort(buffer, ByteOrder.nativeOrder(), 8, (short) sign);
+                        return;
+                    }
+
+                    if ((absRaw & DoubleHelper.EXPONENT_MASK) == DoubleHelper.EXPONENT_MASK) {
+                        if ((absRaw & DoubleHelper.FRACTION_MASK) == 0) {
+                            // infinity
+                            bufferInterop.writeBufferLong(buffer, ByteOrder.nativeOrder(), 0, FP80Number.INF_FRACTION);
+                        } else {
+                            // NaN
+                            bufferInterop.writeBufferLong(buffer, ByteOrder.nativeOrder(), 0, FP80Number.NAN_FRACTION);
+                        }
+                        bufferInterop.writeBufferShort(buffer, ByteOrder.nativeOrder(), 8, (short) (sign | FP80Number.EXPONENT_MASK));
+                    }
+
+                    long doubleExponent = (absRaw & DoubleHelper.EXPONENT_MASK) >> DoubleHelper.FRACTION_BITS;
+                    int fp80Exponent = (int) doubleExponent - DoubleHelper.EXPONENT_BIAS + FP80Number.EXPONENT_BIAS;
+
+                    long doubleFraction = rawValue & DoubleHelper.FRACTION_MASK;
+                    long shiftedDoubleFraction = doubleFraction << (63 - DoubleHelper.FRACTION_BITS);
+                    long leadingOne = 1L << 63;
+                    long fp80Fraction = leadingOne | shiftedDoubleFraction;
+
+                    bufferInterop.writeBufferLong(buffer, ByteOrder.nativeOrder(), 0, fp80Fraction);
+                    bufferInterop.writeBufferShort(buffer, ByteOrder.nativeOrder(), 8, (short) (sign | fp80Exponent));
+                } catch (UnsupportedMessageException | InvalidBufferOffsetException ex) {
+                    throw CompilerDirectives.shouldNotReachHere(ex);
+                }
+            }
+        }
+    }
+
+    @ExportLibrary(value = SerializableLibrary.class, useForAOT = false)
+    static final class FP128Number implements TruffleObject {
+
+        static final long DOUBLE_FRACTION_BIT_WIDTH = 52;
+        private static final long SIGN_MASK = 1L << 63;
+        private static final int EXPONENT_BIAS = 16383;
+        private static final int FRACTION_BIT_WIDTH = 112;
+        public static final int EXPONENT_POSITION = FRACTION_BIT_WIDTH - Long.SIZE; // 112 - 64 = 48
+        public static final long EXPONENT_MASK = 0b111111111111111L << EXPONENT_POSITION;
+        public static final long FRACTION_MASK = (1L << EXPONENT_POSITION) - 1;
+        public static final int DOUBLE_SIGN_POS = 63;
+
+        final Object number;
+
+        private FP128Number(Object number) {
+            this.number = number;
+        }
+
+        @ExportMessage
+        @SuppressWarnings("static-method")
+        boolean isSerializable() {
+            return true;
+        }
+
+        @ExportMessage
+        static class Serialize {
+
+            @Specialization(limit = "1", guards = "numberInterop.fitsInLong(self.number)")
+            static void doLong(FP128Number self, Object buffer,
+                            @CachedLibrary("self.number") InteropLibrary numberInterop,
+                            @CachedLibrary("buffer") InteropLibrary bufferInterop) {
+                try {
+
+                    long number = numberInterop.asLong(self.number);
+                    if (number == 0) {
+                        bufferInterop.writeBufferLong(buffer, ByteOrder.nativeOrder(), 0, 0);
+                        bufferInterop.writeBufferLong(buffer, ByteOrder.nativeOrder(), 8, 0);
+                        return;
+                    }
+
+                    long sign = number < 0 ? SIGN_MASK : 0;
+                    long val = Math.abs(number);
+
+                    int leadingOnePosition = Long.SIZE - Long.numberOfLeadingZeros(val);
+                    long exponent = EXPONENT_BIAS + (leadingOnePosition - 1);
+                    long shiftAmount = FRACTION_BIT_WIDTH - leadingOnePosition + 1;
+                    long fraction;
+                    long exponentFraction;
+
+                    if (shiftAmount >= Long.SIZE) { // TODO: Need to test both cases.
+                        exponentFraction = (exponent << EXPONENT_POSITION) | ((val << (shiftAmount - Long.SIZE)) & FRACTION_MASK);
+                        fraction = 0;
+                    } else {
+                        exponentFraction = (exponent << EXPONENT_POSITION) | ((val >> (Long.SIZE - shiftAmount)) & FRACTION_MASK);
+                        fraction = val << (shiftAmount);
+                    }
+
+                    bufferInterop.writeBufferLong(buffer, ByteOrder.nativeOrder(), 0, fraction);
+                    bufferInterop.writeBufferLong(buffer, ByteOrder.nativeOrder(), 8, (sign | exponentFraction));
+                } catch (UnsupportedMessageException | InvalidBufferOffsetException ex) {
+                    throw CompilerDirectives.shouldNotReachHere(ex);
+                }
+            }
+
+            @Specialization(limit = "1", guards = "numberInterop.fitsInDouble(self.number)")
+            static void doDouble(FP128Number self, Object buffer,
+                            @CachedLibrary("self.number") InteropLibrary numberInterop,
+                            @CachedLibrary("buffer") InteropLibrary bufferInterop) {
+                try {
+                    double number = numberInterop.asDouble(self.number);
+                    long rawValue = Double.doubleToRawLongBits(number);
+                    long sign = rawValue < 0 ? SIGN_MASK : 0;
+
+                    long absRaw = Math.abs(rawValue);
+                    if (absRaw == 0) {
+                        // positive or negative zero
+                        bufferInterop.writeBufferLong(buffer, ByteOrder.nativeOrder(), 0, 0);
+                        bufferInterop.writeBufferLong(buffer, ByteOrder.nativeOrder(), 8, sign);
+                        return;
+                    }
+
+                    int doubleExponent = Math.getExponent(number);
+                    int biasedExponent = doubleExponent + EXPONENT_BIAS;
+                    long doubleFraction = rawValue & DoubleHelper.FRACTION_MASK;
+                    // 112 - 52 = 60
+                    long shiftAmount = FRACTION_BIT_WIDTH - DOUBLE_FRACTION_BIT_WIDTH;
+                    long fraction = doubleFraction << (s
