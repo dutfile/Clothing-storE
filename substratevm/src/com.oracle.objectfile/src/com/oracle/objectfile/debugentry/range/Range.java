@@ -169,4 +169,135 @@ public abstract class Range {
     }
 
     private String getExtendedMethodName(boolean includeClass, boolean includeParams, boolean includeReturnType) {
-        StringBuilder builder
+        StringBuilder builder = new StringBuilder();
+        if (includeReturnType && methodEntry.getValueType().getTypeName().length() > 0) {
+            builder.append(methodEntry.getValueType().getTypeName());
+            builder.append(' ');
+        }
+        if (includeClass && getClassName() != null) {
+            builder.append(getClassName());
+            builder.append(CLASS_DELIMITER);
+        }
+        builder.append(getMethodName());
+        if (includeParams) {
+            builder.append("(");
+            TypeEntry[] paramTypes = methodEntry.getParamTypes();
+            if (paramTypes != null) {
+                String prefix = "";
+                for (TypeEntry t : paramTypes) {
+                    builder.append(prefix);
+                    builder.append(t.getTypeName());
+                    prefix = ", ";
+                }
+            }
+            builder.append(')');
+        }
+        if (includeReturnType) {
+            builder.append(" ");
+            builder.append(methodEntry.getValueType().getTypeName());
+        }
+        return builder.toString();
+    }
+
+    private String constructClassAndMethodName() {
+        return getExtendedMethodName(true, false, false);
+    }
+
+    private String constructClassAndMethodNameWithParams() {
+        return getExtendedMethodName(true, true, false);
+    }
+
+    public FileEntry getFileEntry() {
+        return methodEntry.getFileEntry();
+    }
+
+    public abstract int getFileIndex();
+
+    public int getModifiers() {
+        return methodEntry.getModifiers();
+    }
+
+    @Override
+    public String toString() {
+        return String.format("Range(lo=0x%05x hi=0x%05x %s %s:%d)", lo, hi, constructClassAndMethodNameWithParams(), methodEntry.getFullFileName(), line);
+    }
+
+    public String getFileName() {
+        return methodEntry.getFileName();
+    }
+
+    public MethodEntry getMethodEntry() {
+        return methodEntry;
+    }
+
+    public abstract SubRange getFirstCallee();
+
+    public abstract boolean isLeaf();
+
+    public boolean includesInlineRanges() {
+        SubRange child = getFirstCallee();
+        while (child != null && child.isLeaf()) {
+            child = child.getSiblingCallee();
+        }
+        return child != null;
+    }
+
+    public int getDepth() {
+        return depth;
+    }
+
+    public HashMap<DebugLocalInfo, List<SubRange>> getVarRangeMap() {
+        MethodEntry calleeMethod;
+        if (isPrimary()) {
+            calleeMethod = getMethodEntry();
+        } else {
+            assert !isLeaf() : "should only be looking up var ranges for inlined calls";
+            calleeMethod = getFirstCallee().getMethodEntry();
+        }
+        HashMap<DebugLocalInfo, List<SubRange>> varRangeMap = new HashMap<>();
+        if (calleeMethod.getThisParam() != null) {
+            varRangeMap.put(calleeMethod.getThisParam(), new ArrayList<>());
+        }
+        for (int i = 0; i < calleeMethod.getParamCount(); i++) {
+            varRangeMap.put(calleeMethod.getParam(i), new ArrayList<>());
+        }
+        for (int i = 0; i < calleeMethod.getLocalCount(); i++) {
+            varRangeMap.put(calleeMethod.getLocal(i), new ArrayList<>());
+        }
+        return updateVarRangeMap(varRangeMap);
+    }
+
+    public HashMap<DebugLocalInfo, List<SubRange>> updateVarRangeMap(HashMap<DebugLocalInfo, List<SubRange>> varRangeMap) {
+        // leaf subranges of the current range may provide values for param or local vars
+        // of this range's method. find them and index the range so that we can identify
+        // both the local/param and the associated range.
+        SubRange subRange = this.getFirstCallee();
+        while (subRange != null) {
+            addVarRanges(subRange, varRangeMap);
+            subRange = subRange.siblingCallee;
+        }
+        return varRangeMap;
+    }
+
+    public void addVarRanges(SubRange subRange, HashMap<DebugLocalInfo, List<SubRange>> varRangeMap) {
+        int localValueCount = subRange.getLocalValueCount();
+        for (int i = 0; i < localValueCount; i++) {
+            DebugLocalValueInfo localValueInfo = subRange.getLocalValue(i);
+            DebugLocalInfo local = subRange.getLocal(i);
+            if (local != null) {
+                switch (localValueInfo.localKind()) {
+                    case REGISTER:
+                    case STACKSLOT:
+                    case CONSTANT:
+                        List<SubRange> varRanges = varRangeMap.get(local);
+                        assert varRanges != null : "local not present in var to ranges map!";
+                        varRanges.add(subRange);
+                        break;
+                    case UNDEFINED:
+                        break;
+                }
+            }
+        }
+    }
+
+}
