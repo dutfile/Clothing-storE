@@ -196,4 +196,68 @@ public abstract class LLVMToVarINode extends LLVMExpressionNode {
             super(isRecursive);
         }
 
-        @Ov
+        @Override
+        protected LLVMToVarINode createRecursive() {
+            return LLVMBitcastToIVarNodeGen.create(true, null, getBits());
+        }
+
+        @Specialization
+        protected LLVMIVarBit doBoolean(boolean from) {
+            return from ? LLVMIVarBit.fromInt(getBits(), 1) : LLVMIVarBit.fromInt(getBits(), 0);
+        }
+
+        @Specialization
+        protected LLVMIVarBit doI8(byte from) {
+            return LLVMIVarBit.fromByte(getBits(), from);
+        }
+
+        @Specialization
+        protected LLVMIVarBit doI16(short from) {
+            return LLVMIVarBit.fromShort(getBits(), from);
+        }
+
+        @Specialization
+        protected LLVMIVarBit doI32(int from) {
+            return LLVMIVarBit.fromInt(getBits(), from);
+        }
+
+        @Specialization
+        protected LLVMIVarBit doI64(long from) {
+            return LLVMIVarBit.fromLong(getBits(), from);
+        }
+
+        @Specialization
+        protected LLVMIVarBit doIVarBit(LLVMIVarBit from) {
+            return from;
+        }
+
+        @Specialization
+        protected LLVMIVarBit doFloat(float from) {
+            return LLVMIVarBit.fromInt(getBits(), Float.floatToIntBits(from));
+        }
+
+        @Specialization
+        protected LLVMIVarBit doDouble(double from) {
+            return LLVMIVarBit.fromLong(getBits(), Double.doubleToLongBits(from));
+        }
+
+        @Specialization
+        protected LLVMIVarBit do80BitFloat(LLVM80BitFloat from) {
+            assert getBits() == LLVM80BitFloat.BIT_WIDTH;
+            return LLVMIVarBit.create(getBits(), from.getBytesBigEndian(), LLVM80BitFloat.BIT_WIDTH, true);
+        }
+
+        @Specialization
+        protected LLVMIVarBit do128BitFloat(LLVM128BitFloat from) {
+            assert getBits() == LLVM128BitFloat.BIT_WIDTH;
+            return LLVMIVarBit.create(getBits(), from.getBytesBigEndian(), LLVM128BitFloat.BIT_WIDTH, true);
+        }
+
+        @Specialization
+        @ExplodeLoop
+        protected LLVMIVarBit doI1Vector(LLVMI1Vector from) {
+            assert getBits() == from.getLength();
+            return LLVMIVarBit.fromI1Vector(getBits(), from);
+        }
+    }
+}
