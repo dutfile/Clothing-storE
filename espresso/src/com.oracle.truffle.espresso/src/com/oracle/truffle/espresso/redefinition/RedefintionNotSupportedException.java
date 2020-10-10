@@ -17,4 +17,21 @@
  * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
  *
  * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
- * or visit www.oracle.c
+ * or visit www.oracle.com if you need additional information or have any
+ * questions.
+ */
+package com.oracle.truffle.espresso.redefinition;
+
+public class RedefintionNotSupportedException extends Exception {
+
+    private static final long serialVersionUID = -5767957395371919542L;
+    private final int errorCode;
+
+    public RedefintionNotSupportedException(int errorCode) {
+        this.errorCode = errorCode;
+    }
+
+    public int getErrorCode() {
+        return errorCode;
+    }
+}
