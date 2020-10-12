@@ -23,4 +23,52 @@
  * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
  * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
  * GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
- * AND ON A
+ * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+ * OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package com.oracle.truffle.llvm.parser.model.symbols.constants;
+
+import com.oracle.truffle.llvm.parser.LLVMParserRuntime;
+import com.oracle.truffle.llvm.parser.model.SymbolImpl;
+import com.oracle.truffle.llvm.parser.model.visitors.SymbolVisitor;
+import com.oracle.truffle.llvm.runtime.GetStackSpaceFactory;
+import com.oracle.truffle.llvm.runtime.datalayout.DataLayout;
+import com.oracle.truffle.llvm.runtime.nodes.api.LLVMExpressionNode;
+import com.oracle.truffle.llvm.runtime.types.Type;
+import com.oracle.truffle.llvm.runtime.types.Type.TypeOverflowException;
+
+public final class NullConstant extends AbstractConstant {
+
+    public NullConstant(Type type) {
+        super(type);
+    }
+
+    @Override
+    public void accept(SymbolVisitor visitor) {
+        visitor.visit(this);
+    }
+
+    @Override
+    public String toString() {
+        return Type.isIntegerType(getType()) || Type.isFloatingpointType(getType()) ? "0" : "null";
+    }
+
+    @Override
+    public void replace(SymbolImpl oldValue, SymbolImpl newValue) {
+    }
+
+    @Override
+    public LLVMExpressionNode createNode(LLVMParserRuntime runtime, DataLayout dataLayout, GetStackSpaceFactory stackFactory) {
+        return getType().createNullConstant(runtime.getNodeFactory(), dataLayout, stackFactory);
+    }
+
+    @Override
+    public void addToBuffer(Buffer buffer, LLVMParserRuntime runtime, DataLayout dataLayout, GetStackSpaceFactory stackFactory) throws TypeOverflowException {
+        long newOffset = buffer.getBuffer().position() + getType().getSize(dataLayout);
+        if (newOffset != (int) newOffset) {
+            throw new TypeOverflowException("constant offset > 2GB");
+        }
+        buffer.getBuffer().position((int) newOffset);
+    }
+}
