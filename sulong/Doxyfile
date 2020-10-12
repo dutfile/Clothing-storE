@@ -45,4 +45,8 @@ FILE_PATTERNS          = *.c \
                          *.h++
 RECURSIVE              = YES
 EXTRACT_STATIC         = YES
-EXCLUDE_PATTERNS  
+EXCLUDE_PATTERNS       = internal/*
+EXAMPLE_PATH           = tests/com.oracle.truffle.llvm.tests.interop.native/interop
+EXAMPLE_PATTERNS       = polyglotToolchain.c
+HTML_OUTPUT            = doxygen
+GENERATE_LATEX         = NO
