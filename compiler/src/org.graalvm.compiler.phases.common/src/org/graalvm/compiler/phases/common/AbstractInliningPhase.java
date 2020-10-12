@@ -1,5 +1,6 @@
+
 /*
- * Copyright (c) 2021, 2021, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2013, 2022, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,31 +23,23 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.graal.pointsto.results;
+package org.graalvm.compiler.phases.common;
 
-import com.oracle.graal.pointsto.BigBang;
-import com.oracle.graal.pointsto.infrastructure.Universe;
-import com.oracle.graal.pointsto.meta.AnalysisField;
-import com.oracle.graal.pointsto.meta.AnalysisMethod;
-import jdk.vm.ci.meta.JavaTypeProfile;
-import jdk.vm.ci.meta.TriState;
+import java.util.Optional;
+
+import org.graalvm.compiler.nodes.GraphState;
+import org.graalvm.compiler.nodes.GraphState.StageFlag;
+import org.graalvm.compiler.phases.BasePhase;
+import org.graalvm.compiler.phases.tiers.HighTierContext;
 
 /**
- * Implementation of the ResultsBuilder providing no feedback for optimizations. Used in
- * Reachability Analysis.
+ * Common superclass for phases that perform inlining.
  */
-public class DefaultResultsBuilder extends AbstractAnalysisResultsBuilder {
-    public DefaultResultsBuilder(BigBang bb, Universe converter) {
-        super(bb, converter);
-    }
-
+public abstract class AbstractInliningPhase extends BasePhase<HighTierContext> {
     @Override
-    public StaticAnalysisResults makeOrApplyResults(AnalysisMethod method) {
-        return StaticAnalysisResults.NO_RESULTS;
-    }
-
-    @Override
-    public JavaTypeProfile makeTypeProfile(AnalysisField field) {
-        return new JavaTypeProfile(TriState.UNKNOWN, 1, new JavaTypeProfile.ProfiledType[0]);
+    public Optional<NotApplicable> notApplicableTo(GraphState graphState) {
+        return NotApplicable.ifAny(
+                        NotApplicable.unlessRunBefore(this, StageFlag.HIGH_TIER_LOWERING, graphState),
+                        NotApplicable.unlessRunBefore(this, StageFlag.FINAL_CANONICALIZATION, graphState));
     }
 }
