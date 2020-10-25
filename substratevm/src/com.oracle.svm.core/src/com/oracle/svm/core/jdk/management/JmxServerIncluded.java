@@ -1,5 +1,7 @@
+
 /*
- * Copyright (c) 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2022, 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2022, 2022, Red Hat Inc. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,14 +24,16 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package org.graalvm.profdiff.args;
 
-/**
- * Indicates that a value of a program argument is invalid.
- */
-@SuppressWarnings("serial")
-public class InvalidArgumentException extends Exception {
-    InvalidArgumentException(String argumentName, String reason) {
-        super("The argument '" + argumentName + "' could not be parsed: " + reason);
+package com.oracle.svm.core.jdk.management;
+
+import java.util.function.BooleanSupplier;
+
+import com.oracle.svm.core.VMInspectionOptions;
+
+public class JmxServerIncluded implements BooleanSupplier {
+    @Override
+    public boolean getAsBoolean() {
+        return VMInspectionOptions.hasJmxServerSupport();
     }
 }

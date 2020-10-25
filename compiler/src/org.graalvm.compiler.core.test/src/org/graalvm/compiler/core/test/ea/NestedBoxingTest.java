@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2015, 2018, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,14 +22,26 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package org.graalvm.profdiff.args;
+package org.graalvm.compiler.core.test.ea;
 
-/**
- * Indicates that a value of a program argument is invalid.
- */
-@SuppressWarnings("serial")
-public class InvalidArgumentException extends Exception {
-    InvalidArgumentException(String argumentName, String reason) {
-        super("The argument '" + argumentName + "' could not be parsed: " + reason);
+import org.junit.Test;
+
+public class NestedBoxingTest extends EATestBase {
+
+    @Test
+    public void testSimpleMerge() {
+        testEscapeAnalysis("testSnippet", null, false);
+    }
+
+    public static int testSnippet(int n) {
+        Integer cur = 1;
+        Integer prev = 1;
+
+        for (int i = 0; i < n; i++) {
+            Integer next = prev + cur;
+            prev = cur;
+            cur = next;
+        }
+        return cur;
     }
 }
