@@ -157,4 +157,140 @@ public class SuspensionFilterTest extends AbstractDebugTest {
                         "    LOOP(2,\n" +
                         "      STATEMENT(CONSTANT(1)))\n" + // l. 8 Step stops here
                         "  ), \n" +
-                        "  STATEMENT(CALL(initFoo))\n
+                        "  STATEMENT(CALL(initFoo))\n" +
+                        ")\n";
+        Source initSource = Source.newBuilder(InstrumentationTestLanguage.ID, initCode, "<init>").buildLiteral();
+        InstrumentationTestLanguage.envConfig = Collections.singletonMap("initSource", initSource);
+        final Source source = testSource("ROOT(\n" +
+                        "  STATEMENT(CONSTANT(42))\n" +
+                        ")\n");
+
+        SuspensionFilter.Builder filterBuilder = SuspensionFilter.newBuilder().ignoreLanguageContextInitialization(true);
+        SuspensionFilter suspensionFilter = filterBuilder.build();
+        try (DebuggerSession session = startSession()) {
+            session.setSteppingFilter(suspensionFilter);
+            session.suspendNextExecution();
+            Breakpoint bp4 = Breakpoint.newBuilder(getSourceImpl(initSource)).lineIs(4).build();
+            Breakpoint bp6 = Breakpoint.newBuilder(getSourceImpl(initSource)).lineIs(6).build();
+            session.install(bp4);
+            session.install(bp6);
+            startEval(source);
+
+            expectSuspended((SuspendedEvent event) -> {
+                checkState(event, 4, true, "STATEMENT(EXPRESSION)");
+                Assert.assertFalse(event.isLanguageContextInitialized());
+                Assert.assertTrue(event.getBreakpoints().contains(bp4));
+                event.prepareStepOver(1);
+            });
+            expectSuspended((SuspendedEvent event) -> {
+                checkState(event, 6, true, "STATEMENT(EXPRESSION)");
+                Assert.assertFalse(event.isLanguageContextInitialized());
+                Assert.assertTrue(event.getBreakpoints().contains(bp6));
+                filterBuilder.ignoreLanguageContextInitialization(false);
+                session.setSteppingFilter(filterBuilder.build());
+                event.prepareStepOver(1);
+            });
+            expectSuspended((SuspendedEvent event) -> {
+                Assert.assertFalse(event.isLanguageContextInitialized());
+                checkState(event, 8, true, "STATEMENT(CONSTANT(1))", "loopIndex0", String.valueOf(0), "loopResult0", "Null").prepareContinue();
+            });
+            expectDone();
+        }
+    }
+
+    @Test
+    public void testInternalNoSuspend() throws Exception {
+        final Source source = Source.newBuilder(InstrumentationTestLanguage.ID, "ROOT(\n" +
+                        "  STATEMENT(EXPRESSION),\n" +
+                        "  STATEMENT(CONSTANT(42))\n" +
+                        ")\n", "test").internal(true).build();
+        // No suspension filter is necessary, internal sources are ignored by default
+        try (DebuggerSession session = startSession()) {
+            session.suspendNextExecution();
+            startEval(source);
+            // does not stop in internal source
+            expectDone();
+        }
+    }
+
+    @Test
+    public void testInternalStepping() throws Exception {
+        final Source internSource = Source.newBuilder(InstrumentationTestLanguage.ID, "ROOT(\n" +
+                        "  DEFINE(intern, \n" +
+                        "    STATEMENT(EXPRESSION),\n" +
+                        "    STATEMENT(CONSTANT(42))\n" +
+                        "  ),\n" +
+                        "  CALL(intern)\n" +
+                        ")\n", "intern").internal(true).build();
+        final Source source = testSource("ROOT(\n" +
+                        "  STATEMENT(CALL(intern)),\n" +
+                        "  STATEMENT(CONSTANT(1)),\n" +
+                        "  STATEMENT(CALL(intern))\n" +
+                        ")\n");
+        SuspensionFilter suspensionFilter = SuspensionFilter.newBuilder().includeInternal(false).build();
+        try (DebuggerSession session = startSession()) {
+            session.setSteppingFilter(suspensionFilter);
+            session.suspendNextExecution();
+            startEval(internSource);
+            // does not stop in internal source
+            expectDone();
+
+            startEval(source);
+            expectSuspended((SuspendedEvent event) -> {
+                checkState(event, 2, true, "STATEMENT(CALL(intern))");
+                event.prepareStepInto(1);
+            });
+            // Step into does not go into the internal source:
+            expectSuspended((SuspendedEvent event) -> {
+                checkState(event, 3, true, "STATEMENT(CONSTANT(1))");
+                Breakpoint bp = Breakpoint.newBuilder(getSourceImpl(internSource)).lineIs(3).build();
+                session.install(bp);
+                event.prepareContinue();
+            });
+            // Breakpoint does not stop there.
+            expectDone();
+        }
+    }
+
+    @Test
+    public void testInternalSteppingChange() throws Exception {
+        final Source internSource = Source.newBuilder(InstrumentationTestLanguage.ID, "ROOT(\n" +
+                        "  DEFINE(intern, \n" +
+                        "    STATEMENT(EXPRESSION),\n" +
+                        "    STATEMENT(CONSTANT(42))\n" +
+                        "  ),\n" +
+                        "  CALL(intern)\n" +
+                        ")\n", "intern").internal(true).build();
+        final Source source = testSource("ROOT(\n" +
+                        "  LOOP(5,\n" +
+                        "    STATEMENT(CALL(intern))\n" +
+                        "  )\n" +
+                        ")\n");
+        SuspensionFilter suspensionFilter = SuspensionFilter.newBuilder().includeInternal(true).build();
+        try (DebuggerSession session = startSession()) {
+            session.setSteppingFilter(suspensionFilter);
+            session.suspendNextExecution();
+            startEval(internSource);
+            // we stop in the internal source as the filter does not ignore internal sources now
+            expectSuspended((SuspendedEvent event) -> {
+                checkState(event, 3, true, "STATEMENT(EXPRESSION)");
+                event.prepareStepOver(1);
+            });
+            expectSuspended((SuspendedEvent event) -> {
+                checkState(event, 4, true, "STATEMENT(CONSTANT(42))");
+                event.prepareContinue();
+            });
+            expectDone();
+
+            // Ignore internal sources now
+            suspensionFilter = SuspensionFilter.newBuilder().includeInternal(false).build();
+            session.setSteppingFilter(suspensionFilter);
+            session.suspendNextExecution();
+            startEval(source);
+            expectSuspended((SuspendedEvent event) -> {
+                checkState(event, 3, true, "STATEMENT(CALL(intern))", "loopIndex0", String.valueOf(0), "loopResult0", "Null");
+                event.prepareStepInto(1);
+            });
+            // Step into does not go into the internal source:
+            expectSuspended((SuspendedEvent event) -> {
+                checkState(event, 3, true, "STATEMENT(CALL(intern))", 
