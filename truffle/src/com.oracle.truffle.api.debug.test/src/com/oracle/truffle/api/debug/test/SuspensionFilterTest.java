@@ -293,4 +293,148 @@ public class SuspensionFilterTest extends AbstractDebugTest {
             });
             // Step into does not go into the internal source:
             expectSuspended((SuspendedEvent event) -> {
-                checkState(event, 3, true, "STATEMENT(CALL(intern))", 
+                checkState(event, 3, true, "STATEMENT(CALL(intern))", "loopIndex0", String.valueOf(1), "loopResult0", "42");
+                // do not ignore instenal sources again
+                session.setSteppingFilter(SuspensionFilter.newBuilder().includeInternal(true).build());
+                event.prepareStepInto(1);
+            });
+            // Stopped in an internal source again
+            expectSuspended((SuspendedEvent event) -> {
+                checkState(event, 3, true, "STATEMENT(EXPRESSION)");
+                event.prepareContinue();
+            });
+            expectDone();
+        }
+    }
+
+    @Test
+    public void testInternalBreakpoints() throws Exception {
+        final Source internSource = Source.newBuilder(InstrumentationTestLanguage.ID, "ROOT(\n" +
+                        "  DEFINE(intern, \n" +
+                        "    STATEMENT(EXPRESSION)\n" +
+                        "  ),\n" +
+                        "  CALL(intern)\n" +
+                        ")\n", "intern").internal(true).build();
+        try (DebuggerSession session = startSession()) {
+            Breakpoint breakpoint = Breakpoint.newBuilder(getSourceImpl(internSource)).lineIs(3).build();
+            session.install(breakpoint);
+            startEval(internSource);
+            // By default, breakpoint does not stop in the internal source.
+            expectDone();
+
+            // When allowed by the suspension filter, it does stop:
+            session.setSteppingFilter(SuspensionFilter.newBuilder().includeInternal(true).build());
+            startEval(internSource);
+            expectSuspended((SuspendedEvent event) -> {
+                checkState(event, 3, true, "STATEMENT(EXPRESSION)");
+                event.prepareContinue();
+            });
+            expectDone();
+
+            // In another session it does not stop:
+            try (DebuggerSession session2 = startSession()) {
+                session2.install(breakpoint);
+                startEval(internSource);
+                // Stops in the `session` only:
+                expectSuspended((SuspendedEvent event) -> {
+                    Assert.assertSame(session, event.getSession());
+                    event.prepareContinue();
+                });
+                expectDone();
+
+                // Stops in both sessions:
+                session2.setSteppingFilter(SuspensionFilter.newBuilder().includeInternal(true).build());
+                startEval(internSource);
+                expectSuspended((SuspendedEvent event) -> {
+                    Assert.assertSame(session, event.getSession());
+                    event.prepareContinue();
+                });
+                expectSuspended((SuspendedEvent event) -> {
+                    Assert.assertSame(session2, event.getSession());
+                    event.prepareContinue();
+                });
+                expectDone();
+            }
+            // Disallow internal sources again:
+            session.setSteppingFilter(SuspensionFilter.newBuilder().includeInternal(false).build());
+            startEval(internSource);
+            expectDone();
+        }
+    }
+
+    @Test
+    public void testSourceFilter() {
+        final Source source1 = Source.newBuilder(InstrumentationTestLanguage.ID, "ROOT(\n" +
+                        "  DEFINE(foo1,\n" +
+                        "    STATEMENT(CONSTANT(43))\n" +
+                        "  ))\n", "Source1").buildLiteral();
+        final Source source2 = Source.newBuilder(InstrumentationTestLanguage.ID, "ROOT(\n" +
+                        "  DEFINE(foo2,\n" +
+                        "    STATEMENT(CONSTANT(44))\n" +
+                        "  ))\n", "Source2").buildLiteral();
+        final Source source3 = testSource("ROOT(\n" +
+                        "  CALL(foo1),\n" +
+                        "  CALL(foo2),\n" +
+                        "  STATEMENT(CALL(foo1)),\n" +
+                        "  STATEMENT(CALL(foo2)),\n" +
+                        "  STATEMENT(CALL(foo1)),\n" +
+                        "  STATEMENT(CALL(foo2)),\n" +
+                        "  STATEMENT(CONSTANT(100))\n" +
+                        ")\n");
+        try (DebuggerSession session = startSession()) {
+            // Filter out all sections
+            SuspensionFilter suspensionFilter = SuspensionFilter.newBuilder().sourceIs(s -> false).build();
+            session.setSteppingFilter(suspensionFilter);
+            session.suspendNextExecution();
+            startEval(source1);
+            expectDone();
+            startEval(source2);
+            expectDone();
+            startEval(source3);
+            expectDone();
+
+            Predicate<com.oracle.truffle.api.source.Source> filterSource1 = source -> {
+                return source.getName().indexOf("Source1") < 0;
+            };
+            suspensionFilter = SuspensionFilter.newBuilder().sourceIs(filterSource1).build();
+            session.setSteppingFilter(suspensionFilter);
+            session.suspendNextExecution();
+            startEval(source3);
+
+            // Skip foo1 and suspend in foo2:
+            expectSuspended((SuspendedEvent event) -> {
+                checkState(event, 3, true, "STATEMENT(CONSTANT(44))");
+                event.prepareStepOver(1);
+            });
+            expectSuspended((SuspendedEvent event) -> {
+                checkState(event, 3, false, "CALL(foo2)");
+                event.prepareStepInto(1);
+            });
+            expectSuspended((SuspendedEvent event) -> {
+                checkState(event, 4, true, "STATEMENT(CALL(foo1))");
+                event.prepareStepInto(1);
+            });
+            expectSuspended((SuspendedEvent event) -> {
+                checkState(event, 5, true, "STATEMENT(CALL(foo2))");
+                event.prepareStepInto(1);
+            });
+            expectSuspended((SuspendedEvent event) -> {
+                checkState(event, 3, true, "STATEMENT(CONSTANT(44))");
+                event.prepareStepInto(2);
+            });
+            // Change the filter to filter Source2 out:
+            expectSuspended((SuspendedEvent event) -> {
+                checkState(event, 6, true, "STATEMENT(CALL(foo1))");
+                Predicate<com.oracle.truffle.api.source.Source> filterSource2 = source -> {
+                    return source.getName().indexOf("Source2") < 0;
+                };
+                session.setSteppingFilter(SuspensionFilter.newBuilder().sourceIs(filterSource2).build());
+                event.prepareStepInto(1);
+            });
+            expectSuspended((SuspendedEvent event) -> {
+                checkState(event, 3, true, "STATEMENT(CONSTANT(43))");
+                event.prepareStepOut(1).prepareStepOver(1).prepareStepInto(1);
+            });
+            expectSuspended((SuspendedEvent event) -> {
+                checkState(event, 8, true, "STATEMENT(CONSTANT(100))");
+                event.prepar
