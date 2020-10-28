@@ -437,4 +437,98 @@ public class SuspensionFilterTest extends AbstractDebugTest {
             });
             expectSuspended((SuspendedEvent event) -> {
                 checkState(event, 8, true, "STATEMENT(CONSTANT(100))");
-                event.prepar
+                event.prepareContinue();
+            });
+            expectDone();
+        }
+    }
+
+    @Test
+    public void testSourceFilterBreakpoints() {
+        final Source source1 = Source.newBuilder(InstrumentationTestLanguage.ID, "ROOT(\n" +
+                        "  DEFINE(foo1,\n" +
+                        "    STATEMENT(CONSTANT(43))\n" +
+                        "  ))\n", "Source1").buildLiteral();
+        final Source source2 = Source.newBuilder(InstrumentationTestLanguage.ID, "ROOT(\n" +
+                        "  DEFINE(foo2,\n" +
+                        "    STATEMENT(CONSTANT(44))\n" +
+                        "  ))\n", "Source2").buildLiteral();
+        final Source source3 = testSource("ROOT(\n" +
+                        "  CALL(foo1),\n" +
+                        "  CALL(foo2)\n" +
+                        ")\n");
+        try (DebuggerSession session = startSession()) {
+            Breakpoint breakpoint1 = Breakpoint.newBuilder(getSourceImpl(source1)).lineIs(3).build();
+            Breakpoint breakpoint2 = Breakpoint.newBuilder(getSourceImpl(source2)).lineIs(3).build();
+            session.install(breakpoint1);
+            session.install(breakpoint2);
+            // Filter out all sections
+            SuspensionFilter suspensionFilter = SuspensionFilter.newBuilder().sourceIs(s -> false).build();
+            session.setSteppingFilter(suspensionFilter);
+            startEval(source1);
+            expectDone();
+            startEval(source2);
+            expectDone();
+            startEval(source3);
+            expectDone();
+
+            session.setSteppingFilter(SuspensionFilter.newBuilder().build()); // Allow all
+            startEval(source3);
+            expectSuspended((SuspendedEvent event) -> {
+                checkState(event, 3, true, "STATEMENT(CONSTANT(43))");
+                Assert.assertEquals(1, event.getBreakpoints().size());
+                Assert.assertSame(breakpoint1, event.getBreakpoints().get(0));
+                event.prepareContinue();
+            });
+            expectSuspended((SuspendedEvent event) -> {
+                checkState(event, 3, true, "STATEMENT(CONSTANT(44))");
+                Assert.assertEquals(1, event.getBreakpoints().size());
+                Assert.assertSame(breakpoint2, event.getBreakpoints().get(0));
+                event.prepareContinue();
+            });
+            expectDone();
+
+            // Filter out Source1:
+            Predicate<com.oracle.truffle.api.source.Source> filterSource1 = source -> {
+                return source.getName().indexOf("Source1") < 0;
+            };
+            suspensionFilter = SuspensionFilter.newBuilder().sourceIs(filterSource1).build();
+            session.setSteppingFilter(suspensionFilter);
+            startEval(source3);
+            expectSuspended((SuspendedEvent event) -> {
+                checkState(event, 3, true, "STATEMENT(CONSTANT(44))");
+                Assert.assertEquals(1, event.getBreakpoints().size());
+                Assert.assertSame(breakpoint2, event.getBreakpoints().get(0));
+                event.prepareContinue();
+            });
+            expectDone();
+
+            // A second session with different filters:
+            try (DebuggerSession session2 = startSession()) {
+                Predicate<com.oracle.truffle.api.source.Source> filterSource2 = source -> {
+                    return source.getName().indexOf("Source2") < 0;
+                };
+                session2.setSteppingFilter(SuspensionFilter.newBuilder().sourceIs(filterSource2).build());
+                session2.install(breakpoint1);
+                session2.install(breakpoint2);
+
+                startEval(source3);
+                expectSuspended((SuspendedEvent event) -> {
+                    checkState(event, 3, true, "STATEMENT(CONSTANT(43))");
+                    Assert.assertEquals(1, event.getBreakpoints().size());
+                    Assert.assertSame(breakpoint1, event.getBreakpoints().get(0));
+                    Assert.assertSame(session2, event.getSession());
+                    event.prepareContinue();
+                });
+                expectSuspended((SuspendedEvent event) -> {
+                    checkState(event, 3, true, "STATEMENT(CONSTANT(44))");
+                    Assert.assertEquals(1, event.getBreakpoints().size());
+                    Assert.assertSame(breakpoint2, event.getBreakpoints().get(0));
+                    Assert.assertSame(session, event.getSession());
+                    event.prepareContinue();
+                });
+                expectDone();
+            }
+        }
+    }
+}
