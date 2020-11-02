@@ -295,4 +295,70 @@ public final class StackWalk {
                             break;
                         }
                         // Found where we left off: start processing.
-                        s
+                        state = PROCESS;
+                        // fallthrough
+                    case PROCESS:
+                        if (decoded >= batchSize) {
+                            // Done
+                            state = HALT;
+                            return decoded;
+                        }
+                        tryProcessFrame(frameInstance, m, startIndex + decoded);
+                        depth++;
+                        if (decoded >= batchSize) {
+                            // Done
+                            state = HALT;
+                            return decoded;
+                        }
+                        break;
+                    case HALT:
+                    default:
+                        throw EspressoError.shouldNotReachHere();
+                }
+            }
+            return null;
+        }
+
+        private void tryProcessFrame(FrameInstance frameInstance, Method m, int index) {
+            if (getCallerClass(mode) || skipHiddenFrames(mode)) {
+                if (m.isHidden()) {
+                    // Skip hidden frames.
+                    return;
+                }
+            }
+            if (!needMethodInfo(mode) && getCallerClass(mode) && (index == startIndex) && m.isCallerSensitive()) {
+                throw meta.throwExceptionWithMessage(meta.java_lang_UnsupportedOperationException, "StackWalker::getCallerClass called from @CallerSensitive " + m.getNameAsString() + " method");
+            }
+            processFrame(frameInstance, m, index);
+            decoded++;
+        }
+
+        private void processFrame(FrameInstance frameInstance, Method m, int index) {
+            if (liveFrameInfo(mode)) {
+                fillFrame(frameInstance, m, index);
+                // TODO: extract stack, locals and monitors from the frame.
+                throw EspressoError.unimplemented();
+            } else if (needMethodInfo(mode)) {
+                fillFrame(frameInstance, m, index);
+            } else {
+                // Only class info is needed.
+                Klass klass = m.getDeclaringKlass();
+                meta.getInterpreterToVM().setArrayObject(klass.getContext().getLanguage(), klass.mirror(), index, frames);
+            }
+        }
+
+        /**
+         * Initializes the {@code java.lang.StackFrameInfo} in the {@link #frames} array at index
+         * {@code index}. This means initializing the associated {@code java.lang.invoke.MemberName}
+         * , and injecting a BCI.
+         */
+        private void fillFrame(FrameInstance frameInstance, Method m, int index) {
+            StaticObject frame = frames.get(meta.getLanguage(), index);
+            StaticObject memberName = meta.java_lang_StackFrameInfo_memberName.getObject(frame);
+            Target_java_lang_invoke_MethodHandleNatives.plantResolvedMethod(memberName, m, m.getRefKind(), meta);
+            meta.java_lang_invoke_MemberName_clazz.setObject(memberName, m.getDeclaringKlass().mirror());
+            EspressoRootNode rootNode = VM.getEspressoRootFromFrame(frameInstance, meta.getContext());
+            meta.java_lang_StackFrameInfo_bci.setInt(frame, rootNode.readBCI(frameInstance.getFrame(FrameInstance.FrameAccess.READ_ONLY)));
+        }
+    }
+}
