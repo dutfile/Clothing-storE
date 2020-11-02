@@ -125,4 +125,174 @@ public final class StackWalk {
      * After {@link #fetchFirstBatch(StaticObject, long, int, int, int, StaticObject, Meta)}, this
      * method allows to continue frame walking, starting from where the previous calls left off.
      * 
- 
+     * @return The position in the buffer at the end of fetching.
+     */
+    public int fetchNextBatch(
+                    @SuppressWarnings("unused") @JavaType(internalName = "Ljava/lang/StackStreamFactory;") StaticObject stackStream,
+                    long mode, long anchor,
+                    int batchSize, int startIndex,
+                    @JavaType(Object[].class) StaticObject frames,
+                    Meta meta) {
+        assert synchronizedConstants(meta);
+        FrameWalker fw = getAnchored(anchor);
+        if (fw == null) {
+            throw meta.throwExceptionWithMessage(meta.java_lang_InternalError, "doStackWalk: corrupted buffers");
+        }
+        if (batchSize <= 0) {
+            return startIndex;
+        }
+        fw.next(batchSize, startIndex);
+        fw.mode(mode);
+        Integer decodedOrNull = fw.doStackWalk(frames);
+        int decoded = decodedOrNull == null ? fw.decoded() : decodedOrNull;
+        return startIndex + decoded;
+    }
+
+    private void register(FrameWalker fw) {
+        walkers.put(fw.anchor, fw);
+    }
+
+    private FrameWalker getAnchored(long id) {
+        return walkers.get(id);
+    }
+
+    private void unAnchor(FrameWalker fw) {
+        walkers.remove(fw.anchor);
+    }
+
+    class FrameWalker implements FrameInstanceVisitor<Integer> {
+
+        protected final Meta meta;
+        protected long mode;
+
+        private volatile long anchor = -1;
+
+        private int state = 0;
+        private int from = 0;
+        private int batchSize = 0;
+        private int startIndex = 0;
+
+        private StaticObject frames = StaticObject.NULL;
+        private int depth = 0;
+        private int decoded = 0;
+
+        private static final int LOCATE_CALLSTACKWALK = 0;
+        private static final int LOCATE_STACK_BEGIN = 1;
+        private static final int LOCATE_FROM = 2;
+        private static final int PROCESS = 3;
+        private static final int HALT = 4;
+
+        FrameWalker(Meta meta, long mode) {
+            this.meta = meta;
+            this.mode = mode;
+        }
+
+        public void anchor() {
+            assert !isAnchored();
+            anchor = walkerIds.getAndIncrement();
+        }
+
+        public boolean isAnchored() {
+            return anchor > 0;
+        }
+
+        public int decoded() {
+            return decoded;
+        }
+
+        public void clear() {
+            state = LOCATE_CALLSTACKWALK;
+            depth = 0;
+            decoded = 0;
+        }
+
+        public void init(int skipFrames, int firstBatchSize, int firstStartIndex) {
+            this.from = skipFrames;
+            this.batchSize = firstBatchSize;
+            this.startIndex = firstStartIndex;
+        }
+
+        public void next(int newBatchSize, int newStartIndex) {
+            this.from = depth;
+            this.batchSize = newBatchSize;
+            this.startIndex = newStartIndex;
+        }
+
+        public void mode(long toSet) {
+            this.mode = toSet;
+        }
+
+        /**
+         * Since we restart the frame walking even when java requests a "continue", we need to
+         * somehow keep around where in the last stack traversal we stopped. This is done in 3
+         * steps:
+         *
+         * <li>Since the frames are anchored at the point where callStackWalk is called, we first
+         * set the "frame iterator" at this particular point.
+         *
+         * <li>Once the frame iterator is set at callStackWalk, we unwind the stack until we find
+         * the requester of the stack walking (in practice, that means skipping all methods from the
+         * StackWalker API)
+         *
+         * <li>Once we found the caller, we then need to unwind the frames until where we left off
+         * previously.
+         */
+        public Integer doStackWalk(StaticObject usedFrames) {
+            clear();
+            this.frames = usedFrames;
+            Integer res = Truffle.getRuntime().iterateFrames(this);
+            this.frames = StaticObject.NULL;
+            return res;
+        }
+
+        private boolean isFromStackWalkingAPI(Method m) {
+            return m.getDeclaringKlass() == meta.java_lang_StackWalker || m.getDeclaringKlass() == meta.java_lang_StackStreamFactory_AbstractStackWalker ||
+                            m.getDeclaringKlass().getSuperKlass() == meta.java_lang_StackStreamFactory_AbstractStackWalker;
+        }
+
+        private boolean isCallStackWalk(Method m) {
+            return m.getDeclaringKlass() == meta.java_lang_StackStreamFactory_AbstractStackWalker &&
+                            Name.callStackWalk.equals(m.getName()) &&
+                            getCallStackWalkSignature().equals(m.getRawSignature());
+        }
+
+        private Symbol<Signature> getCallStackWalkSignature() {
+            return meta.getJavaVersion().java19OrLater() ? Signature.Object_long_int_ContinuationScope_Continuation_int_int_Object_array : Signature.Object_long_int_int_int_Object_array;
+        }
+
+        @SuppressWarnings("fallthrough")
+        @Override
+        public Integer visitFrame(FrameInstance frameInstance) {
+            EspressoRootNode root = VM.getEspressoRootFromFrame(frameInstance, meta.getContext());
+            Method m = root == null ? null : root.getMethod();
+            if (m != null) {
+                switch (state) {
+                    case LOCATE_CALLSTACKWALK:
+                        if (!isCallStackWalk(m)) {
+                            break;
+                        }
+                        if (isAnchored()) {
+                            if (root.readStackAnchorOrZero(frameInstance.getFrame(FrameInstance.FrameAccess.READ_ONLY)) != anchor) {
+                                break;
+                            }
+                        } else {
+                            anchor();
+                            root.setStackWalkAnchor(frameInstance.getFrame(FrameInstance.FrameAccess.READ_WRITE), anchor);
+                        }
+                        // Found callStackWalk: start unwinding StackWalker API
+                        state = LOCATE_STACK_BEGIN;
+                        // fallthrough
+                    case LOCATE_STACK_BEGIN:
+                        if (isFromStackWalkingAPI(m)) {
+                            break;
+                        }
+                        // Found Caller: find where we left off.
+                        state = LOCATE_FROM;
+                        // fallthrough
+                    case LOCATE_FROM:
+                        if (depth < from) {
+                            depth++;
+                            break;
+                        }
+                        // Found where we left off: start processing.
+                        s
