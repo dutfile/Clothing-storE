@@ -94,4 +94,7 @@ public class NativeImageResourceDirectoryStream implements DirectoryStream<Path>
     @Override
     public void close() throws IOException {
         if (!isClosed) {
-            isClosed = tru
+            isClosed = true;
+        }
+    }
+}
