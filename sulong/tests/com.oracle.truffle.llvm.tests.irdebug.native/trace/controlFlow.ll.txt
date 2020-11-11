@@ -48,4 +48,11 @@ STOP 18 STEP_OUT "@foo"
     OPEN_SCOPE partial
 
 
-STOP 25 STEP_INTO "@te
+STOP 25 STEP_INTO "@test"
+    OPEN_SCOPE partial
+
+
+STOP 26 CONTINUE "@test"
+    OPEN_SCOPE partial
+
+
