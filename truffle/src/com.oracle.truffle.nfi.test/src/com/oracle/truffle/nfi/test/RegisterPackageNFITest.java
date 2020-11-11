@@ -160,4 +160,27 @@ public class RegisterPackageNFITest extends NFITest {
 
         @Override
         public Object executeTest(VirtualFrame frame) throws InteropException {
-            FunctionRegistry registry = loadPackage.loadPa
+            FunctionRegistry registry = loadPackage.loadPackage();
+
+            Object add = registry.get("add");
+            Object square = registry.get("square");
+            Object sqrt = registry.get("sqrt");
+
+            double a = (Double) frame.getArguments()[0];
+            double b = (Double) frame.getArguments()[1];
+
+            double aSq = (Double) interop.execute(square, a);
+            double bSq = (Double) interop.execute(square, b);
+
+            double cSq = (Double) interop.execute(add, aSq, bSq);
+            return interop.execute(sqrt, cSq);
+        }
+    }
+
+    @Test
+    public void testPythagoras(@Inject(RegisterPackageTestNode.class) CallTarget callTarget) {
+        Object ret = callTarget.call(3.0, 4.0);
+        Assert.assertThat("return value", ret, is(instanceOf(Double.class)));
+        Assert.assertEquals("return value", 5.0, ret);
+    }
+}
