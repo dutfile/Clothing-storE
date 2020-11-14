@@ -225,4 +225,42 @@ public final class CodePointSet extends ImmutableSortedListOfIntRanges implement
 
     @TruffleBoundary
     @Override
-    publi
+    public JsonValue toJson() {
+        return Json.array(ranges);
+    }
+
+    @TruffleBoundary
+    @Override
+    public String toString() {
+        return defaultToString();
+    }
+
+    @TruffleBoundary
+    public String dumpRaw() {
+        StringBuilder sb = new StringBuilder(size() * 20);
+        for (int i = 0; i < size(); i++) {
+            if (i > 0) {
+                sb.append(",");
+            }
+            sb.append(String.format("0x%06x, 0x%06x", getLo(i), getHi(i)));
+        }
+        return sb.toString();
+    }
+
+    @Override
+    public int[] toArray() {
+        return getRanges();
+    }
+
+    public int[] valuesToArray() {
+        int[] array = new int[valueCount()];
+        int index = 0;
+        for (int i = 0; i < size(); i++) {
+            for (int j = getLo(i); j <= getHi(i); j++) {
+                array[index++] = j;
+            }
+        }
+        assert index == array.length;
+        return array;
+    }
+}
