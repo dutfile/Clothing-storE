@@ -231,4 +231,59 @@ public final class SimpleLanguageDAPTest {
         tester.sendMessage("{\"command\":\"threads\",\"type\":\"request\",\"seq\":5}");
         tester.compareReceivedMessages("{\"success\":true,\"body\":{\"threads\":[{\"name\":\"testRunner\",\"id\":1}]},\"type\":\"response\",\"request_seq\":5,\"command\":\"threads\",\"seq\":11}");
         tester.sendMessage("{\"command\":\"stackTrace\",\"arguments\":{\"threadId\":1},\"type\":\"request\",\"seq\":6}");
-   
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"stackFrames\":[{\"line\":2,\"name\":\"main\",\"column\":3,\"id\":1,\"source\":{\"sourceReference\":2,\"path\":\"" + testFilePath + "\",\"name\":\"SLTest.sl\"}}],\"totalFrames\":1},\"type\":\"response\",\"request_seq\":6,\"command\":\"stackTrace\",\"seq\":12}");
+        // Next:
+        tester.sendMessage("{\"command\":\"next\",\"arguments\":{\"threadId\":1},\"type\":\"request\",\"seq\":7}");
+        tester.compareReceivedMessages(
+                "{\"event\":\"continued\",\"body\":{\"threadId\":1,\"allThreadsContinued\":false},\"type\":\"event\"}",
+                "{\"success\":true,\"type\":\"response\",\"request_seq\":7,\"command\":\"next\"}",
+                "{\"event\":\"stopped\",\"body\":{\"threadId\":1,\"reason\":\"debugger_statement\",\"description\":\"Paused on debugger statement\"},\"type\":\"event\"}"
+        );
+        tester.sendMessage("{\"command\":\"threads\",\"type\":\"request\",\"seq\":8}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"threads\":[{\"name\":\"testRunner\",\"id\":1}]},\"type\":\"response\",\"request_seq\":8,\"command\":\"threads\",\"seq\":16}");
+        tester.sendMessage("{\"command\":\"stackTrace\",\"arguments\":{\"threadId\":1},\"type\":\"request\",\"seq\":9}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"stackFrames\":[{\"line\":3,\"name\":\"main\",\"column\":3,\"id\":1,\"source\":{\"sourceReference\":2,\"path\":\"" + testFilePath + "\",\"name\":\"SLTest.sl\"}}],\"totalFrames\":1},\"type\":\"response\",\"request_seq\":9,\"command\":\"stackTrace\",\"seq\":17}");
+        // Step in:
+        tester.sendMessage("{\"command\":\"stepIn\",\"arguments\":{\"threadId\":1},\"type\":\"request\",\"seq\":10}");
+        tester.compareReceivedMessages(
+                "{\"event\":\"continued\",\"body\":{\"threadId\":1,\"allThreadsContinued\":false},\"type\":\"event\"}",
+                "{\"success\":true,\"type\":\"response\",\"request_seq\":10,\"command\":\"stepIn\"}",
+                "{\"event\":\"stopped\",\"body\":{\"threadId\":1,\"reason\":\"debugger_statement\",\"description\":\"Paused on debugger statement\"},\"type\":\"event\"}"
+        );
+        tester.sendMessage("{\"command\":\"threads\",\"type\":\"request\",\"seq\":11}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"threads\":[{\"name\":\"testRunner\",\"id\":1}]},\"type\":\"response\",\"request_seq\":11,\"command\":\"threads\",\"seq\":21}");
+        tester.sendMessage("{\"command\":\"stackTrace\",\"arguments\":{\"threadId\":1},\"type\":\"request\",\"seq\":12}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"stackFrames\":[{\"line\":11,\"name\":\"factorial\",\"column\":3,\"id\":1,\"source\":{\"sourceReference\":2,\"path\":\"" + testFilePath + "\",\"name\":\"SLTest.sl\"}},{\"line\":3,\"name\":\"main\",\"column\":7,\"id\":2,\"source\":{\"sourceReference\":2,\"path\":\"" + testFilePath + "\",\"name\":\"SLTest.sl\"}}],\"totalFrames\":2},\"type\":\"response\",\"request_seq\":12,\"command\":\"stackTrace\",\"seq\":22}");
+        // Step out:
+        tester.sendMessage("{\"command\":\"stepOut\",\"arguments\":{\"threadId\":1},\"type\":\"request\",\"seq\":13}");
+        tester.compareReceivedMessages(
+                "{\"event\":\"continued\",\"body\":{\"threadId\":1,\"allThreadsContinued\":false},\"type\":\"event\"}",
+                "{\"success\":true,\"type\":\"response\",\"request_seq\":13,\"command\":\"stepOut\"}",
+                "{\"event\":\"stopped\",\"body\":{\"threadId\":1,\"reason\":\"debugger_statement\",\"description\":\"Paused on debugger statement\"},\"type\":\"event\"}"
+        );
+        tester.sendMessage("{\"command\":\"threads\",\"type\":\"request\",\"seq\":14}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"threads\":[{\"name\":\"testRunner\",\"id\":1}]},\"type\":\"response\",\"request_seq\":14,\"command\":\"threads\",\"seq\":26}");
+        tester.sendMessage("{\"command\":\"stackTrace\",\"arguments\":{\"threadId\":1},\"type\":\"request\",\"seq\":15}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"stackFrames\":[{\"line\":3,\"name\":\"main\",\"column\":21,\"id\":1,\"source\":{\"sourceReference\":2,\"path\":\"" + testFilePath + "\",\"name\":\"SLTest.sl\"}}],\"totalFrames\":1},\"type\":\"response\",\"request_seq\":15,\"command\":\"stackTrace\",\"seq\":27}");
+        // Step out to finish:
+        tester.sendMessage("{\"command\":\"stepOut\",\"arguments\":{\"threadId\":1},\"type\":\"request\",\"seq\":16}");
+        tester.compareReceivedMessages(
+                "{\"event\":\"continued\",\"body\":{\"threadId\":1,\"allThreadsContinued\":false},\"type\":\"event\"}",
+                "{\"success\":true,\"type\":\"response\",\"request_seq\":16,\"command\":\"stepOut\"}"
+        );
+        tester.finish();
+    }
+
+    @Test
+    public void testBreakpoints() throws Exception {
+        tester = DAPTester.start(false);
+        File sourceFile = createTemporaryFile(CODE1);
+        Source source = Source.newBuilder("sl", sourceFile).build();
+        String sourceJson = "{\"name\":\"" + sourceFile.getName() + "\",\"path\":\"" + getFilePath(sourceFile) + "\"}";
+        tester.sendMessage("{\"command\":\"initialize\",\"arguments\":{\"clientID\":\"DAPTester\",\"clientName\":\"DAP Tester\",\"adapterID\":\"graalvm\",\"pathFormat\":\"path\",\"linesStartAt1\":true,\"columnsStartAt1\":true,\"supportsVariableType\":true,\"supportsVariablePaging\":true,\"supportsRunInTerminalRequest\":true,\"locale\":\"en-us\",\"supportsProgressReporting\":true},\"type\":\"request\",\"seq\":1}");
+        tester.compareReceivedMessages(
+                "{\"event\":\"initialized\",\"type\":\"event\"}",
+                "{\"success\":true,\"type\":\"response\",\"body\":{\"supportsConditionalBreakpoints\":true,\"supportsLoadedSourcesRequest\":true,\"supportsFunctionBreakpoints\":true,\"supportsExceptionInfoRequest\":true,\"supportsBreakpointLocationsRequest\":true,\"supportsHitConditionalBreakpoints\":true,\"supportsLogPoints\":true,\"supportsSetVariable\":true,\"supportsConfigurationDoneRequest\":true,\"exceptionBreakpointFilters\":[{\"filter\":\"all\",\"label\":\"All Exceptions\"},{\"filter\":\"uncaught\",\"label\":\"Uncaught Exceptions\"}]},\"request_seq\":1,\"command\":\"initialize\"}"
+        );
+        tester.sendMessage("{\"command\":\"attach\",\"arguments\":{\"type\":\"graalvm\",\"request\":\"attach\",\"name\":\"Attach\",\"port\":9229,\"protocol\":\"chromeDevTools\"},\"type\":\"request\",\"seq\":2}");
+        tester.compareReceivedMessages("{\"event\":\"output\",\"body\":{\"output\":\"Debugger attached.\",\"category\
