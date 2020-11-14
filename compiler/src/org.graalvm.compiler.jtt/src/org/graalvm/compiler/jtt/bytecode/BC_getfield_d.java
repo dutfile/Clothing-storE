@@ -1,5 +1,6 @@
+
 /*
- * Copyright (c) 2009, 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2007, 2018, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,32 +23,38 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package org.graalvm.compiler.runtime;
+package org.graalvm.compiler.jtt.bytecode;
 
-import jdk.vm.ci.code.Architecture;
+import org.junit.Test;
 
-import org.graalvm.compiler.core.target.Backend;
+import org.graalvm.compiler.jtt.JTTTest;
 
-/**
- * A runtime supporting a host backend as well, zero or more additional backends.
- */
-public interface RuntimeProvider {
+public class BC_getfield_d extends JTTTest {
 
-    /**
-     * Gets the host backend.
-     */
-    Backend getHostBackend();
+    static class FieldHolder {
+        FieldHolder(double field) {
+            this.field = field;
+        }
 
-    /**
-     * Returns the unique compiler configuration name that is in use. Useful for users to find out
-     * which configuration is in use.
-     */
-    String getCompilerConfigurationName();
+        private double field;
+    }
 
-    /**
-     * Gets the backend for a given architecture.
-     *
-     * @param arch a specific architecture class
-     */
-    <T extends Architecture> Backend getBackend(Class<T> arch);
+    public static double test(FieldHolder object) {
+        return object.field;
+    }
+
+    @Test
+    public void run0() throws Throwable {
+        runTest("test", new FieldHolder(0.0D));
+    }
+
+    @Test
+    public void run1() throws Throwable {
+        runTest("test", new FieldHolder(Double.MAX_VALUE));
+    }
+
+    @Test
+    public void run2() throws Throwable {
+        runTest("test", new FieldHolder(Double.MIN_VALUE));
+    }
 }

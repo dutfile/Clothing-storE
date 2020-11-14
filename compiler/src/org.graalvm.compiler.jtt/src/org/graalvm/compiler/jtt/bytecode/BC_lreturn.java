@@ -1,5 +1,6 @@
+
 /*
- * Copyright (c) 2009, 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2007, 2018, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,32 +23,43 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package org.graalvm.compiler.runtime;
+package org.graalvm.compiler.jtt.bytecode;
 
-import jdk.vm.ci.code.Architecture;
+import org.junit.Test;
 
-import org.graalvm.compiler.core.target.Backend;
+import org.graalvm.compiler.jtt.JTTTest;
 
-/**
- * A runtime supporting a host backend as well, zero or more additional backends.
+/*
  */
-public interface RuntimeProvider {
+public class BC_lreturn extends JTTTest {
 
-    /**
-     * Gets the host backend.
-     */
-    Backend getHostBackend();
+    public static long test(long a) {
+        return a;
+    }
 
-    /**
-     * Returns the unique compiler configuration name that is in use. Useful for users to find out
-     * which configuration is in use.
-     */
-    String getCompilerConfigurationName();
+    @Test
+    public void run0() throws Throwable {
+        runTest("test", 0L);
+    }
 
-    /**
-     * Gets the backend for a given architecture.
-     *
-     * @param arch a specific architecture class
-     */
-    <T extends Architecture> Backend getBackend(Class<T> arch);
+    @Test
+    public void run1() throws Throwable {
+        runTest("test", 1L);
+    }
+
+    @Test
+    public void run2() throws Throwable {
+        runTest("test", -1L);
+    }
+
+    @Test
+    public void run3() throws Throwable {
+        runTest("test", 256L);
+    }
+
+    @Test
+    public void run4() throws Throwable {
+        runTest("test", 1000000000000L);
+    }
+
 }

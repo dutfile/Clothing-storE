@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2020, 2022, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,32 +22,27 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package org.graalvm.compiler.runtime;
+package com.oracle.truffle.tools.dap.test;
 
-import jdk.vm.ci.code.Architecture;
+import java.io.File;
+import java.io.IOException;
+import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.StandardOpenOption;
 
-import org.graalvm.compiler.core.target.Backend;
+import org.graalvm.polyglot.Source;
 
-/**
- * A runtime supporting a host backend as well, zero or more additional backends.
- */
-public interface RuntimeProvider {
+import org.junit.After;
+import org.junit.Ignore;
+import org.junit.Test;
 
-    /**
-     * Gets the host backend.
-     */
-    Backend getHostBackend();
+@Ignore("GR-43473")
+public final class SimpleLanguageDAPTest {
 
-    /**
-     * Returns the unique compiler configuration name that is in use. Useful for users to find out
-     * which configuration is in use.
-     */
-    String getCompilerConfigurationName();
-
-    /**
-     * Gets the backend for a given architecture.
-     *
-     * @param arch a specific architecture class
-     */
-    <T extends Architecture> Backend getBackend(Class<T> arch);
-}
+    private static final String FACTORIAL = "function factorial(n) {\n" +
+                    "  f = 1;\n" +
+                    "  i = 2;\n" +
+                    "  while (i <= n) {\n" +
+                    "    f2 = f * i;\n" +
+                    "    i = i + 1;\n" +
+                  

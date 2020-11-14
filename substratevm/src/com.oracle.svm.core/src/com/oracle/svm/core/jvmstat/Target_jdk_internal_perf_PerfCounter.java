@@ -1,5 +1,6 @@
+
 /*
- * Copyright (c) 2009, 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2021, 2021, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,32 +23,29 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package org.graalvm.compiler.runtime;
+package com.oracle.svm.core.jvmstat;
 
-import jdk.vm.ci.code.Architecture;
-
-import org.graalvm.compiler.core.target.Backend;
+import com.oracle.svm.core.annotate.Substitute;
+import com.oracle.svm.core.annotate.TargetClass;
 
 /**
- * A runtime supporting a host backend as well, zero or more additional backends.
+ * PerfCounter objects that end up in the image heap reference an invalid buffer (see
+ * PerfCounter.lb). Accessing this buffer would result in a segfault, so we substitute all methods
+ * that may access this buffer.
  */
-public interface RuntimeProvider {
+@TargetClass(className = "jdk.internal.perf.PerfCounter")
+final class Target_jdk_internal_perf_PerfCounter {
+    @Substitute
+    @SuppressWarnings("static-method")
+    public long get() {
+        return 0;
+    }
 
-    /**
-     * Gets the host backend.
-     */
-    Backend getHostBackend();
+    @Substitute
+    public void set(@SuppressWarnings("unused") long var1) {
+    }
 
-    /**
-     * Returns the unique compiler configuration name that is in use. Useful for users to find out
-     * which configuration is in use.
-     */
-    String getCompilerConfigurationName();
-
-    /**
-     * Gets the backend for a given architecture.
-     *
-     * @param arch a specific architecture class
-     */
-    <T extends Architecture> Backend getBackend(Class<T> arch);
+    @Substitute
+    public void add(@SuppressWarnings("unused") long var1) {
+    }
 }
