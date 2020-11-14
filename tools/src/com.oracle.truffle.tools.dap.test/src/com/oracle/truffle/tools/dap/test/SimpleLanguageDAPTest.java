@@ -45,4 +45,135 @@ public final class SimpleLanguageDAPTest {
                     "  while (i <= n) {\n" +
                     "    f2 = f * i;\n" +
                     "    i = i + 1;\n" +
-                  
+                    "    f = f2;\n" +
+                    "  }\n" +
+                    "  return f;\n" +
+                    "}";
+    private static final String CODE1 = "function main() {\n" +
+                    "  a = 10;\n" +
+                    "  b = factorial(a/2) / 60;\n" +
+                    "  while (b > 0) {\n" +
+                    "    c = a + b;\n" +
+                    "    b = b - c/10;\n" +
+                    "  }\n" +
+                    "  return b;\n" +
+                    "}\n" + FACTORIAL;
+    private static final String CODE2 = "function main() {\n" +
+                    "  n = 10;\n" +
+                    "  i = 0;\n" +
+                    "  while (i < n) {\n" +
+                    "    fceWithBP(i);\n" +
+                    "    i = i + 1;\n" +
+                    "  }\n" +
+                    "}\n" +
+                    "function fceWithBP(i) {\n" +
+                    "  i2 = i*i;\n" +
+                    "  return i2;\n" +
+                    "}";
+    private static final String CODE3 = "function main() {\n" +
+                    "  n = 10;\n" +
+                    "  testLocations(n);\n" +
+                    "}\n" +
+                    "function testLocations(n) {\n" +
+                    "  \n" +
+                    "  x =\n" +
+                    "    n * n;\n" +
+                    "  y =\n" +
+                    "    n / 2;\n" +
+                    "  \n" +
+                    "  x = x + y; y = x / y; return x * y;\n" +
+                    "  \n" +
+                    "}";
+    private static final String CODE_RET_VAL = "function main() {\n" +
+                    "  a = addThem(1, 2);\n" +
+                    "  println(a);\n" +
+                    "}\n" +
+                    "function addThem(a, b) {\n" +
+                    "  a = fn(a);\n" +
+                    "  b = fn(b);\n" +
+                    "  return a + b;\n" +
+                    "}\n" +
+                    "\n" +
+                    "function fn(n) {\n" +
+                    "  return n;\n" +
+                    "}\n";
+    private static final String CODE_THROW = "function main() {\n" +
+                    "  i = \"0\";\n" +
+                    "  return invert(i);\n" +
+                    "}\n" +
+                    "function invert(n) {\n" +
+                    "  x = 10 / n;\n" +
+                    "  return x;\n" +
+                    "}\n";
+    private static final String CODE_VARS = "function main() {\n" +
+                    "  n = 2;\n" +
+                    "  m = 2 * n;\n" +
+                    "  b = n > 0;\n" +
+                    "  bb = m > 0;\n" +
+                    "  big = 12345678901234567890;\n" +
+                    "  str = \"A String\";\n" +
+                    "  //obj = new();\n" +
+                    "  f = fn;\n" +
+                    "  f2 = 0;\n" +
+                    "  while (b) {\n" +
+                    "    n = n - 1;\n" +
+                    "    //obj.a = n;\n" +
+                    "    big = big * big;\n" +
+                    "    b = n > 0;\n" +
+                    "    b;\n" +
+                    "  }\n" +
+                    "  return b;\n" +
+                    "}\n" +
+                    "\n" +
+                    "function fn() {\n" +
+                    "  return 2;\n" +
+                    "}\n";
+    private static final String GUEST_FUNCTIONS = "function main() {\n" +
+                    "  foo0();\n" +
+                    "  foo1();\n" +
+                    "  foo0();\n" +
+                    "  foo1();\n" +
+                    "}\n" +
+                    "function foo0() {\n" +
+                    "  n = 0;" +
+                    "}\n" +
+                    "function foo1() {\n" +
+                    "  n = 1;" +
+                    "}\n";
+    private static final String BUILTIN_FUNCTIONS = "function main() {\n" +
+                    "  isExecutable(a);\n" +
+                    "  nanoTime();\n" +
+                    "  isNull(a);\n" +
+                    "  isExecutable(a);\n" +
+                    "  isNull(b);\n" +
+                    "  nanoTime();\n" +
+                    "}\n";
+
+    private static final URI testURI = URI.create("file:///test/SLTest.sl");
+    private static final File testFile = new File(testURI);
+    private static final String testFilePath = getFilePath(testFile);
+    private static final String NL = replaceNewLines(System.getProperty("line.separator"));
+
+    private DAPTester tester;
+
+    @After
+    public void tearDown() {
+        tester = null;
+    }
+
+    // @formatter:off   The default formatting makes unnecessarily big indents and illogical line breaks
+    // CheckStyle: stop line length check
+    @Test
+    public void testInitialSuspendAndSource() throws Exception {
+        tester = DAPTester.start(true);
+        Source source = Source.newBuilder("sl", CODE1, "SLTest.sl").uri(testURI).build();
+        tester.sendMessage("{\"command\":\"initialize\",\"arguments\":{\"clientID\":\"DAPTester\",\"clientName\":\"DAP Tester\",\"adapterID\":\"graalvm\",\"pathFormat\":\"path\",\"linesStartAt1\":true,\"columnsStartAt1\":true,\"supportsVariableType\":true,\"supportsVariablePaging\":true,\"supportsRunInTerminalRequest\":true,\"locale\":\"en-us\",\"supportsProgressReporting\":true},\"type\":\"request\",\"seq\":1}");
+        tester.compareReceivedMessages(
+                "{\"event\":\"initialized\",\"type\":\"event\"}",
+                "{\"success\":true,\"type\":\"response\",\"body\":{\"supportsConditionalBreakpoints\":true,\"supportsLoadedSourcesRequest\":true,\"supportsFunctionBreakpoints\":true,\"supportsExceptionInfoRequest\":true,\"supportsBreakpointLocationsRequest\":true,\"supportsHitConditionalBreakpoints\":true,\"supportsLogPoints\":true,\"supportsSetVariable\":true,\"supportsConfigurationDoneRequest\":true,\"exceptionBreakpointFilters\":[{\"filter\":\"all\",\"label\":\"All Exceptions\"},{\"filter\":\"uncaught\",\"label\":\"Uncaught Exceptions\"}]},\"request_seq\":1,\"command\":\"initialize\"}"
+        );
+        tester.sendMessage("{\"command\":\"attach\",\"arguments\":{\"type\":\"graalvm\",\"request\":\"attach\",\"name\":\"Attach\",\"port\":9229,\"protocol\":\"chromeDevTools\"},\"type\":\"request\",\"seq\":2}");
+        tester.compareReceivedMessages("{\"event\":\"output\",\"body\":{\"output\":\"Debugger attached.\",\"category\":\"stderr\"},\"type\":\"event\"}", "{\"success\":true,\"type\":\"response\",\"request_seq\":2,\"command\":\"attach\"}");
+        tester.sendMessage("{\"command\":\"loadedSources\",\"type\":\"request\",\"seq\":3}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"sources\":[]},\"type\":\"response\",\"request_seq\":3,\"command\":\"loadedSources\",\"seq\":5}");
+        tester.sendMessage("{\"command\":\"configurationDone\",\"ty
