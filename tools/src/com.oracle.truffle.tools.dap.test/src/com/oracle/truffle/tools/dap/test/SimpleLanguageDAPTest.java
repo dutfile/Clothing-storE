@@ -445,4 +445,61 @@ public final class SimpleLanguageDAPTest {
                 "{\"success\":true,\"type\":\"response\",\"request_seq\":11,\"command\":\"next\"}",
                 "{\"event\":\"stopped\",\"body\":{\"threadId\":1,\"reason\":\"breakpoint\",\"description\":\"Paused on breakpoint\"},\"type\":\"event\"}"
         );
-        tester.sendMessage("{\"command\":\"threads\",\"type\":\"request\",\"seq\"
+        tester.sendMessage("{\"command\":\"threads\",\"type\":\"request\",\"seq\":12}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"threads\":[{\"name\":\"testRunner\",\"id\":1}]},\"type\":\"response\",\"request_seq\":12,\"command\":\"threads\",\"seq\":24}");
+        tester.sendMessage("{\"command\":\"stackTrace\",\"arguments\":{\"threadId\":1},\"type\":\"request\",\"seq\":13}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"stackFrames\":[{\"line\":10,\"name\":\"fceWithBP\",\"column\":3,\"id\":1,\"source\":" + sourceJson + "},{\"line\":5,\"name\":\"main\",\"column\":5,\"id\":2,\"source\":" + sourceJson + "}],\"totalFrames\":2},\"type\":\"response\",\"request_seq\":13,\"command\":\"stackTrace\",\"seq\":25}");
+        // Remove the second breakpoint
+        tester.sendMessage("{\"command\":\"setBreakpoints\",\"arguments\":{\"source\":" + sourceJson + ",\"lines\":[4],\"breakpoints\":[{\"line\":4}],\"sourceModified\":false},\"type\":\"request\",\"seq\":14}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"breakpoints\":[{\"endLine\":4,\"endColumn\":14,\"line\":4,\"verified\":true,\"column\":10,\"id\":1}]},\"type\":\"response\",\"request_seq\":14,\"command\":\"setBreakpoints\",\"seq\":26}");
+        // Continue, the first breakpoint is hit again:
+        tester.sendMessage("{\"command\":\"continue\",\"arguments\":{\"threadId\":1},\"type\":\"request\",\"seq\":15}");
+        tester.compareReceivedMessages(
+                "{\"event\":\"continued\",\"body\":{\"threadId\":1,\"allThreadsContinued\":false},\"type\":\"event\"}",
+                "{\"success\":true,\"body\":{\"allThreadsContinued\":false},\"type\":\"response\",\"request_seq\":15,\"command\":\"continue\"}",
+                "{\"event\":\"stopped\",\"body\":{\"threadId\":1,\"reason\":\"breakpoint\",\"description\":\"Paused on breakpoint\"},\"type\":\"event\"}"
+        );
+        tester.sendMessage("{\"command\":\"threads\",\"type\":\"request\",\"seq\":16}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"threads\":[{\"name\":\"testRunner\",\"id\":1}]},\"type\":\"response\",\"request_seq\":16,\"command\":\"threads\",\"seq\":30}");
+        tester.sendMessage("{\"command\":\"stackTrace\",\"arguments\":{\"threadId\":1},\"type\":\"request\",\"seq\":17}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"stackFrames\":[{\"line\":4,\"name\":\"main\",\"column\":10,\"id\":1,\"source\":" + sourceJson + "}],\"totalFrames\":1},\"type\":\"response\",\"request_seq\":17,\"command\":\"stackTrace\",\"seq\":31}");
+        // Step over to while cycle:
+        tester.sendMessage("{\"command\":\"next\",\"arguments\":{\"threadId\":1},\"type\":\"request\",\"seq\":18}");
+        tester.compareReceivedMessages(
+                "{\"event\":\"continued\",\"body\":{\"threadId\":1,\"allThreadsContinued\":false},\"type\":\"event\"}",
+                "{\"success\":true,\"type\":\"response\",\"request_seq\":18,\"command\":\"next\"}",
+                "{\"event\":\"stopped\",\"body\":{\"threadId\":1,\"reason\":\"debugger_statement\",\"description\":\"Paused on debugger statement\"},\"type\":\"event\"}"
+        );
+        tester.sendMessage("{\"command\":\"threads\",\"type\":\"request\",\"seq\":19}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"threads\":[{\"name\":\"testRunner\",\"id\":1}]},\"type\":\"response\",\"request_seq\":19,\"command\":\"threads\",\"seq\":35}");
+        tester.sendMessage("{\"command\":\"stackTrace\",\"arguments\":{\"threadId\":1},\"type\":\"request\",\"seq\":20}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"stackFrames\":[{\"line\":5,\"name\":\"main\",\"column\":5,\"id\":1,\"source\":" + sourceJson + "}],\"totalFrames\":1},\"type\":\"response\",\"request_seq\":20,\"command\":\"stackTrace\",\"seq\":36}");
+        // Step over the method with removed breakpoint:
+        tester.sendMessage("{\"command\":\"next\",\"arguments\":{\"threadId\":1},\"type\":\"request\",\"seq\":21}");
+        tester.compareReceivedMessages(
+                "{\"event\":\"continued\",\"body\":{\"threadId\":1,\"allThreadsContinued\":false},\"type\":\"event\"}",
+                "{\"success\":true,\"type\":\"response\",\"request_seq\":21,\"command\":\"next\"}",
+                "{\"event\":\"stopped\",\"body\":{\"threadId\":1,\"reason\":\"debugger_statement\",\"description\":\"Paused on debugger statement\"},\"type\":\"event\"}"
+        );
+        tester.sendMessage("{\"command\":\"threads\",\"type\":\"request\",\"seq\":22}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"threads\":[{\"name\":\"testRunner\",\"id\":1}]},\"type\":\"response\",\"request_seq\":22,\"command\":\"threads\",\"seq\":40}");
+        tester.sendMessage("{\"command\":\"stackTrace\",\"arguments\":{\"threadId\":1},\"type\":\"request\",\"seq\":23}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"stackFrames\":[{\"line\":6,\"name\":\"main\",\"column\":5,\"id\":1,\"source\":" + sourceJson + "}],\"totalFrames\":1},\"type\":\"response\",\"request_seq\":23,\"command\":\"stackTrace\",\"seq\":41}");
+        // Remove the firts breakpoint:
+        tester.sendMessage("{\"command\":\"setBreakpoints\",\"arguments\":{\"source\":" + sourceJson + ",\"lines\":[],\"breakpoints\":[],\"sourceModified\":false},\"type\":\"request\",\"seq\":24}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"breakpoints\":[]},\"type\":\"response\",\"request_seq\":24,\"command\":\"setBreakpoints\",\"seq\":42}");
+        // Continue to finish:
+        tester.sendMessage("{\"command\":\"continue\",\"arguments\":{\"threadId\":1},\"type\":\"request\",\"seq\":25}");
+        tester.compareReceivedMessages(
+                "{\"event\":\"continued\",\"body\":{\"threadId\":1,\"allThreadsContinued\":false},\"type\":\"event\"}",
+                "{\"success\":true,\"body\":{\"allThreadsContinued\":false},\"type\":\"response\",\"request_seq\":25,\"command\":\"continue\"}"
+        );
+        tester.finish();
+    }
+
+    @Test
+    public void testGuestFunctionBreakpoints() throws Exception {
+        tester = DAPTester.start(true);
+        Source source = Source.newBuilder("sl", GUEST_FUNCTIONS, "SLTest.sl").uri(testURI).build();
+        tester.sendMessage("{\"command\":\"initialize\",\"arguments\":{\"clientID\":\"DAPTester\",\"clientName\":\"DAP Tester\",\"adapterID\":\"graalvm\",\"pathFormat\":\"path\",\"linesStartAt1\":true,\"columnsStartAt1\":true,\"supportsVariableType\":true,\"supportsVariablePaging\":true,\"supportsRunInTerminalRequest\":true,\"locale\":\"en-us\",\"supportsProgressReporting\":true},\"type\":\"request\",\"seq\":1}");
+        tester.compareReceivedM
