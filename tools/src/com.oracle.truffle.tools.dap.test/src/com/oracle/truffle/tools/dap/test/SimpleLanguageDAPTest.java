@@ -801,4 +801,47 @@ public final class SimpleLanguageDAPTest {
         tester.sendMessage("{\"command\":\"stackTrace\",\"arguments\":{\"threadId\":1},\"type\":\"request\",\"seq\":21}");
         tester.compareReceivedMessages("{\"success\":true,\"body\":{\"stackFrames\":[{\"line\":6,\"name\":\"addThem\",\"column\":12,\"id\":1,\"source\":{\"sourceReference\":2,\"path\":\"" + testFilePath + "\",\"name\":\"SLTest.sl\"}},{\"line\":2,\"name\":\"main\",\"column\":7,\"id\":2,\"source\":{\"sourceReference\":2,\"path\":\"" + testFilePath + "\",\"name\":\"SLTest.sl\"}}],\"totalFrames\":2},\"type\":\"response\",\"request_seq\":21,\"command\":\"stackTrace\",\"seq\":35}");
         tester.sendMessage("{\"command\":\"scopes\",\"arguments\":{\"frameId\":1},\"type\":\"request\",\"seq\":22}");
-        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"scopes\":[{\"name\":\"Local\",\"variablesReference\":3,\"expensive\":false},{\"name\":\"Global\",\"
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"scopes\":[{\"name\":\"Local\",\"variablesReference\":3,\"expensive\":false},{\"name\":\"Global\",\"variablesReference\":4,\"expensive\":true}]},\"type\":\"response\",\"request_seq\":22,\"command\":\"scopes\",\"seq\":36}");
+        tester.sendMessage("{\"command\":\"variables\",\"arguments\":{\"variablesReference\":3},\"type\":\"request\",\"seq\":23}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"variables\":[{\"name\":\"a\",\"variablesReference\":0,\"type\":\"Number\",\"value\":\"1\"},{\"name\":\"b\",\"variablesReference\":0,\"type\":\"Number\",\"value\":\"2\"}]},\"type\":\"response\",\"request_seq\":23,\"command\":\"variables\",\"seq\":37}");
+        // at addThem:6, step into steps to the next line and check that `a` is 10_000_000_000
+        tester.sendMessage("{\"command\":\"stepIn\",\"arguments\":{\"threadId\":1},\"type\":\"request\",\"seq\":24}");
+        tester.compareReceivedMessages(
+                "{\"event\":\"continued\",\"body\":{\"threadId\":1,\"allThreadsContinued\":false},\"type\":\"event\"}",
+                "{\"success\":true,\"type\":\"response\",\"request_seq\":24,\"command\":\"stepIn\"}",
+                "{\"event\":\"stopped\",\"body\":{\"threadId\":1,\"reason\":\"debugger_statement\",\"description\":\"Paused on debugger statement\"},\"type\":\"event\"}"
+        );
+        tester.sendMessage("{\"command\":\"threads\",\"type\":\"request\",\"seq\":25}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"threads\":[{\"name\":\"testRunner\",\"id\":1}]},\"type\":\"response\",\"request_seq\":25,\"command\":\"threads\",\"seq\":41}");
+        tester.sendMessage("{\"command\":\"stackTrace\",\"arguments\":{\"threadId\":1},\"type\":\"request\",\"seq\":26}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"stackFrames\":[{\"line\":7,\"name\":\"addThem\",\"column\":3,\"id\":1,\"source\":{\"sourceReference\":2,\"path\":\"" + testFilePath + "\",\"name\":\"SLTest.sl\"}},{\"line\":2,\"name\":\"main\",\"column\":7,\"id\":2,\"source\":{\"sourceReference\":2,\"path\":\"" + testFilePath + "\",\"name\":\"SLTest.sl\"}}],\"totalFrames\":2},\"type\":\"response\",\"request_seq\":26,\"command\":\"stackTrace\",\"seq\":42}");
+        tester.sendMessage("{\"command\":\"scopes\",\"arguments\":{\"frameId\":1},\"type\":\"request\",\"seq\":27}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"scopes\":[{\"name\":\"Local\",\"variablesReference\":3,\"expensive\":false},{\"name\":\"Global\",\"variablesReference\":4,\"expensive\":true}]},\"type\":\"response\",\"request_seq\":27,\"command\":\"scopes\",\"seq\":43}");
+        tester.sendMessage("{\"command\":\"variables\",\"arguments\":{\"variablesReference\":3},\"type\":\"request\",\"seq\":28}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"variables\":[{\"name\":\"a\",\"variablesReference\":0,\"type\":\"Number\",\"value\":\"10000000000\"},{\"name\":\"b\",\"variablesReference\":0,\"type\":\"Number\",\"value\":\"2\"}]},\"type\":\"response\",\"request_seq\":28,\"command\":\"variables\",\"seq\":44}");
+        // at addThem:7
+        tester.sendMessage("{\"command\":\"stepIn\",\"arguments\":{\"threadId\":1},\"type\":\"request\",\"seq\":29}");
+        tester.compareReceivedMessages(
+                "{\"event\":\"continued\",\"body\":{\"threadId\":1,\"allThreadsContinued\":false},\"type\":\"event\"}",
+                "{\"success\":true,\"type\":\"response\",\"request_seq\":29,\"command\":\"stepIn\"}",
+                "{\"event\":\"stopped\",\"body\":{\"threadId\":1,\"reason\":\"debugger_statement\",\"description\":\"Paused on debugger statement\"},\"type\":\"event\"}"
+        );
+        tester.sendMessage("{\"command\":\"threads\",\"type\":\"request\",\"seq\":30}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"threads\":[{\"name\":\"testRunner\",\"id\":1}]},\"type\":\"response\",\"request_seq\":30,\"command\":\"threads\",\"seq\":48}");
+        tester.sendMessage("{\"command\":\"stackTrace\",\"arguments\":{\"threadId\":1},\"type\":\"request\",\"seq\":31}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"stackFrames\":[{\"line\":12,\"name\":\"fn\",\"column\":3,\"id\":1,\"source\":{\"sourceReference\":2,\"path\":\"" + testFilePath + "\",\"name\":\"SLTest.sl\"}},{\"line\":7,\"name\":\"addThem\",\"column\":7,\"id\":2,\"source\":{\"sourceReference\":2,\"path\":\"" + testFilePath + "\",\"name\":\"SLTest.sl\"}},{\"line\":2,\"name\":\"main\",\"column\":7,\"id\":3,\"source\":{\"sourceReference\":2,\"path\":\"" + testFilePath + "\",\"name\":\"SLTest.sl\"}}],\"totalFrames\":3},\"type\":\"response\",\"request_seq\":31,\"command\":\"stackTrace\",\"seq\":49}");
+        // at fn:10, step out from fn
+        tester.sendMessage("{\"command\":\"stepOut\",\"arguments\":{\"threadId\":1},\"type\":\"request\",\"seq\":32}");
+        tester.compareReceivedMessages(
+                "{\"event\":\"continued\",\"body\":{\"threadId\":1,\"allThreadsContinued\":false},\"type\":\"event\"}",
+                "{\"success\":true,\"type\":\"response\",\"request_seq\":32,\"command\":\"stepOut\"}",
+                "{\"event\":\"stopped\",\"body\":{\"threadId\":1,\"reason\":\"debugger_statement\",\"description\":\"Paused on debugger statement\"},\"type\":\"event\"}"
+        );
+        tester.sendMessage("{\"command\":\"threads\",\"type\":\"request\",\"seq\":33}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"threads\":[{\"name\":\"testRunner\",\"id\":1}]},\"type\":\"response\",\"request_seq\":33,\"command\":\"threads\",\"seq\":53}");
+        tester.sendMessage("{\"command\":\"stackTrace\",\"arguments\":{\"threadId\":1},\"type\":\"request\",\"seq\":34}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"stackFrames\":[{\"line\":7,\"name\":\"addThem\",\"column\":12,\"id\":1,\"source\":{\"sourceReference\":2,\"path\":\"" + testFilePath + "\",\"name\":\"SLTest.sl\"}},{\"line\":2,\"name\":\"main\",\"column\":7,\"id\":2,\"source\":{\"sourceReference\":2,\"path\":\"" + testFilePath + "\",\"name\":\"SLTest.sl\"}}],\"totalFrames\":2},\"type\":\"response\",\"request_seq\":34,\"command\":\"stackTrace\",\"seq\":54}");
+        tester.sendMessage("{\"command\":\"scopes\",\"arguments\":{\"frameId\":1},\"type\":\"request\",\"seq\":35}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"scopes\":[{\"name\":\"Local\",\"variablesReference\":3,\"expensive\":false},{\"name\":\"Global\",\"variablesReference\":4,\"expensive\":true}]},\"type\":\"response\",\"request_seq\":35,\"command\":\"scopes\",\"seq\":55}");
+        tester.sendMessage("{\"command\":\"variables\",\"arguments\":{\"variablesReference\":3},\"type\":\"request\",\"seq\":36}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"variables\":
