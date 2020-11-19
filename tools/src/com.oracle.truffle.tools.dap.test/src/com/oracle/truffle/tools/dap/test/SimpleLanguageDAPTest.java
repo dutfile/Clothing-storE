@@ -941,4 +941,52 @@ public final class SimpleLanguageDAPTest {
         // Suspend at the beginning of the script:
         tester.compareReceivedMessages("{\"event\":\"stopped\",\"body\":{\"threadId\":1,\"reason\":\"debugger_statement\",\"description\":\"Paused on debugger statement\"},\"type\":\"event\",\"seq\":10}");
         tester.sendMessage("{\"command\":\"threads\",\"type\":\"request\",\"seq\":5}");
-        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"threads\":[{\"name\":\"testRunner\",\"id\":1}]},\"type\":\"response\",\"request_seq\":5,\"command\":\"threads\",\"seq\
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"threads\":[{\"name\":\"testRunner\",\"id\":1}]},\"type\":\"response\",\"request_seq\":5,\"command\":\"threads\",\"seq\":11}");
+        tester.sendMessage("{\"command\":\"stackTrace\",\"arguments\":{\"threadId\":1},\"type\":\"request\",\"seq\":6}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"stackFrames\":[{\"line\":2,\"name\":\"main\",\"column\":3,\"id\":1,\"source\":{\"sourceReference\":2,\"path\":\"" + testFilePath + "\",\"name\":\"SLTest.sl\"}}],\"totalFrames\":1},\"type\":\"response\",\"request_seq\":6,\"command\":\"stackTrace\",\"seq\":12}");
+        // Moves from an empty line to a statement location
+        tester.sendMessage("{\"command\":\"breakpointLocations\",\"arguments\":{\"source\":{\"name\":\"SLTest.sl\",\"sourceReference\":2},\"line\":6,\"column\":1,\"endLine\":6,\"endColumn\":3},\"type\":\"request\",\"seq\":7}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"breakpoints\":[{\"line\":7,\"column\":3}]},\"type\":\"response\",\"request_seq\":7,\"command\":\"breakpointLocations\",\"seq\":13}");
+        // Provides statement location when only beginning is included
+        tester.sendMessage("{\"command\":\"breakpointLocations\",\"arguments\":{\"source\":{\"name\":\"SLTest.sl\",\"sourceReference\":2},\"line\":9,\"column\":1,\"endLine\":9,\"endColumn\":6},\"type\":\"request\",\"seq\":8}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"breakpoints\":[{\"line\":9,\"column\":3}]},\"type\":\"response\",\"request_seq\":8,\"command\":\"breakpointLocations\",\"seq\":14}");
+        // Provides statement location when only end is included
+        tester.sendMessage("{\"command\":\"breakpointLocations\",\"arguments\":{\"source\":{\"name\":\"SLTest.sl\",\"sourceReference\":2},\"line\":10,\"column\":1,\"endLine\":10,\"endColumn\":11},\"type\":\"request\",\"seq\":9}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"breakpoints\":[{\"line\":9,\"column\":3}]},\"type\":\"response\",\"request_seq\":9,\"command\":\"breakpointLocations\",\"seq\":15}");
+        // Provides all statement locations on a line
+        tester.sendMessage("{\"command\":\"breakpointLocations\",\"arguments\":{\"source\":{\"name\":\"SLTest.sl\",\"sourceReference\":2},\"line\":12,\"column\":1,\"endLine\":12,\"endColumn\":38},\"type\":\"request\",\"seq\":10}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"breakpoints\":[{\"line\":12,\"column\":3},{\"line\":12,\"column\":14},{\"line\":12,\"column\":25}]},\"type\":\"response\",\"request_seq\":10,\"command\":\"breakpointLocations\",\"seq\":16}");
+        // When only start location is provided:
+        tester.sendMessage("{\"command\":\"breakpointLocations\",\"arguments\":{\"source\":{\"name\":\"SLTest.sl\",\"sourceReference\":2},\"line\":6,\"column\":1},\"type\":\"request\",\"seq\":11}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"breakpoints\":[{\"line\":7,\"column\":3}]},\"type\":\"response\",\"request_seq\":11,\"command\":\"breakpointLocations\",\"seq\":17}");
+        // Provides statement location when only beginning is included
+        tester.sendMessage("{\"command\":\"breakpointLocations\",\"arguments\":{\"source\":{\"name\":\"SLTest.sl\",\"sourceReference\":2},\"line\":9,\"column\":3},\"type\":\"request\",\"seq\":12}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"breakpoints\":[{\"line\":9,\"column\":3}]},\"type\":\"response\",\"request_seq\":12,\"command\":\"breakpointLocations\",\"seq\":18}");
+        // Provides statement location when only end is included
+        tester.sendMessage("{\"command\":\"breakpointLocations\",\"arguments\":{\"source\":{\"name\":\"SLTest.sl\",\"sourceReference\":2},\"line\":10,\"column\":9},\"type\":\"request\",\"seq\":13}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"breakpoints\":[{\"line\":9,\"column\":3}]},\"type\":\"response\",\"request_seq\":13,\"command\":\"breakpointLocations\",\"seq\":19}");
+        // Provides all statement locations on a line
+        tester.sendMessage("{\"command\":\"breakpointLocations\",\"arguments\":{\"source\":{\"name\":\"SLTest.sl\",\"sourceReference\":2},\"line\":12,\"column\":1},\"type\":\"request\",\"seq\":14}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"breakpoints\":[{\"line\":12,\"column\":3},{\"line\":12,\"column\":14},{\"line\":12,\"column\":25}]},\"type\":\"response\",\"request_seq\":14,\"command\":\"breakpointLocations\",\"seq\":20}");
+        // Test location after file length:
+        tester.sendMessage("{\"command\":\"breakpointLocations\",\"arguments\":{\"source\":{\"name\":\"SLTest.sl\",\"sourceReference\":2},\"line\":15,\"column\":1},\"type\":\"request\",\"seq\":15}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"breakpoints\":[{\"line\":12,\"column\":25}]},\"type\":\"response\",\"request_seq\":15,\"command\":\"breakpointLocations\",\"seq\":21}");
+        // Continue to finish:
+        tester.sendMessage("{\"command\":\"continue\",\"arguments\":{\"threadId\":1,\"allThreadsContinued\":false},\"type\":\"request\",\"seq\":16}");
+        tester.compareReceivedMessages(
+                "{\"event\":\"continued\",\"body\":{\"threadId\":1,\"allThreadsContinued\":false},\"type\":\"event\"}",
+                "{\"success\":true,\"body\":{\"allThreadsContinued\":false},\"type\":\"response\",\"request_seq\":16,\"command\":\"continue\"}"
+        );
+        tester.finish();
+    }
+
+    @Test
+    public void testExceptionBreakpoints() throws Exception {
+        tester = DAPTester.start(false);
+        URI uri = new URI("file:///test/SLThrow.sl");
+        Source source = Source.newBuilder("sl", CODE_THROW, "SLThrow.sl").uri(uri).build();
+        String path = getFilePath(new File(uri));
+        tester.sendMessage("{\"command\":\"initialize\",\"arguments\":{\"clientID\":\"DAPTester\",\"clientName\":\"DAP Tester\",\"adapterID\":\"graalvm\",\"pathFormat\":\"path\",\"linesStartAt1\":true,\"columnsStartAt1\":true,\"supportsVariableType\":true,\"supportsVariablePaging\":true,\"supportsRunInTerminalRequest\":true,\"locale\":\"en-us\",\"supportsProgressReporting\":true},\"type\":\"request\",\"seq\":1}");
+        tester.compareReceivedMessages(
+                "{\"event\":\"initialized\",\"type\":\"event\"}",
+                "{\"success\":true,\"type\":\"response\",\"body\":{\"supportsConditionalBreakpoints\":true,\"supportsLoadedSourcesRequest\":true,\"supportsFunctionBreakpoints\":true,\"supportsExceptionInfoRequest\":true,\"supportsBreakpointLocationsRequest\":true,\"supportsHitConditionalBreakpoints\":true,\"supportsLogPoints\":true,\"supportsSetVariable\":true,\"supportsConfigurationDoneRequest\":true,\"exceptionBreakpointFilters\":[{\"filter\":\"all\",\"label\":\"All Exceptions\"},{\"filter\":\"uncaught\",\"label\":\"Uncaught Exceptions\"}]}
