@@ -890,4 +890,55 @@ public final class SimpleLanguageDAPTest {
         tester.compareReceivedMessages("{\"success\":true,\"body\":{\"breakpoints\":[{\"endLine\":8,\"endColumn\":9,\"line\":7,\"verified\":true,\"column\":3,\"id\":1},{\"endLine\":10,\"endColumn\":9,\"line\":9,\"verified\":true,\"column\":3,\"id\":2}]},\"type\":\"response\",\"request_seq\":8,\"command\":\"setBreakpoints\",\"seq\":14}");
         // Breakpoint on an empty line moves to the next statement
         tester.sendMessage("{\"command\":\"setBreakpoints\",\"arguments\":{\"source\":{\"name\":\"SLTest.sl\",\"sourceReference\":2},\"lines\":[6,10,11],\"breakpoints\":[{\"line\":6},{\"line\":10},{\"line\":11}],\"sourceModified\":false},\"type\":\"request\",\"seq\":9}");
-        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"breakpoints\":[{\"endLine\":8,\"endColumn\":9,\"line\":7,\"verified\":true,\"column\":3,\"id\":1},{\"endLine\":10,\"endColumn\":9,\"line\":9,\"verified\":true,\"column\":3,\"id\":2},{\"endLine\":12,\"endColumn\":11,\"line\":12,\"verified\":true,\"column\":3,\"id\":3}]},\"type\":\"response\",\"request_seq\":9,\"command\":\"setBreakpoints\",\"seq\":15}")
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"breakpoints\":[{\"endLine\":8,\"endColumn\":9,\"line\":7,\"verified\":true,\"column\":3,\"id\":1},{\"endLine\":10,\"endColumn\":9,\"line\":9,\"verified\":true,\"column\":3,\"id\":2},{\"endLine\":12,\"endColumn\":11,\"line\":12,\"verified\":true,\"column\":3,\"id\":3}]},\"type\":\"response\",\"request_seq\":9,\"command\":\"setBreakpoints\",\"seq\":15}");
+        // Breakpoint on a last empty line moves to the last statement
+        tester.sendMessage("{\"command\":\"setBreakpoints\",\"arguments\":{\"source\":{\"name\":\"SLTest.sl\",\"sourceReference\":2},\"lines\":[6,10,11,13],\"breakpoints\":[{\"line\":6},{\"line\":10},{\"line\":11},{\"line\":13}],\"sourceModified\":false},\"type\":\"request\",\"seq\":10}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"breakpoints\":[{\"endLine\":8,\"endColumn\":9,\"line\":7,\"verified\":true,\"column\":3,\"id\":1},{\"endLine\":10,\"endColumn\":9,\"line\":9,\"verified\":true,\"column\":3,\"id\":2},{\"endLine\":12,\"endColumn\":11,\"line\":12,\"verified\":true,\"column\":3,\"id\":3},{\"endLine\":12,\"endColumn\":36,\"line\":12,\"verified\":true,\"column\":25,\"id\":4}]},\"type\":\"response\",\"request_seq\":10,\"command\":\"setBreakpoints\",\"seq\":16}");
+        // Remove some breakpoints
+        tester.sendMessage("{\"command\":\"setBreakpoints\",\"arguments\":{\"source\":{\"name\":\"SLTest.sl\",\"sourceReference\":2},\"lines\":[6],\"breakpoints\":[{\"line\":6}],\"sourceModified\":false},\"type\":\"request\",\"seq\":11}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"breakpoints\":[{\"endLine\":8,\"endColumn\":9,\"line\":7,\"verified\":true,\"column\":3,\"id\":1}]},\"type\":\"response\",\"request_seq\":11,\"command\":\"setBreakpoints\",\"seq\":17}");
+        // Continue to hit some breakpoints
+        tester.sendMessage("{\"command\":\"continue\",\"arguments\":{\"threadId\":1},\"type\":\"request\",\"seq\":12}");
+        tester.compareReceivedMessages(
+                "{\"event\":\"continued\",\"body\":{\"threadId\":1,\"allThreadsContinued\":false},\"type\":\"event\"}",
+                "{\"success\":true,\"body\":{\"allThreadsContinued\":false},\"type\":\"response\",\"request_seq\":12,\"command\":\"continue\"}",
+                "{\"event\":\"stopped\",\"body\":{\"threadId\":1,\"reason\":\"breakpoint\",\"description\":\"Paused on breakpoint\"},\"type\":\"event\"}"
+        );
+        tester.sendMessage("{\"command\":\"threads\",\"type\":\"request\",\"seq\":13}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"threads\":[{\"name\":\"testRunner\",\"id\":1}]},\"type\":\"response\",\"request_seq\":13,\"command\":\"threads\",\"seq\":21}");
+        tester.sendMessage("{\"command\":\"stackTrace\",\"arguments\":{\"threadId\":1},\"type\":\"request\",\"seq\":14}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"stackFrames\":[{\"line\":7,\"name\":\"testLocations\",\"column\":3,\"id\":1,\"source\":{\"sourceReference\":2,\"path\":\"" + testFilePath + "\",\"name\":\"SLTest.sl\"}},{\"line\":3,\"name\":\"main\",\"column\":3,\"id\":2,\"source\":{\"sourceReference\":2,\"path\":\"" + testFilePath + "\",\"name\":\"SLTest.sl\"}}],\"totalFrames\":2},\"type\":\"response\",\"request_seq\":14,\"command\":\"stackTrace\",\"seq\":22}");
+        // Continue to finish:
+        tester.sendMessage("{\"command\":\"continue\",\"arguments\":{\"threadId\":1},\"type\":\"request\",\"seq\":15}");
+        tester.compareReceivedMessages(
+                "{\"event\":\"continued\",\"body\":{\"threadId\":1,\"allThreadsContinued\":false},\"type\":\"event\"}",
+                "{\"success\":true,\"body\":{\"allThreadsContinued\":false},\"type\":\"response\",\"request_seq\":15,\"command\":\"continue\"}"
+        );
+        tester.finish();
+    }
+
+    @Test
+    public void testBreakpointLocations() throws Exception {
+        tester = DAPTester.start(true);
+        Source source = Source.newBuilder("sl", CODE3, "SLTest.sl").uri(testURI).build();
+        tester.sendMessage("{\"command\":\"initialize\",\"arguments\":{\"clientID\":\"DAPTester\",\"clientName\":\"DAP Tester\",\"adapterID\":\"graalvm\",\"pathFormat\":\"path\",\"linesStartAt1\":true,\"columnsStartAt1\":true,\"supportsVariableType\":true,\"supportsVariablePaging\":true,\"supportsRunInTerminalRequest\":true,\"locale\":\"en-us\",\"supportsProgressReporting\":true},\"type\":\"request\",\"seq\":1}");
+        tester.compareReceivedMessages(
+                "{\"event\":\"initialized\",\"type\":\"event\"}",
+                "{\"success\":true,\"type\":\"response\",\"body\":{\"supportsConditionalBreakpoints\":true,\"supportsLoadedSourcesRequest\":true,\"supportsFunctionBreakpoints\":true,\"supportsExceptionInfoRequest\":true,\"supportsBreakpointLocationsRequest\":true,\"supportsHitConditionalBreakpoints\":true,\"supportsLogPoints\":true,\"supportsSetVariable\":true,\"supportsConfigurationDoneRequest\":true,\"exceptionBreakpointFilters\":[{\"filter\":\"all\",\"label\":\"All Exceptions\"},{\"filter\":\"uncaught\",\"label\":\"Uncaught Exceptions\"}]},\"request_seq\":1,\"command\":\"initialize\"}"
+        );
+        tester.sendMessage("{\"command\":\"attach\",\"arguments\":{\"type\":\"graalvm\",\"request\":\"attach\",\"name\":\"Attach\",\"port\":9229,\"protocol\":\"chromeDevTools\"},\"type\":\"request\",\"seq\":2}");
+        tester.compareReceivedMessages("{\"event\":\"output\",\"body\":{\"output\":\"Debugger attached.\",\"category\":\"stderr\"},\"type\":\"event\"}", "{\"success\":true,\"type\":\"response\",\"request_seq\":2,\"command\":\"attach\"}");
+        tester.sendMessage("{\"command\":\"loadedSources\",\"type\":\"request\",\"seq\":3}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"sources\":[]},\"type\":\"response\",\"request_seq\":3,\"command\":\"loadedSources\",\"seq\":5}");
+        tester.sendMessage("{\"command\":\"configurationDone\",\"type\":\"request\",\"seq\":4}");
+        tester.compareReceivedMessages("{\"success\":true,\"type\":\"response\",\"request_seq\":4,\"command\":\"configurationDone\",\"seq\":6}");
+        tester.eval(source);
+        tester.compareReceivedMessages("{\"event\":\"thread\",\"body\":{\"threadId\":1,\"reason\":\"started\"},\"type\":\"event\",\"seq\":7}");
+        tester.compareReceivedMessages(
+                "{\"event\":\"loadedSource\",\"body\":{\"reason\":\"new\",\"source\":{\"sourceReference\":1,\"name\":\"SL builtin\"}},\"type\":\"event\",\"seq\":8}",
+                "{\"event\":\"loadedSource\",\"body\":{\"reason\":\"new\",\"source\":{\"sourceReference\":2,\"path\":\"" + testFilePath + "\",\"name\":\"SLTest.sl\"}},\"type\":\"event\",\"seq\":9}"
+        );
+        // Suspend at the beginning of the script:
+        tester.compareReceivedMessages("{\"event\":\"stopped\",\"body\":{\"threadId\":1,\"reason\":\"debugger_statement\",\"description\":\"Paused on debugger statement\"},\"type\":\"event\",\"seq\":10}");
+        tester.sendMessage("{\"command\":\"threads\",\"type\":\"request\",\"seq\":5}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"threads\":[{\"name\":\"testRunner\",\"id\":1}]},\"type\":\"response\",\"request_seq\":5,\"command\":\"threads\",\"seq\
