@@ -1041,4 +1041,51 @@ public final class SimpleLanguageDAPTest {
         tester.sendMessage("{\"command\":\"setBreakpoints\",\"arguments\":{\"source\":" + sourceJson + ",\"lines\":[16],\"breakpoints\":[{\"line\":16}],\"sourceModified\":false},\"type\":\"request\",\"seq\":4}");
         tester.compareReceivedMessages("{\"success\":true,\"body\":{\"breakpoints\":[{\"line\":16,\"verified\":false,\"id\":1}]},\"type\":\"response\",\"request_seq\":4,\"command\":\"setBreakpoints\",\"seq\":6}");
         tester.sendMessage("{\"command\":\"configurationDone\",\"type\":\"request\",\"seq\":5}");
-        tester.compareReceivedMessages("{\"success\":true,\"type\":\"response\",
+        tester.compareReceivedMessages("{\"success\":true,\"type\":\"response\",\"request_seq\":5,\"command\":\"configurationDone\",\"seq\":7}");
+        tester.eval(source);
+        tester.compareReceivedMessages("{\"event\":\"thread\",\"body\":{\"threadId\":1,\"reason\":\"started\"},\"type\":\"event\",\"seq\":8}");
+        tester.compareReceivedMessages(
+                "{\"event\":\"loadedSource\",\"body\":{\"reason\":\"new\",\"source\":{\"sourceReference\":1,\"name\":\"SL builtin\"}},\"type\":\"event\",\"seq\":9}",
+                "{\"event\":\"loadedSource\",\"body\":{\"reason\":\"new\",\"source\":" + sourceJson + "},\"type\":\"event\",\"seq\":10}"
+        );
+        tester.compareReceivedMessages("{\"event\":\"breakpoint\",\"body\":{\"reason\":\"changed\",\"breakpoint\":{\"endLine\":16,\"endColumn\":5,\"line\":16,\"verified\":true,\"column\":5,\"id\":1}},\"type\":\"event\",\"seq\":11}");
+        // Suspend at the breakpoint:
+        tester.compareReceivedMessages("{\"event\":\"stopped\",\"body\":{\"threadId\":1,\"reason\":\"breakpoint\",\"description\":\"Paused on breakpoint\"},\"type\":\"event\",\"seq\":12}");
+        tester.sendMessage("{\"command\":\"threads\",\"type\":\"request\",\"seq\":6}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"threads\":[{\"name\":\"testRunner\",\"id\":1}]},\"type\":\"response\",\"request_seq\":6,\"command\":\"threads\",\"seq\":13}");
+        tester.sendMessage("{\"command\":\"stackTrace\",\"arguments\":{\"threadId\":1},\"type\":\"request\",\"seq\":7}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"stackFrames\":[{\"line\":16,\"name\":\"main\",\"column\":5,\"id\":1,\"source\":" + sourceJson + "}],\"totalFrames\":1},\"type\":\"response\",\"request_seq\":7,\"command\":\"stackTrace\",\"seq\":14}");
+        tester.sendMessage("{\"command\":\"scopes\",\"arguments\":{\"frameId\":1},\"type\":\"request\",\"seq\":8}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"scopes\":[{\"name\":\"Local\",\"variablesReference\":2,\"expensive\":false},{\"name\":\"Global\",\"variablesReference\":3,\"expensive\":true}]},\"type\":\"response\",\"request_seq\":8,\"command\":\"scopes\",\"seq\":15}");
+        tester.sendMessage("{\"command\":\"variables\",\"arguments\":{\"variablesReference\":2},\"type\":\"request\",\"seq\":9}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"variables\":[{\"name\":\"n\",\"variablesReference\":0,\"type\":\"Number\",\"value\":\"1\"},"
+                + "{\"name\":\"m\",\"variablesReference\":0,\"type\":\"Number\",\"value\":\"4\"},"
+                + "{\"name\":\"b\",\"variablesReference\":0,\"type\":\"Boolean\",\"value\":\"true\"},"
+                + "{\"name\":\"bb\",\"variablesReference\":0,\"type\":\"Boolean\",\"value\":\"true\"},"
+                + "{\"name\":\"big\",\"variablesReference\":0,\"type\":\"Number\",\"value\":\"152415787532388367501905199875019052100\"},"
+                + "{\"name\":\"str\",\"variablesReference\":0,\"type\":\"String\",\"value\":\"A String\"},"
+                + "{\"name\":\"f\",\"variablesReference\":0,\"type\":\"Function\",\"value\":\"fn\"},"
+                + "{\"name\":\"f2\",\"variablesReference\":0,\"type\":\"Number\",\"value\":\"0\"}]},\"type\":\"response\",\"request_seq\":9,\"command\":\"variables\",\"seq\":16}");
+        tester.sendMessage("{\"command\":\"setVariable\",\"arguments\":{\"variablesReference\":2,\"name\":\"m\",\"value\":\"1000\"},\"type\":\"request\",\"seq\":10}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"type\":\"Number\",\"variablesReference\":0,\"value\":\"1000\"},\"type\":\"response\",\"request_seq\":10,\"command\":\"setVariable\",\"seq\":17}");
+        tester.sendMessage("{\"command\":\"setVariable\",\"arguments\":{\"variablesReference\":2,\"name\":\"bb\",\"value\":\"false\"},\"type\":\"request\",\"seq\":11}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"type\":\"Boolean\",\"variablesReference\":0,\"value\":\"false\"},\"type\":\"response\",\"request_seq\":11,\"command\":\"setVariable\",\"seq\":18}");
+        tester.sendMessage("{\"command\":\"setVariable\",\"arguments\":{\"variablesReference\":2,\"name\":\"str\",\"value\":\"\\\"A Different String\\\"\"},\"type\":\"request\",\"seq\":12}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"type\":\"String\",\"variablesReference\":0,\"value\":\"A Different String\"},\"type\":\"response\",\"request_seq\":12,\"command\":\"setVariable\",\"seq\":19}");
+        tester.sendMessage("{\"command\":\"setVariable\",\"arguments\":{\"variablesReference\":2,\"name\":\"f2\",\"value\":\"f\"},\"type\":\"request\",\"seq\":13}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"type\":\"Function\",\"variablesReference\":0,\"value\":\"fn\"},\"type\":\"response\",\"request_seq\":13,\"command\":\"setVariable\",\"seq\":20}");
+        // Continue and suspend at the breakpoint:
+        tester.sendMessage("{\"command\":\"continue\",\"arguments\":{\"threadId\":1},\"type\":\"request\",\"seq\":14}");
+        tester.compareReceivedMessages(
+                "{\"event\":\"continued\",\"body\":{\"threadId\":1,\"allThreadsContinued\":false},\"type\":\"event\"}",
+                "{\"success\":true,\"body\":{\"allThreadsContinued\":false},\"type\":\"response\",\"request_seq\":14,\"command\":\"continue\"}",
+                "{\"event\":\"stopped\",\"body\":{\"threadId\":1,\"reason\":\"breakpoint\",\"description\":\"Paused on breakpoint\"},\"type\":\"event\"}"
+        );
+        tester.sendMessage("{\"command\":\"threads\",\"type\":\"request\",\"seq\":15}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"threads\":[{\"name\":\"testRunner\",\"id\":1}]},\"type\":\"response\",\"request_seq\":15,\"command\":\"threads\",\"seq\":24}");
+        tester.sendMessage("{\"command\":\"stackTrace\",\"arguments\":{\"threadId\":1},\"type\":\"request\",\"seq\":16}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"stackFrames\":[{\"line\":16,\"name\":\"main\",\"column\":5,\"id\":1,\"source\":" + sourceJson + "}],\"totalFrames\":1},\"type\":\"response\",\"request_seq\":16,\"command\":\"stackTrace\",\"seq\":25}");
+        tester.sendMessage("{\"command\":\"scopes\",\"arguments\":{\"frameId\":1},\"type\":\"request\",\"seq\":17}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"scopes\":[{\"name\":\"Local\",\"variablesReference\":2,\"expensive\":false},{\"name\":\"Global\",\"variablesReference\":3,\"expensive\":true}]},\"type\":\"response\",\"request_seq\":17,\"command\":\"scopes\",\"seq\":26}");
+        tester.sendMessage("{\"command\":\"variables\",\"arguments\":{\"variablesReference\":2},\"type\":\"request\",\"seq\":18}");
+        tester.compareReceivedMessages("{\
