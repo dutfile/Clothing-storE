@@ -1141,4 +1141,74 @@ public final class SimpleLanguageDAPTest {
         tester.sendMessage("{\"command\":\"evaluate\",\"arguments\":{\"expression\":\"a\",\"frameId\":1},\"type\":\"request\",\"seq\":8}");
         tester.compareReceivedMessages("{\"success\":true,\"body\":{\"result\":\"10\",\"variablesReference\":0,\"type\":\"Number\"},\"type\":\"response\",\"request_seq\":8,\"command\":\"evaluate\",\"seq\":15}");
         tester.sendMessage("{\"command\":\"evaluate\",\"arguments\":{\"expression\":\"b\",\"frameId\":1},\"type\":\"request\",\"seq\":9}");
-        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"result\":\"2\",\"variablesReference\":0,\"type\":\"Number\"},\"type\":\"response\",\"request_seq\":9,\"c
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"result\":\"2\",\"variablesReference\":0,\"type\":\"Number\"},\"type\":\"response\",\"request_seq\":9,\"command\":\"evaluate\",\"seq\":16}");
+        tester.sendMessage("{\"command\":\"evaluate\",\"arguments\":{\"expression\":\"unknown\",\"frameId\":1},\"type\":\"request\",\"seq\":10}");
+        tester.compareReceivedMessages("{\"success\":false,\"body\":{\"error\":{\"format\":\"Error(s) parsing script:" + NL + "-- line 1 col 1: missing 'function' at 'unknown'\",\"id\":2025}},\"type\":\"response\",\"message\":\"Error(s) parsing script:" + NL + "-- line 1 col 1: missing 'function' at 'unknown'\",\"request_seq\":10,\"command\":\"evaluate\",\"seq\":17}");
+        // Continue to finish:
+        tester.sendMessage("{\"command\":\"setBreakpoints\",\"arguments\":{\"source\":" + sourceJson + ",\"lines\":[],\"breakpoints\":[],\"sourceModified\":false},\"type\":\"request\",\"seq\":18}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"breakpoints\":[]},\"type\":\"response\",\"request_seq\":18,\"command\":\"setBreakpoints\"}");
+        tester.sendMessage("{\"command\":\"continue\",\"arguments\":{\"threadId\":1},\"type\":\"request\",\"seq\":19}");
+        tester.compareReceivedMessages(
+                "{\"event\":\"continued\",\"body\":{\"threadId\":1,\"allThreadsContinued\":false},\"type\":\"event\"}",
+                "{\"success\":true,\"body\":{\"allThreadsContinued\":false},\"type\":\"response\",\"request_seq\":19,\"command\":\"continue\"}"
+        );
+        tester.finish();
+    }
+
+    @Test
+    public void testSourcePath() throws Exception {
+        tester = DAPTester.start(true);
+        File sourceFile = createTemporaryFile(CODE1);
+        Source source = Source.newBuilder("sl", sourceFile).build();
+        tester.sendMessage("{\"command\":\"initialize\",\"arguments\":{\"clientID\":\"DAPTester\",\"clientName\":\"DAP Tester\",\"adapterID\":\"graalvm\",\"pathFormat\":\"path\",\"linesStartAt1\":true,\"columnsStartAt1\":true,\"supportsVariableType\":true,\"supportsVariablePaging\":true,\"supportsRunInTerminalRequest\":true,\"locale\":\"en-us\",\"supportsProgressReporting\":true},\"type\":\"request\",\"seq\":1}");
+        tester.compareReceivedMessages(
+                "{\"event\":\"initialized\",\"type\":\"event\"}",
+                "{\"success\":true,\"type\":\"response\",\"body\":{\"supportsConditionalBreakpoints\":true,\"supportsLoadedSourcesRequest\":true,\"supportsFunctionBreakpoints\":true,\"supportsExceptionInfoRequest\":true,\"supportsBreakpointLocationsRequest\":true,\"supportsHitConditionalBreakpoints\":true,\"supportsLogPoints\":true,\"supportsSetVariable\":true,\"supportsConfigurationDoneRequest\":true,\"exceptionBreakpointFilters\":[{\"filter\":\"all\",\"label\":\"All Exceptions\"},{\"filter\":\"uncaught\",\"label\":\"Uncaught Exceptions\"}]},\"request_seq\":1,\"command\":\"initialize\"}"
+        );
+        tester.sendMessage("{\"command\":\"attach\",\"arguments\":{\"type\":\"graalvm\",\"request\":\"attach\",\"name\":\"Attach\",\"port\":9229,\"protocol\":\"chromeDevTools\"},\"type\":\"request\",\"seq\":2}");
+        tester.compareReceivedMessages("{\"event\":\"output\",\"body\":{\"output\":\"Debugger attached.\",\"category\":\"stderr\"},\"type\":\"event\"}", "{\"success\":true,\"type\":\"response\",\"request_seq\":2,\"command\":\"attach\"}");
+        tester.sendMessage("{\"command\":\"loadedSources\",\"type\":\"request\",\"seq\":3}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"sources\":[]},\"type\":\"response\",\"request_seq\":3,\"command\":\"loadedSources\",\"seq\":5}");
+        tester.sendMessage("{\"command\":\"configurationDone\",\"type\":\"request\",\"seq\":4}");
+        tester.compareReceivedMessages("{\"success\":true,\"type\":\"response\",\"request_seq\":4,\"command\":\"configurationDone\",\"seq\":6}");
+        tester.eval(source);
+        tester.compareReceivedMessages("{\"event\":\"thread\",\"body\":{\"threadId\":1,\"reason\":\"started\"},\"type\":\"event\",\"seq\":7}");
+        tester.compareReceivedMessages(
+                "{\"event\":\"loadedSource\",\"body\":{\"reason\":\"new\",\"source\":{\"sourceReference\":1,\"name\":\"SL builtin\"}},\"type\":\"event\",\"seq\":8}",
+                "{\"event\":\"loadedSource\",\"body\":{\"reason\":\"new\",\"source\":{\"path\":\"" + getFilePath(sourceFile) + "\",\"name\":\"" + sourceFile.getName() + "\"}},\"type\":\"event\",\"seq\":9}"
+        );
+        tester.compareReceivedMessages("{\"event\":\"stopped\",\"body\":{\"threadId\":1,\"reason\":\"debugger_statement\",\"description\":\"Paused on debugger statement\"},\"type\":\"event\",\"seq\":10}");
+        tester.sendMessage("{\"command\":\"continue\",\"arguments\":{\"threadId\":1},\"type\":\"request\",\"seq\":9}");
+        tester.compareReceivedMessages(
+                "{\"event\":\"continued\",\"body\":{\"threadId\":1,\"allThreadsContinued\":false},\"type\":\"event\"}",
+                "{\"success\":true,\"body\":{\"allThreadsContinued\":false},\"type\":\"response\",\"request_seq\":9,\"command\":\"continue\"}"
+        );
+        tester.finish();
+    }
+
+    // @formatter:on
+    // CheckStyle: resume line length check
+
+    private static File createTemporaryFile(String content) throws IOException {
+        File file = File.createTempFile("test", ".sl");
+        file.deleteOnExit();
+        Files.writeString(file.toPath(), content, StandardOpenOption.TRUNCATE_EXISTING);
+        return file;
+    }
+
+    private static String getFilePath(File file) {
+        String path;
+        try {
+            path = file.getCanonicalPath();
+        } catch (IOException ex) {
+            path = file.getAbsolutePath();
+        }
+        // We need to escape backlash for correct JSON:
+        path = path.replace("\\", "\\\\");
+        return path;
+    }
+
+    private static String replaceNewLines(String nl) {
+        return nl.replace("\n", "\\n").replace("\r", "\\r");
+    }
+}
