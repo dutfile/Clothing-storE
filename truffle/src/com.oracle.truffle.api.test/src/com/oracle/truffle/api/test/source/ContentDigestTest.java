@@ -31,4 +31,83 @@
  * portions of the Software.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF M
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+package com.oracle.truffle.api.test.source;
+
+import java.lang.reflect.Method;
+import java.math.BigInteger;
+import java.security.MessageDigest;
+import java.util.Random;
+
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
+import com.oracle.truffle.api.test.ReflectionUtils;
+import com.oracle.truffle.tck.tests.TruffleTestAssumptions;
+
+public class ContentDigestTest {
+
+    @BeforeClass
+    public static void runWithWeakEncapsulationOnly() {
+        TruffleTestAssumptions.assumeWeakEncapsulation();
+    }
+
+    @Test
+    public void emptySHA256() throws Exception {
+        assertDigest(new byte[0], "Empty SHA-256 digest");
+    }
+
+    @Test
+    public void hiSHA256() throws Exception {
+        assertDigest("Hi".getBytes("UTF-8"), "Empty SHA-256 digest");
+    }
+
+    @Test
+    public void helloWorldSHA256() throws Exception {
+        assertDigest("Hello World!".getBytes("UTF-8"), "Empty SHA-256 digest");
+    }
+
+    @Test
+    public void minusSHA256() throws Exception {
+        assertDigest(new byte[]{-75, 119}, "SHA-256 digest for negative byte");
+    }
+
+    @Test
+    public void computeSHA256s() throws Exception {
+        for (int i = 0; i < 100; i++) {
+            long seed = System.currentTimeMillis();
+            final String msg = "Digest for seed " + seed + " is the same";
+
+            Random random = new Random(seed);
+
+            int len = random.nextInt(2048);
+            byte[] arr = new byte[len];
+            random.nextBytes(arr);
+
+            assertDigest(arr, msg);
+        }
+    }
+
+    private static void assertDigest(byte[] arr, final String msg) throws Exception {
+        byte[] result = MessageDigest.getInstance("SHA-256").digest(arr);
+        String expecting = new BigInteger(1, result).toString(16);
+        // Add leading `0`s if missing to align to standard 64 digit SHA-256 format.
+        while (expecting.length() < 64) {
+            expecting = '0' + expecting;
+        }
+
+        Method m = Class.forName("com.oracle.truffle.api.source.Source").getDeclaredMethod("digest", byte[].class, int.class, int.class);
+        ReflectionUtils.setAccessible(m, true);
+        String own = (String) m.invoke(null, arr, 0, arr.length);
+
+        Assert.assertEquals(msg, expecting, own);
+    }
+
+}
