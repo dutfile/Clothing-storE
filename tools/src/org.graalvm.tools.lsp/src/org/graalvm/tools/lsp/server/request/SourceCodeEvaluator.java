@@ -316,3 +316,112 @@ public final class SourceCodeEvaluator extends AbstractRequestHandler {
                             }
 
                         });
+
+        try {
+            callTarget.call();
+        } catch (EvaluationResultException e) {
+            return e.isError() ? EvaluationResult.createError(e.getResult()) : EvaluationResult.createResult(e.getResult());
+        } catch (RuntimeException e) {
+            if (INTEROP.isException(e)) {
+                try {
+                    if (INTEROP.getExceptionType(e) == ExceptionType.EXIT) {
+                        return EvaluationResult.createEvaluationSectionNotReached();
+                    } else {
+                        return EvaluationResult.createError(e);
+                    }
+                } catch (UnsupportedMessageException ume) {
+                    throw CompilerDirectives.shouldNotReachHere(ume);
+                }
+            }
+        } finally {
+            binding.dispose();
+        }
+        return EvaluationResult.createEvaluationSectionNotReached();
+    }
+
+    public TextDocumentSurrogate createSurrogateForTestFile(TextDocumentSurrogate surrogateOfOpenedFile, URI runScriptUriFallback) {
+        URI runScriptUri = runScriptUriFallback != null ? runScriptUriFallback : surrogateOfOpenedFile.getUri();
+        final String langIdOfTestFile = findLanguageOfTestFile(runScriptUri, surrogateOfOpenedFile.getLanguageId());
+        LanguageInfo languageInfo = env.getLanguages().get(langIdOfTestFile);
+        assert languageInfo != null;
+        TextDocumentSurrogate surrogateOfTestFile = surrogateMap.getOrCreateSurrogate(runScriptUri, languageInfo);
+        return surrogateOfTestFile;
+
+    }
+
+    private static String findLanguageOfTestFile(URI runScriptUri, String fallbackLangId) {
+        try {
+            return Source.findLanguage(runScriptUri.toURL());
+        } catch (IOException e) {
+            return fallbackLangId;
+        }
+    }
+
+    private EvaluationResult evalInGlobalScope(String langId, Node nearestNode) {
+        SourceSection section = nearestNode.getSourceSection();
+        if (section == null || !section.isAvailable()) {
+            return EvaluationResult.createUnknownExecutionTarget();
+        }
+
+        try {
+            CallTarget callTarget = env.parse(
+                            Source.newBuilder(langId, section.getCharacters(), "eval in global scope").cached(false).build());
+            Object result = callTarget.call();
+            return EvaluationResult.createResult(result);
+        } catch (Exception e) {
+            return EvaluationResult.createError(e);
+        }
+    }
+
+    /**
+     * A special method to create a {@link SourceSectionFilter} which filters for a specific source
+     * section during source code evaluation. We cannot simply filter with
+     * {@link Builder#sourceIs(Source...)} and {@link Builder#sourceSectionEquals(SourceSection...)}
+     * , because we are possibly not the creator of the Source and do not know which properties are
+     * set. The source which is evaluated could have been created by the language. For example by a
+     * Python import statement. Therefore we need to filter via URI (or name if the URI is a
+     * generated truffle-schema-URI).
+     *
+     * @param uri to filter sources for
+     * @param sourceSection to filter for with same start and end indices
+     * @return a builder to add further filter options
+     */
+    static SourceSectionFilter.Builder createSourceSectionFilter(URI uri, SourceSection sourceSection) {
+        return SourceSectionFilter.newBuilder() //
+                        .lineStartsIn(IndexRange.between(sourceSection.getStartLine(), sourceSection.getStartLine() + 1)) //
+                        .lineEndsIn(IndexRange.between(sourceSection.getEndLine(), sourceSection.getEndLine() + 1)) //
+                        .columnStartsIn(IndexRange.between(sourceSection.getStartColumn(), sourceSection.getStartColumn() + 1)) //
+                        .columnEndsIn(IndexRange.between(sourceSection.getEndColumn(), sourceSection.getEndColumn() + 1)) //
+                        .sourceIs(SourcePredicateBuilder.newBuilder().uriOrTruffleName(uri).build());
+    }
+
+    static List<CoverageData> findCoverageDataBeforeNode(TextDocumentSurrogate surrogate, Node targetNode) {
+        List<CoverageData> coveragesBeforeNode = new ArrayList<>();
+        targetNode.getRootNode().accept(new NodeVisitor() {
+            boolean found = false;
+
+            @Override
+            public boolean visit(Node node) {
+                if (found) {
+                    return false;
+                }
+
+                if (node.equals(targetNode)) {
+                    found = true;
+                    return false;
+                }
+
+                SourceSection sourceSection = node.getSourceSection();
+                if (sourceSection != null && sourceSection.isAvailable()) {
+                    List<CoverageData> coverageData = surrogate.getCoverageData(sourceSection);
+                    if (coverageData != null) {
+                        coveragesBeforeNode.addAll(coverageData);
+                    }
+                }
+
+                return true;
+            }
+        });
+        return coveragesBeforeNode;
+    }
+}
