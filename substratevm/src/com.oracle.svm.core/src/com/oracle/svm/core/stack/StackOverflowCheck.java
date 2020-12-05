@@ -77,4 +77,118 @@ public interface StackOverflowCheck {
         @Option(help = "Size (in bytes) of the yellow zone reserved at the end of the stack. This stack space is reserved for VM use and cannot be used by the application.")//
         public static final HostedOptionKey<Integer> StackYellowZoneSize = new HostedOptionKey<>(32 * 1024);
 
-        @Option(help = "Size (in bytes) of the red zone r
+        @Option(help = "Size (in bytes) of the red zone reserved at the end of the stack. This stack space can only be used by critical VM code and C code, e.g., to report fatal errors.")//
+        public static final HostedOptionKey<Integer> StackRedZoneSize = new HostedOptionKey<>(8 * 1024);
+    }
+
+    /**
+     * Operating system abstraction: The OS needs to provide end of the physical stack memory.
+     *
+     * Note that currently there is no abstraction to influence the stack growth direction: We only
+     * support a stack that grows from higher addresses towards lower addresses. All supported
+     * platforms use this direction.
+     */
+    interface OSSupport {
+        /** The highest address of the stack or zero if not supported. */
+        @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+        default UnsignedWord lookupStackBase() {
+            return WordFactory.zero();
+        }
+
+        /** The lowest address of the stack. */
+        @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+        UnsignedWord lookupStackEnd();
+
+        /**
+         * The lowest address of the stack. If the OS reserved stack memory is larger than
+         * requestedStackSize, then the value for end of the stack memory returned may be before the
+         * real stack end.
+         *
+         * @param requestedStackSize requested stack size. If zero, then the value is ignored.
+         */
+        @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+        default UnsignedWord lookupStackEnd(@SuppressWarnings("unused") UnsignedWord requestedStackSize) {
+            return lookupStackEnd();
+        }
+
+        /**
+         * Find the highest address of the stack or zero if is not supported, and the lowest address
+         * of the stack. If the OS reserved stack memory is larger than requestedStackSize, then the
+         * value for end of the stack memory returned may be before the real stack end.
+         * 
+         * @param requestedStackSize requested stack size. If zero, then the value is ignored.
+         */
+        @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+        default void lookupStack(WordPointer stackBasePtr, WordPointer stackEndPtr, UnsignedWord requestedStackSize) {
+            stackBasePtr.write(lookupStackBase());
+            stackEndPtr.write(lookupStackEnd(requestedStackSize));
+        }
+    }
+
+    @Fold
+    static StackOverflowCheck singleton() {
+        return ImageSingletons.lookup(StackOverflowCheck.class);
+    }
+
+    /**
+     * Called for each thread when the thread is attached to the VM. The method is called very
+     * early, before the thread register and the heap are being set up. Therefore, the
+     * implementation is severly limited to only operate on C memory and calling C fuctions.
+     */
+    @Uninterruptible(reason = "Called while thread is being attached to the VM, i.e., when the thread state is not yet set up.")
+    void initialize(IsolateThread thread);
+
+    /**
+     * Determines whether the given address, e.g. a potential stack pointer, is within the safe
+     * boundaries of the current thread's stack (which includes the yellow zone if
+     * {@linkplain #makeYellowZoneAvailable() made available}.
+     */
+    boolean isWithinBounds(UnsignedWord address);
+
+    /**
+     * Make the yellow zone of the stack available for usage. It must be eventually followed by a
+     * call to {@link #protectYellowZone()}. Nested calls are supported: if the yellow zone is
+     * already available, this function is a no-op.
+     */
+    void makeYellowZoneAvailable();
+
+    /** Check if the yellow zone of the stack available for usage. */
+    boolean isYellowZoneAvailable();
+
+    /**
+     * The inverse operation of {@link #makeYellowZoneAvailable}.
+     */
+    void protectYellowZone();
+
+    /**
+     * Returns the combined size of the yellow and red zone.
+     */
+    int yellowAndRedZoneSize();
+
+    /** @see #setState */
+    int getState();
+
+    /**
+     * Restore the specified state of the stack overflow checks obtained from {@link #getState}.
+     * This is intended for yielding and resuming continuations on a thread.
+     */
+    void setState(int state);
+
+    /**
+     * Disables all stack overflow checks for this thread. This operation is not reversible, i.e.,
+     * it must only be called in the case of a fatal error where the VM is going to exit soon and
+     * does not execute user code anymore that relies on proper stack overflow checking.
+     */
+    @Uninterruptible(reason = "Called by fatal error handling that is uninterruptible.")
+    void disableStackOverflowChecksForFatalError();
+
+    /**
+     * Updates the stack overflow boundary of the current thread.
+     */
+    void updateStackOverflowBoundary();
+
+    /**
+     * Returns the stack overflow boundary of the current thread.
+     */
+    UnsignedWord getStackOverflowBoundary();
+}
