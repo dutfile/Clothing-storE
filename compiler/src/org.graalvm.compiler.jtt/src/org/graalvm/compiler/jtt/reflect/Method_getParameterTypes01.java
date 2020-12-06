@@ -38,4 +38,40 @@ public class Method_getParameterTypes01 extends JTTTest {
             return Method_getParameterTypes01.class.getMethod("method1").getParameterTypes().length;
         } else if (arg == 1) {
             return Method_getParameterTypes01.class.getMethod("method2", int.class).getParameterTypes().length;
-        } else if 
+        } else if (arg == 2) {
+            return Method_getParameterTypes01.class.getMethod("method3", int.class, Object.class).getParameterTypes().length;
+        }
+        return -1;
+    }
+
+    public int method1() {
+        return 0;
+    }
+
+    public void method2(int arg1) {
+    }
+
+    public void method3(int arg1, Object arg2) {
+    }
+
+    @Test
+    public void run0() throws Throwable {
+        runTest("test", 0);
+    }
+
+    @Test
+    public void run1() throws Throwable {
+        runTest("test", 1);
+    }
+
+    @Test
+    public void run2() throws Throwable {
+        runTest("test", 2);
+    }
+
+    @Test
+    public void run3() throws Throwable {
+        runTest("test", 3);
+    }
+
+}
