@@ -32,4 +32,21 @@
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHA
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+/**
+ * This package contains annotations that configure the substitution mechanism of GraalVM Native
+ * Image. Annotated classes and methods modify the behavior of the class referenced by
+ * {@link com.oracle.svm.core.annotate.TargetClass}.
+ *
+ * Important: this package is not part of the supported API. It exists, and is exported in the
+ * module descriptor, for compatibility reasons only.
+ *
+ * @since 22.3
+ */
+package com.oracle.svm.core.annotate;
