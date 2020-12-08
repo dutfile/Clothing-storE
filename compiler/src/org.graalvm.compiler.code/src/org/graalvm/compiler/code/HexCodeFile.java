@@ -364,3 +364,101 @@ public class HexCodeFile {
                     index++;
                 }
                 String section = source.substring(index, endIndex).trim();
+                parseSection(offset + index, section);
+                index = endIndex + SECTION_DELIM.length();
+                endIndex = source.indexOf(SECTION_DELIM, index);
+            }
+        }
+
+        int parseInt(int offset, String value) {
+            try {
+                return Integer.parseInt(value);
+            } catch (NumberFormatException e) {
+                throw error(offset, "Not a valid integer: " + value);
+            }
+        }
+
+        void parseSection(int offset, String section) {
+            if (section.isEmpty()) {
+                return;
+            }
+            assert input.startsWith(section, offset);
+            Matcher m = HexCodeFile.SECTION.matcher(section);
+            check(m.matches(), offset, "Section does not match pattern " + HexCodeFile.SECTION);
+
+            String header = m.group(1);
+            String body = m.group(2);
+            int headerOffset = offset + m.start(1);
+            int bodyOffset = offset + m.start(2);
+
+            if (header.equals("Platform")) {
+                check(isa == null, bodyOffset, "Duplicate Platform section found");
+                m = HexCodeFile.PLATFORM.matcher(body);
+                check(m.matches(), bodyOffset, "Platform does not match pattern " + HexCodeFile.PLATFORM);
+                isa = m.group(1);
+                wordWidth = parseInt(bodyOffset + m.start(2), m.group(2));
+                makeHCF();
+            } else if (header.equals("HexCode")) {
+                check(code == null, bodyOffset, "Duplicate Code section found");
+                m = HexCodeFile.HEX_CODE.matcher(body);
+                check(m.matches(), bodyOffset, "Code does not match pattern " + HexCodeFile.HEX_CODE);
+                String hexAddress = m.group(1);
+                startAddress = Long.valueOf(hexAddress, 16);
+                String hexCode = m.group(2);
+                if (hexCode == null) {
+                    code = new byte[0];
+                } else {
+                    check((hexCode.length() % 2) == 0, bodyOffset, "Hex code length must be even");
+                    code = new byte[hexCode.length() / 2];
+                    for (int i = 0; i < code.length; i++) {
+                        String hexByte = hexCode.substring(i * 2, (i + 1) * 2);
+                        code[i] = (byte) Integer.parseInt(hexByte, 16);
+                    }
+                }
+                makeHCF();
+            } else if (header.equals("Comment")) {
+                checkHCF("Comment", headerOffset);
+                m = HexCodeFile.COMMENT.matcher(body);
+                check(m.matches(), bodyOffset, "Comment does not match pattern " + HexCodeFile.COMMENT);
+                int pos = parseInt(bodyOffset + m.start(1), m.group(1));
+                String comment = m.group(2);
+                hcf.addComment(pos, comment);
+            } else if (header.equals("OperandComment")) {
+                checkHCF("OperandComment", headerOffset);
+                m = HexCodeFile.OPERAND_COMMENT.matcher(body);
+                check(m.matches(), bodyOffset, "OperandComment does not match pattern " + HexCodeFile.OPERAND_COMMENT);
+                int pos = parseInt(bodyOffset + m.start(1), m.group(1));
+                String comment = m.group(2);
+                hcf.addOperandComment(pos, comment);
+            } else if (header.equals("JumpTable")) {
+                checkHCF("JumpTable", headerOffset);
+                m = HexCodeFile.JUMP_TABLE.matcher(body);
+                check(m.matches(), bodyOffset, "JumpTable does not match pattern " + HexCodeFile.JUMP_TABLE);
+                int pos = parseInt(bodyOffset + m.start(1), m.group(1));
+                JumpTable.EntryFormat entryFormat = parseJumpTableEntryFormat(m, bodyOffset);
+                int low = parseInt(bodyOffset + m.start(3), m.group(3));
+                int high = parseInt(bodyOffset + m.start(4), m.group(4));
+                hcf.jumpTables.add(new JumpTable(pos, low, high, entryFormat));
+            } else {
+                error(offset, "Unknown section header: " + header);
+            }
+        }
+
+        private JumpTable.EntryFormat parseJumpTableEntryFormat(Matcher m, int bodyOffset) throws Error {
+            String entryFormatName = m.group(2);
+            JumpTable.EntryFormat entryFormat;
+            if ("4".equals(entryFormatName)) {
+                entryFormat = EntryFormat.OFFSET_ONLY;
+            } else if ("8".equals(entryFormatName)) {
+                entryFormat = EntryFormat.VALUE_AND_OFFSET;
+            } else {
+                try {
+                    entryFormat = EntryFormat.valueOf(entryFormatName);
+                } catch (IllegalArgumentException e) {
+                    throw error(bodyOffset + m.start(2), "Not a valid " + EntryFormat.class.getSimpleName() + " value: " + entryFormatName);
+                }
+            }
+            return entryFormat;
+        }
+    }
+}
