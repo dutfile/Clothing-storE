@@ -28,5 +28,5 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 int main() {
-    return 0UL > 1UL;
+    return sizeof(long int);
 }
