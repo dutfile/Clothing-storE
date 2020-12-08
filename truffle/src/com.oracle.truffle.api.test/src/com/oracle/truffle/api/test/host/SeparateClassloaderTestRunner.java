@@ -97,4 +97,26 @@ public final class SeparateClassloaderTestRunner extends BlockJUnit4ClassRunner 
                 throw new ClassNotFoundException(name);
             }
             byte[] arr = readAllBytes(name, is);
-            return defineClass(name, arr, 0, arr.length, getClass
+            return defineClass(name, arr, 0, arr.length, getClass().getProtectionDomain());
+        }
+    }
+
+    static byte[] readAllBytes(String name, InputStream is) throws ClassNotFoundException {
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        byte[] arr = new byte[4096];
+        for (;;) {
+            int len;
+            try {
+                len = is.read(arr);
+            } catch (IOException ex) {
+                throw new ClassNotFoundException(name);
+            }
+            if (len < 0) {
+                break;
+            }
+            os.write(arr, 0, len);
+        }
+        arr = os.toByteArray();
+        return arr;
+    }
+}
