@@ -1,5 +1,6 @@
+
 /*
- * Copyright (c) 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2007, 2018, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,33 +23,28 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package org.graalvm.compiler.nodes.test;
+/*
+ * Copyright (c) 2007, 2018, Oracle and/or its affiliates. All rights reserved.
+ */
+package org.graalvm.compiler.jtt.bytecode;
 
-import org.graalvm.compiler.api.directives.GraalDirectives;
-import org.graalvm.compiler.core.test.GraalCompilerTest;
 import org.junit.Test;
 
-public class NarrowTest extends GraalCompilerTest {
+import org.graalvm.compiler.jtt.JTTTest;
+
+/*
+ */
+public class BC_getstatic_b extends JTTTest {
+
+    private static byte field = 11;
+
+    public static byte test() {
+        return field;
+    }
 
     @Test
-    public void testSnippet0() {
-        test("snippet0", (char) 0);
+    public void run0() throws Throwable {
+        runTest("test");
     }
 
-    static boolean snippet0(char c0) {
-        return -2 > (byte) ((byte) c0 / (byte) 2134864769);
-    }
-
-    @Test
-    public void testSnippet1() {
-        test("snippet1", 50400L);
-    }
-
-    static boolean snippet1(long l0) {
-        if ((char) ((byte) l0) >= Character.MAX_VALUE) {
-            return true;
-        }
-        GraalDirectives.blackhole((byte) l0);
-        return false;
-    }
 }
