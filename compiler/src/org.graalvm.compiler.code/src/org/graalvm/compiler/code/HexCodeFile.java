@@ -172,4 +172,195 @@ public class HexCodeFile {
     }
 
     public void writeTo(OutputStream out) {
-        PrintStream ps = out instanceof PrintStream ? (PrintStream) out : new
+        PrintStream ps = out instanceof PrintStream ? (PrintStream) out : new PrintStream(out);
+        ps.printf("Platform %s %d %s%n", isa, wordWidth, SECTION_DELIM);
+        ps.printf("HexCode %x %s %s%n", startAddress, HexCodeFile.hexCodeString(code), SECTION_DELIM);
+
+        for (JumpTable table : jumpTables) {
+            EntryFormat ef = table.entryFormat;
+            // Backwards compatibility support for old versions of C1Visualizer
+            String efString = ef == OFFSET_ONLY || ef == VALUE_AND_OFFSET ? String.valueOf(ef.size) : ef.name();
+            ps.printf("JumpTable %d %s %d %d %s%n", table.getPosition(), efString, table.low, table.high, SECTION_DELIM);
+        }
+
+        for (Map.Entry<Integer, List<String>> e : comments.entrySet()) {
+            int pos = e.getKey();
+            for (String comment : e.getValue()) {
+                ps.printf("Comment %d %s %s%n", pos, comment, SECTION_DELIM);
+            }
+        }
+
+        for (Map.Entry<Integer, List<String>> e : operandComments.entrySet()) {
+            for (String c : e.getValue()) {
+                ps.printf("OperandComment %d %s %s%n", e.getKey(), c, SECTION_DELIM);
+            }
+        }
+        ps.flush();
+    }
+
+    /**
+     * Formats a byte array as a string of hex digits.
+     */
+    public static String hexCodeString(byte[] code) {
+        if (code == null) {
+            return "";
+        } else {
+            StringBuilder sb = new StringBuilder(code.length * 2);
+            for (int b : code) {
+                String hex = Integer.toHexString(b & 0xff);
+                if (hex.length() == 1) {
+                    sb.append('0');
+                }
+                sb.append(hex);
+            }
+            return sb.toString();
+        }
+    }
+
+    /**
+     * Adds a comment to the list of comments for a given position.
+     */
+    public void addComment(int pos, String comment) {
+        List<String> list = comments.get(pos);
+        if (list == null) {
+            list = new ArrayList<>();
+            comments.put(pos, list);
+        }
+        list.add(encodeString(comment));
+    }
+
+    /**
+     * Adds an operand comment for a given position.
+     */
+    public void addOperandComment(int pos, String comment) {
+        List<String> list = comments.get(pos);
+        if (list == null) {
+            list = new ArrayList<>(1);
+            comments.put(pos, list);
+        }
+        list.add(encodeString(comment));
+    }
+
+    /**
+     * Adds any jump tables, lookup tables or code comments from a list of code annotations.
+     */
+    public static void addAnnotations(HexCodeFile hcf, List<CodeAnnotation> annotations) {
+        if (annotations == null || annotations.isEmpty()) {
+            return;
+        }
+        for (CodeAnnotation a : annotations) {
+            if (a instanceof JumpTable) {
+                JumpTable table = (JumpTable) a;
+                hcf.jumpTables.add(table);
+            } else if (a instanceof CodeComment) {
+                CodeComment comment = (CodeComment) a;
+                hcf.addComment(comment.getPosition(), comment.value);
+            }
+        }
+    }
+
+    /**
+     * Modifies a string to mangle any substrings matching {@link #SECTION_DELIM} and
+     * {@link #COLUMN_END}.
+     */
+    public static String encodeString(String input) {
+        int index;
+        String s = input;
+        while ((index = s.indexOf(SECTION_DELIM)) != -1) {
+            s = s.substring(0, index) + " < |@" + s.substring(index + SECTION_DELIM.length());
+        }
+        while ((index = s.indexOf(COLUMN_END)) != -1) {
+            s = s.substring(0, index) + " < @" + s.substring(index + COLUMN_END.length());
+        }
+        return s;
+    }
+
+    /**
+     * Helper class to parse a string in the format produced by {@link HexCodeFile#toString()} and
+     * produce a {@link HexCodeFile} object.
+     */
+    static class Parser {
+
+        final String input;
+        final String inputSource;
+        String isa;
+        int wordWidth;
+        byte[] code;
+        long startAddress;
+        HexCodeFile hcf;
+
+        Parser(String input, int sourceOffset, String source, String sourceName) {
+            this.input = input;
+            this.inputSource = sourceName;
+            parseSections(sourceOffset, source);
+        }
+
+        void makeHCF() {
+            if (hcf == null) {
+                if (isa != null && wordWidth != 0 && code != null) {
+                    hcf = new HexCodeFile(code, startAddress, isa, wordWidth);
+                }
+            }
+        }
+
+        void checkHCF(String section, int offset) {
+            check(hcf != null, offset, section + " section must be after Platform and HexCode section");
+        }
+
+        void check(boolean condition, int offset, String message) {
+            if (!condition) {
+                error(offset, message);
+            }
+        }
+
+        Error error(int offset, String message) {
+            throw new Error(errorMessage(offset, message));
+        }
+
+        String errorMessage(int offset, String message) {
+            assert offset < input.length();
+            InputPos inputPos = filePos(offset);
+            int lineEnd = input.indexOf(HexCodeFile.NEW_LINE, offset);
+            int lineStart = offset - inputPos.col;
+            String line = lineEnd == -1 ? input.substring(lineStart) : input.substring(lineStart, lineEnd);
+            return String.format("%s:%d: %s%n%s%n%" + (inputPos.col + 1) + "s", inputSource, inputPos.line, message, line, "^");
+        }
+
+        static class InputPos {
+
+            final int line;
+            final int col;
+
+            InputPos(int line, int col) {
+                this.line = line;
+                this.col = col;
+            }
+        }
+
+        InputPos filePos(int index) {
+            assert input != null;
+            int lineStart = input.lastIndexOf(HexCodeFile.NEW_LINE, index) + 1;
+
+            String l = input.substring(lineStart, lineStart + 10);
+            PrintStream out = System.out;
+            out.println("YYY" + input.substring(index, index + 10) + "...");
+            out.println("XXX" + l + "...");
+
+            int pos = input.indexOf(HexCodeFile.NEW_LINE, 0);
+            int line = 1;
+            while (pos > 0 && pos < index) {
+                line++;
+                pos = input.indexOf(HexCodeFile.NEW_LINE, pos + 1);
+            }
+            return new InputPos(line, index - lineStart);
+        }
+
+        void parseSections(int offset, String source) {
+            assert input.startsWith(source, offset);
+            int index = 0;
+            int endIndex = source.indexOf(SECTION_DELIM);
+            while (endIndex != -1) {
+                while (source.charAt(index) <= ' ') {
+                    index++;
+                }
+                String section = source.substring(index, endIndex).trim();
