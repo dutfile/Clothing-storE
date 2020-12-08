@@ -22,4 +22,85 @@
  */
 package org.graalvm.visualizer.search;
 
-import java.util.Collect
+import java.util.Collection;
+import java.util.Collections;
+import java.util.concurrent.atomic.AtomicBoolean;
+import org.graalvm.visualizer.data.InputGraph;
+import org.graalvm.visualizer.search.GraphSearchEngine.SearchRunnable;
+import org.openide.util.RequestProcessor;
+import org.openide.util.Task;
+import org.openide.util.TaskListener;
+
+/**
+ *
+ * @author sdedic
+ */
+public final class SearchTask {
+    private final RequestProcessor.Task task;
+    private final SearchRunnable worker;
+    private final AtomicBoolean cancelled = new AtomicBoolean();
+    private final SearchResultsModel model;
+    
+    SearchTask(SearchResultsModel model) {
+        this.task = null;
+        this.worker = null;
+        this.model = model;
+    }
+    
+    SearchTask(RequestProcessor.Task task, SearchRunnable worker, SearchResultsModel model) {
+        this.task = task;
+        this.worker = worker;
+        this.model = model;
+    }
+    
+    public static SearchTask finished(SearchResultsModel model) {
+        return new SearchTask(model);
+    }
+    
+    public Collection<InputGraph> pendingGraphs() {
+        if (worker == null) {
+            return Collections.emptySet();
+        } else {
+            return worker.getPendingGraphs();
+        }
+    }
+
+    public boolean cancel() { 
+        if (task == null) {
+            return false;
+        }
+        if (cancelled.get()) {
+            return true;
+        }
+        cancelled.compareAndSet(false, task.cancel() || worker.cancel());
+        return cancelled.get();
+    }
+
+    public Task getTask() {
+        return task == null ? Task.EMPTY : task;
+    }
+    
+    public boolean isFinished() {
+        return getTask().isFinished();
+    }
+    
+    public boolean isCancelled() {
+        return task != null && (cancelled.get() || worker.isCancelled());
+    }
+    
+    public void addTaskListener(TaskListener tl) {
+        if (task != null) {
+            task.addTaskListener(tl);
+        }
+    }
+
+    public void removeTaskListener(TaskListener tl) {
+        if (task != null) {
+            task.removeTaskListener(tl);
+        }
+    }
+
+    public SearchResultsModel getModel() {
+        return model;
+    }
+}
