@@ -84,4 +84,9 @@ public class AArch64RestoreRegistersOp extends AArch64LIRInstruction implements 
         Register[] savedRegisters = getSavedRegisters();
         for (int i = 0; i < savedRegisters.length; i++) {
             if (savedRegisters[i] != null) {
-                assert isStac
+                assert isStackSlot(slots[i]) : "not a StackSlot: " + slots[i];
+                restoreRegister(crb, masm, savedRegisters[i], asStackSlot(slots[i]));
+            }
+        }
+    }
+}
