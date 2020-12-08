@@ -163,4 +163,52 @@ public abstract class LLVMWriteNode extends LLVMStatementNode {
         }
     }
 
-    public
+    public abstract static class LLVMWrite80BitFloatingNode extends LLVMWriteNode {
+        protected LLVMWrite80BitFloatingNode(int slot) {
+            super(slot);
+        }
+
+        @Specialization
+        protected void write80BitFloat(VirtualFrame frame, LLVM80BitFloat value) {
+            frame.setObject(slot, value);
+        }
+    }
+
+    public abstract static class LLVMWrite128BitFloatingNode extends LLVMWriteNode {
+        protected LLVMWrite128BitFloatingNode(int slot) {
+            super(slot);
+        }
+
+        @Specialization
+        protected void write128BitFloat(VirtualFrame frame, LLVM128BitFloat value) {
+            frame.setObject(slot, value);
+        }
+    }
+
+    public abstract static class LLVMWritePointerNode extends LLVMWriteNode {
+        protected LLVMWritePointerNode(int slot) {
+            super(slot);
+        }
+
+        @Specialization
+        protected void writeLong(VirtualFrame frame, long value) {
+            frame.setObject(slot, LLVMNativePointer.create(value));
+        }
+
+        @Fallback
+        protected void writeObject(VirtualFrame frame, Object value) {
+            frame.setObject(slot, value);
+        }
+    }
+
+    public abstract static class LLVMWriteVectorNode extends LLVMWriteNode {
+        protected LLVMWriteVectorNode(int slot) {
+            super(slot);
+        }
+
+        @Specialization
+        protected void writeVector(VirtualFrame frame, LLVMVector value) {
+            frame.setObject(slot, value);
+        }
+    }
+}
