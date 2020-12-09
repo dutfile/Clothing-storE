@@ -218,4 +218,123 @@ public class WeakCachedTest extends AbstractPolyglotTest {
      */
     @Test
     public void testConsistentGuardAndSpecialization() throws InterruptedException {
-        ConsistentGuardAndSpecial
+        ConsistentGuardAndSpecializationNode node = ConsistentGuardAndSpecializationNodeGen.create();
+        Object o0 = new String("");
+        WeakReference<Object> ref1 = new WeakReference<>(o0);
+        node.execute(o0);
+        Thread t = new Thread(new Runnable() {
+            public void run() {
+                node.locksEnabled = true;
+                node.execute(new String(""));
+            }
+        });
+        t.start();
+        node.waitForGuard.acquire();
+        o0 = null;
+        try {
+            GCUtils.assertNotGc("Reference is not collected", ref1);
+        } finally {
+            node.waitForSpecialization.release();
+            t.join();
+        }
+        GCUtils.assertGc("Reference is not collected", ref1);
+
+    }
+
+    @Test
+    public void testNullWeakReference() {
+        assertFails(() -> TestNullWeakCacheNodeGen.create().execute(null), UnsupportedSpecializationException.class);
+        assertFails(() -> TestNullWeakCacheNodeGen.getUncached().execute(null), UnsupportedSpecializationException.class);
+    }
+
+    @GenerateUncached
+    abstract static class TestNullWeakCacheNode extends Node {
+
+        abstract Object execute(Object arg0);
+
+        @Specialization
+        Object s0(Object arg,
+                        @Cached(value = "arg", weak = true) Object cachedStorage) {
+            assertNotNull(cachedStorage);
+            return arg;
+        }
+
+    }
+
+    /*
+     * This tests that the implicit library accepts guard on a weak reference is not causing
+     * multiple instances. See GR-27293.
+     */
+    abstract static class CachedLibraryWeakValueNode extends Node {
+
+        public abstract int execute(Object arg);
+
+        @Specialization
+        static int doBoxed(Object arg,
+                        @Cached(value = "arg", weak = true) Object cachedArg,
+                        @CachedLibrary("cachedArg") InteropLibrary argLib) {
+            return 42;
+        }
+    }
+
+    abstract static class ConsistentGuardAndSpecializationNode extends Node {
+
+        final Semaphore waitForSpecialization = new Semaphore(0);
+        final Semaphore waitForGuard = new Semaphore(0);
+
+        abstract Object execute(Object arg0);
+
+        volatile boolean locksEnabled;
+
+        boolean acquireLock(Object a) {
+            if (locksEnabled) {
+                waitForGuard.release();
+                try {
+                    waitForSpecialization.acquire();
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
+                }
+            }
+            return true;
+        }
+
+        @Specialization(guards = {"arg.equals(cachedStorage)", "acquireLock(arg)"}, limit = "3")
+        Object s0(String arg,
+                        @Cached(value = "arg", weak = true) String cachedStorage) {
+            assertNotNull(cachedStorage);
+            return arg;
+        }
+
+    }
+
+    abstract static class ErrorWeakPrimitiveNode extends Node {
+
+        abstract Object execute(Object arg0);
+
+        @Specialization(guards = "arg == cachedStorage", limit = "3")
+        Object s0(int arg,
+                        @com.oracle.truffle.api.test.ExpectError("Cached parameters with primitive types cannot be weak. Set weak to false to resolve this.") //
+                        @Cached(value = "arg", weak = true) int cachedStorage) {
+            return arg;
+        }
+    }
+
+    @GenerateUncached
+    abstract static class ErrorWeakCachedReachablFromFallback extends Node {
+
+        abstract Object execute(Object arg0);
+
+        @Specialization
+        Object s0(String arg,
+                        @Cached(value = "arg", weak = true) String cachedStorage) {
+            return arg;
+        }
+
+        @com.oracle.truffle.api.test.ExpectError("Some guards for the following specializations could not be negated for the @Fallback specialization: [s0].%")
+        @Fallback
+        Object fallback(Object arg) {
+            return arg;
+        }
+    }
+
+}
