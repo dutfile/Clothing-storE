@@ -34,4 +34,188 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OT
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+package com.oracle.truffle.api.dsl.test;
+
+import static org.junit.Assert.assertNotNull;
+
+import java.lang.ref.WeakReference;
+import java.util.List;
+import java.util.concurrent.Semaphore;
+
+import org.junit.Test;
+
+import com.oracle.truffle.api.CompilerDirectives;
+import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
+import com.oracle.truffle.api.dsl.Cached;
+import com.oracle.truffle.api.dsl.Cached.Shared;
+import com.oracle.truffle.api.dsl.Fallback;
+import com.oracle.truffle.api.dsl.GenerateUncached;
+import com.oracle.truffle.api.dsl.Specialization;
+import com.oracle.truffle.api.dsl.UnsupportedSpecializationException;
+import com.oracle.truffle.api.dsl.test.WeakCachedTestFactory.ConsistentGuardAndSpecializationNodeGen;
+import com.oracle.truffle.api.dsl.test.WeakCachedTestFactory.TestNullWeakCacheNodeGen;
+import com.oracle.truffle.api.dsl.test.WeakCachedTestFactory.WeakCachedLibraryNodeGen;
+import com.oracle.truffle.api.dsl.test.WeakCachedTestFactory.WeakInlineCacheNodeGen;
+import com.oracle.truffle.api.dsl.test.WeakCachedTestFactory.WeakSharedCacheNodeGen;
+import com.oracle.truffle.api.dsl.test.WeakCachedTestFactory.WeakSimpleNodeGen;
+import com.oracle.truffle.api.interop.InteropLibrary;
+import com.oracle.truffle.api.interop.UnsupportedMessageException;
+import com.oracle.truffle.api.library.CachedLibrary;
+import com.oracle.truffle.api.nodes.Node;
+import com.oracle.truffle.api.test.GCUtils;
+import com.oracle.truffle.api.test.polyglot.AbstractPolyglotTest;
+
+@SuppressWarnings({"truffle-inlining", "truffle-neverdefault", "truffle-sharing", "unused"})
+public class WeakCachedTest extends AbstractPolyglotTest {
+
+    @Test
+    public void testWeakSimpleNode() {
+        WeakSimpleNode node = WeakSimpleNodeGen.create();
+        Object o = new String("");
+        WeakReference<Object> ref = new WeakReference<>(o);
+        node.execute(o);
+        o = null;
+        GCUtils.assertGc("Reference is not collected", ref);
+    }
+
+    @GenerateUncached
+    abstract static class WeakSimpleNode extends Node {
+
+        abstract Object execute(Object arg0);
+
+        @Specialization
+        Object s0(String arg,
+                        @Cached(value = "arg", weak = true) String cachedStorage) {
+            return arg;
+        }
+
+    }
+
+    @Test
+    public void testWeakInlineCache() {
+        WeakInlineCacheNode node = WeakInlineCacheNodeGen.create();
+        Object o0 = new String("");
+        Object o1 = new String("");
+        Object o2 = new String("");
+        WeakReference<Object> ref0 = new WeakReference<>(o0);
+        WeakReference<Object> ref1 = new WeakReference<>(o1);
+        WeakReference<Object> ref2 = new WeakReference<>(o2);
+        node.execute(o0);
+        node.execute(o1);
+        o0 = null;
+        GCUtils.assertGc("Reference is not collected", ref0);
+
+        node.execute(o1);
+        node.execute(o2);
+        o1 = null;
+        o2 = null;
+        GCUtils.assertGc("Reference is not collected", List.of(ref1, ref2));
+
+        assertFails(() -> node.execute(new String("")), UnsupportedSpecializationException.class);
+    }
+
+    @GenerateUncached
+    abstract static class WeakInlineCacheNode extends Node {
+
+        abstract Object execute(Object arg0);
+
+        @Specialization(guards = "cachedArg == arg", limit = "3")
+        Object s0(String arg,
+                        @Cached(value = "arg", weak = true) String cachedArg) {
+            assertNotNull(cachedArg);
+            return arg;
+        }
+
+    }
+
+    @Test
+    public void testWeakCachedLibrary() {
+        WeakCachedLibraryNode node = adoptNode(WeakCachedLibraryNodeGen.create()).get();
+        Object o0 = new String("");
+        Object o1 = new String("");
+        Object o2 = new String("");
+        WeakReference<Object> ref0 = new WeakReference<>(o0);
+        WeakReference<Object> ref1 = new WeakReference<>(o1);
+        WeakReference<Object> ref2 = new WeakReference<>(o2);
+        node.execute(o0);
+        node.execute(o1);
+        o0 = null;
+        GCUtils.assertGc("Reference is not collected", ref0);
+
+        node.execute(o1);
+        node.execute(o2);
+        o1 = null;
+        o2 = null;
+        GCUtils.assertGc("Reference is not collected", List.of(ref1, ref2));
+
+        assertFails(() -> node.execute(new String("")), UnsupportedSpecializationException.class);
+    }
+
+    @GenerateUncached
+    abstract static class WeakCachedLibraryNode extends Node {
+
+        abstract Object execute(Object arg0);
+
+        @Specialization(guards = "cachedArg == arg", limit = "3")
+        Object s0(String arg,
+                        @Cached(value = "arg", weak = true) String cachedArg,
+                        @CachedLibrary("cachedArg") InteropLibrary library) {
+            assertNotNull(cachedArg);
+            try {
+                return library.asString(cachedArg);
+            } catch (UnsupportedMessageException e) {
+                throw CompilerDirectives.shouldNotReachHere(e);
+            }
+        }
+
+        @Specialization(replaces = "s0")
+        @TruffleBoundary
+        Object s0replace(String arg) {
+            throw new UnsupportedSpecializationException(this, new Node[0]);
+        }
+
+    }
+
+    @Test
+    public void testWeakSharedNode() {
+        WeakSharedCacheNode node = WeakSharedCacheNodeGen.create();
+        Object o0 = new String("");
+        WeakReference<Object> ref1 = new WeakReference<>(o0);
+        node.execute(o0, false);
+        o0 = null;
+        GCUtils.assertGc("Reference is not collected", ref1);
+        node.execute("", false);
+    }
+
+    @GenerateUncached
+    abstract static class WeakSharedCacheNode extends Node {
+
+        abstract Object execute(Object arg0, boolean expectNull);
+
+        @Specialization(guards = "arg.length() > 0")
+        Object s0(String arg, boolean expectNull,
+                        @Shared("sharedArg") @Cached(value = "arg", weak = true) String cachedStorage) {
+            assertNotNull(cachedStorage);
+            return arg;
+        }
+
+        @Specialization
+        Object s1(String arg, boolean expectNull,
+                        @Shared("sharedArg") @Cached(value = "arg", weak = true) String cachedStorage) {
+            assertNotNull(cachedStorage);
+            return arg;
+        }
+
+    }
+
+    /*
+     * Test that while executing a specialization, between guard and specialization the weak
+     * reference cannot get collected.
+     */
+    @Test
+    public void testConsistentGuardAndSpecialization() throws InterruptedException {
+        ConsistentGuardAndSpecial
