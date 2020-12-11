@@ -1,5 +1,6 @@
+
 /*
- * Copyright (c) 2018, 2021, Oracle and/or its affiliates.
+ * Copyright (c) 2021, 2022, Oracle and/or its affiliates.
  *
  * All rights reserved.
  *
@@ -27,39 +28,20 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package com.oracle.truffle.llvm.runtime.except;
 
-import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
-import com.oracle.truffle.api.interop.ExceptionType;
-import com.oracle.truffle.api.interop.InteropLibrary;
-import com.oracle.truffle.api.library.ExportLibrary;
-import com.oracle.truffle.api.library.ExportMessage;
-import com.oracle.truffle.api.nodes.Node;
+#include <stdio.h>
+#include <stdint.h>
 
-/**
- * Exception during resolving or linking of external symbols.
- */
-@ExportLibrary(InteropLibrary.class)
-public final class LLVMLinkerException extends LLVMException {
+__attribute__((noinline)) void print(uint16_t a, uint16_t b, uint16_t shift) {
+    uint16_t result = (a << (16 - shift)) | (b >> shift);
+    printf("0x%04x 0x%04x >> %d == %04x\n", a, b, shift, result);
+}
 
-    private static final long serialVersionUID = 1L;
+int main() {
+    print(0xcccc, 0xaaaa, 4);
+    print(0xcccc, 0xaaaa, 8);
+    print(0xcccc, 0xaaaa, 3);
+    print(0xcccc, 0xaaaa, 15);
 
-    public LLVMLinkerException(String message) {
-        super(null, message);
-    }
-
-    public LLVMLinkerException(Node location, String message) {
-        super(location, message);
-    }
-
-    @TruffleBoundary
-    public LLVMLinkerException(Node location, String message, Object... args) {
-        this(location, String.format(message, args));
-    }
-
-    @ExportMessage
-    @SuppressWarnings("static-method")
-    ExceptionType getExceptionType() {
-        return ExceptionType.PARSE_ERROR;
-    }
+    return 0;
 }
