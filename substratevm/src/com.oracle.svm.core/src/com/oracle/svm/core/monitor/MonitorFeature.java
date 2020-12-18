@@ -54,4 +54,12 @@ public class MonitorFeature implements InternalFeature {
     public void registerLowerings(RuntimeConfiguration runtimeConfig, OptionValues options, Providers providers,
                     Map<Class<? extends Node>, NodeLoweringProvider<?>> lowerings, boolean hosted) {
         new MonitorSnippets(options, providers).registerLowerings(lowerings);
-   
+    }
+
+    @Override
+    public void registerForeignCalls(SubstrateForeignCallsProvider foreignCalls) {
+        if (SubstrateOptions.MultiThreaded.getValue()) {
+            foreignCalls.register(MonitorSnippets.FOREIGN_CALLS);
+        }
+    }
+}
