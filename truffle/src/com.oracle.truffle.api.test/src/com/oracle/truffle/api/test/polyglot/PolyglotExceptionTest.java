@@ -163,4 +163,191 @@ public class PolyglotExceptionTest extends AbstractPolyglotTest {
             try {
                 verifyError.execute();
                 Assert.fail();
-            } catch 
+            } catch (PolyglotException e) {
+                Assert.assertEquals(e.getMessage(), "MyError");
+                Assert.assertTrue(e.isGuestException());
+            }
+
+            // if the exception was thrown by a different context it will be treated
+            // as a host exception.
+            Value verifyErrorOtherContext = context1.asValue(new ProxyExecutable() {
+                public Object execute(Value... arguments) {
+                    try {
+                        throwErrorOtherContext.execute();
+                    } catch (PolyglotException e) {
+                        Assert.assertEquals(e.getMessage(), "MyError");
+                        Assert.assertTrue(e.isGuestException());
+                        throw e;
+                    }
+                    return null;
+                }
+            });
+            try {
+                verifyErrorOtherContext.execute();
+                Assert.fail();
+            } catch (PolyglotException e) {
+                // assert that polyglot exception was not unboxed if from other context
+                Assert.assertTrue(e.asHostException() instanceof PolyglotException);
+                PolyglotException polyglot = (PolyglotException) e.asHostException();
+                Assert.assertEquals(polyglot.getMessage(), "MyError");
+                Assert.assertTrue(polyglot.isGuestException());
+            }
+        }
+    }
+
+    @Test
+    public void testLanguageExceptionUnwrapping() {
+        try (Context c = Context.create()) {
+
+            Value throwError = c.asValue(new ProxyExecutable() {
+                public Object execute(Value... arguments) {
+                    throw new RuntimeException();
+                }
+            });
+
+            VerifyErrorTruffleObject checkErrorObj = new VerifyErrorTruffleObject();
+            Value checkError = c.asValue(checkErrorObj);
+
+            checkErrorObj.verifyError = (e) -> {
+                Assert.assertTrue(InteropLibrary.getUncached().isException(e));
+                Assert.assertEquals("HostException", e.getClass().getSimpleName());
+            };
+            Assert.assertTrue(checkError.execute(throwError).asBoolean());
+        }
+    }
+
+    @ExportLibrary(InteropLibrary.class)
+    static class CauseErrorTruffleObject implements TruffleObject {
+
+        RuntimeException thrownError;
+
+        @ExportMessage
+        boolean isExecutable() {
+            return true;
+        }
+
+        @ExportMessage
+        final Object execute(@SuppressWarnings("unused") Object[] arguments) {
+            throw thrownError;
+        }
+
+    }
+
+    @ExportLibrary(InteropLibrary.class)
+    static class VerifyErrorTruffleObject implements TruffleObject {
+
+        Consumer<Throwable> verifyError;
+
+        @ExportMessage
+        boolean isExecutable() {
+            return true;
+        }
+
+        @ExportMessage
+        final Object execute(Object[] arguments) {
+            Object arg = arguments[0];
+            try {
+                InteropLibrary.getFactory().getUncached().execute(arg);
+                fail();
+            } catch (Throwable e) {
+                consumeError(e);
+            }
+            return true;
+        }
+
+        @TruffleBoundary
+        private void consumeError(Throwable e) {
+            verifyError.accept(e);
+        }
+
+        @TruffleBoundary
+        private static void fail() {
+            Assert.fail();
+        }
+
+    }
+
+    @Test
+    public void testRecursiveHostException() {
+        try (Context c = Context.create()) {
+            RuntimeException e1 = new RuntimeException();
+            RuntimeException e2 = new RuntimeException();
+            e1.initCause(e2);
+            e2.initCause(e1);
+            Value throwError = c.asValue(new ProxyExecutable() {
+                public Object execute(Value... arguments) {
+                    throw e1;
+                }
+            });
+            try {
+                throwError.execute();
+                fail();
+            } catch (PolyglotException e) {
+                assertSame(e1, e.asHostException());
+            }
+        }
+    }
+
+    @SuppressWarnings("serial")
+    public static class TruncatedException extends RuntimeException {
+
+        private final int limit;
+
+        public TruncatedException(int limit) {
+            assert limit >= 0;
+            this.limit = limit;
+        }
+
+        @Override
+        public StackTraceElement[] getStackTrace() {
+            StackTraceElement[] stackTrace = super.getStackTrace();
+            return Arrays.copyOf(stackTrace, Math.min(limit, stackTrace.length));
+        }
+
+        @SuppressWarnings("unused")
+        public static TruncatedException newTruncatedException(int limit) {
+            return new TruncatedException(limit);
+        }
+
+        /**
+         * Only reflective Method calls trigger GR-22058, calling the constructor reflectively
+         * doesn't, but Constructor .newInstance frames could also be skipped and trigger GR-22058
+         * in the future.
+         */
+        public static TruncatedException createViaConstructorReflectively(int limit) {
+            try {
+                // Create an exception with truncated stack trace including reflective .newInstance
+                // frames.
+                Constructor<TruncatedException> init = TruncatedException.class.getConstructor(int.class);
+                return init.newInstance(limit);
+            } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException | InstantiationException e) {
+                throw new AssertionError(e);
+            }
+        }
+
+        public static TruncatedException createViaMethodReflectively(int limit) {
+            try {
+                // Create an exception with truncated stack trace including reflective .invoke*
+                // frames.
+                Method init = TruncatedException.class.getDeclaredMethod("newTruncatedException", int.class);
+                return (TruncatedException) init.invoke(null, limit);
+            } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
+                throw new AssertionError(e);
+            }
+        }
+    }
+
+    @SuppressWarnings("unused")
+    @Test
+    public void testTruncatedStackTrace() {
+        // Regression test for GR-22058.
+        try (Context c = Context.create()) {
+            Value throwError = c.asValue(new ProxyExecutable() {
+                public Object execute(Value... arguments) {
+                    throw arguments[0].<RuntimeException> asHostObject();
+                }
+            });
+            for (int limit = 0; limit < 16; ++limit) {
+                for (TruncatedException ex : Arrays.asList(
+                                TruncatedException.createViaMethodReflectively(limit),
+                                TruncatedException.createViaCon
