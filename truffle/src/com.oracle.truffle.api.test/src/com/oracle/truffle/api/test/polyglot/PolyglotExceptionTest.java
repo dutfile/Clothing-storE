@@ -524,4 +524,152 @@ public class PolyglotExceptionTest extends AbstractPolyglotTest {
 
     @Test
     public void testHostException() {
-        
+        try (Context c = Context.newBuilder().allowAllAccess(true).build()) {
+            c.getPolyglotBindings().putMember("receiver", new BrokenList<>());
+            assertFails(() -> c.eval(HostExceptionLanguage.ID, ""), PolyglotException.class, (pe) -> {
+                assertTrue(pe.isHostException());
+                StackTraceElement prev = null;
+                for (StackTraceElement element : pe.getStackTrace()) {
+                    if (("<" + HostExceptionLanguage.ID + ">").equals(element.getClassName())) {
+                        break;
+                    }
+                    prev = element;
+                    if (TruffleTestAssumptions.isStrongEncapsulation()) { // GR-35913
+                        break;
+                    }
+                }
+                assertNotNull("No host frame found.", prev);
+                assertEquals(BrokenList.class.getName(), prev.getClassName());
+                assertEquals("size", prev.getMethodName());
+            });
+        }
+    }
+
+    static class ThrowStackOverflow implements Runnable {
+
+        public void run() {
+            run();
+        }
+    }
+
+    @Test
+    public void testHostStackOverflowResourceLimit() {
+        try (Context c = Context.newBuilder().allowHostAccess(HostAccess.ALL).build()) {
+            Value v = c.asValue(new ThrowStackOverflow());
+            assertFails(() -> v.execute(), PolyglotException.class, (e) -> {
+                assertTrue(e.isResourceExhausted());
+                assertFalse(e.isInternalError());
+                assertFalse(e.isGuestException());
+                assertTrue(e.isHostException());
+                Iterator<StackFrame> iterator = e.getPolyglotStackTrace().iterator();
+                /*
+                 * In case of AOT, the first three frames are the following:
+                 *
+                 * com.oracle.svm.core.graal.snippets.StackOverflowCheckImpl.newStackOverflowError0
+                 * com.oracle.svm.core.graal.snippets.StackOverflowCheckImpl.newStackOverflowError
+                 * com.oracle.svm.core.graal.snippets.StackOverflowCheckImpl.
+                 * throwNewStackOverflowError
+                 *
+                 * That is why we skip them and check the subsequent frames.
+                 */
+                if (TruffleTestAssumptions.isAOT()) {
+                    iterator.next();
+                    iterator.next();
+                    iterator.next();
+                }
+                StackFrame frame = iterator.next();
+                assertTrue(frame.isHostFrame());
+                assertTrue(frame.getRootName(), frame.getRootName().endsWith("ThrowStackOverflow.run"));
+                frame = iterator.next();
+                assertTrue(frame.isHostFrame());
+            });
+        }
+    }
+
+    @SuppressWarnings("static-method")
+    @ExportLibrary(InteropLibrary.class)
+    static class DetectWaitingStartedExecutable implements TruffleObject {
+        CountDownLatch waitingStarted = new CountDownLatch(1);
+
+        @ExportMessage
+        final boolean isExecutable() {
+            return true;
+        }
+
+        @SuppressWarnings("unused")
+        @ExportMessage
+        @CompilerDirectives.TruffleBoundary
+        final Object execute(Object[] arguments) {
+            waitingStarted.countDown();
+            return true;
+        }
+    }
+
+    @TruffleLanguage.Registration
+    static class InternalErrorNotMaskedLanguage extends AbstractExecutableTestLanguage {
+
+        @Override
+        protected String getRootName(ParsingRequest request, Env env, Object[] contextArguments) throws Exception {
+            return "testRootName";
+        }
+
+        @Override
+        protected Object execute(RootNode node, Env env, Object[] contextArguments, Object[] frameArguments) {
+            waitForever(contextArguments);
+            return null;
+        }
+
+        @SuppressWarnings("SynchronizationOnLocalVariableOrMethodParameter")
+        @TruffleBoundary
+        private void waitForever(Object[] contextArguments) {
+            Object detectWaitingStartedExecutable = contextArguments[0];
+            final Object waitObject = new Object();
+            try {
+                interop.execute(detectWaitingStartedExecutable);
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+            synchronized (waitObject) {
+                try {
+                    waitObject.wait();
+                } catch (InterruptedException ie) {
+                    /*
+                     * This is the internal error.
+                     */
+                    Assert.fail();
+                }
+            }
+        }
+
+        @Override
+        protected boolean isThreadAccessAllowed(Thread thread, boolean singleThreaded) {
+            return true;
+        }
+    }
+
+    @Test
+    public void testCancelDoesNotMaskInternalError() throws InterruptedException, ExecutionException {
+        DetectWaitingStartedExecutable detectWaitingStartedExecutable = new DetectWaitingStartedExecutable();
+        try (Context c = Context.newBuilder().allowHostAccess(HostAccess.ALL).build()) {
+            ExecutorService executorService = Executors.newSingleThreadExecutor();
+            Future<?> future = executorService.submit(() -> {
+                assertFails(() -> evalTestLanguage(c, InternalErrorNotMaskedLanguage.class, "", detectWaitingStartedExecutable),
+                                PolyglotException.class, (e) -> {
+                                    assertTrue(e.isInternalError());
+                                    assertTrue(e.isGuestException());
+                                    assertFalse(e.isHostException());
+                                    assertFalse(e.isCancelled());
+                                    Iterator<StackFrame> iterator = e.getPolyglotStackTrace().iterator();
+                                    boolean foundGuestFrame = false;
+                                    boolean foundHostFrame = false;
+                                    while (iterator.hasNext()) {
+                                        StackFrame frame = iterator.next();
+                                        if (frame.isGuestFrame()) {
+                                            foundGuestFrame = true;
+                                            assertTrue(frame.isGuestFrame());
+                                            assertEquals("testRootName", frame.getRootName());
+                                        } else {
+                                            if ("waitForever".equals(frame.toHostFrame().getMethodName())) {
+                                                foundHostFrame = true;
+                                            }
+                                        
