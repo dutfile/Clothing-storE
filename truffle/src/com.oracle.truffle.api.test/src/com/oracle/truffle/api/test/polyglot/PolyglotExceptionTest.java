@@ -672,4 +672,131 @@ public class PolyglotExceptionTest extends AbstractPolyglotTest {
                                             if ("waitForever".equals(frame.toHostFrame().getMethodName())) {
                                                 foundHostFrame = true;
                                             }
-                                        
+                                        }
+                                    }
+                                    if (TruffleTestAssumptions.isWeakEncapsulation()) { // GR-35913
+                                        assertTrue(foundGuestFrame);
+                                    }
+                                    assertTrue(foundHostFrame);
+                                });
+            });
+            detectWaitingStartedExecutable.waitingStarted.await();
+            c.close(true);
+            future.get();
+            executorService.shutdownNow();
+            assertTrue(executorService.awaitTermination(100, TimeUnit.SECONDS));
+        } catch (PolyglotException pe) {
+            if (!pe.isCancelled()) {
+                throw pe;
+            }
+        }
+    }
+
+    @Test
+    public void testExceptionMessage() {
+        try (Context ctx = Context.create()) {
+            TestGuestError guestError = new TestGuestError();
+            guestError.exceptionMessage = "interop exception message";
+            CauseErrorTruffleObject causeError = new CauseErrorTruffleObject();
+            causeError.thrownError = guestError;
+            Value throwError = ctx.asValue(causeError);
+            try {
+                throwError.execute();
+                Assert.fail();
+            } catch (PolyglotException e) {
+                Assert.assertEquals("interop exception message", e.getMessage());
+                Assert.assertTrue(e.isGuestException());
+            }
+
+            guestError.exceptionMessage = null;
+            try {
+                throwError.execute();
+                Assert.fail();
+            } catch (PolyglotException e) {
+                Assert.assertEquals("MyError", e.getMessage());
+                Assert.assertTrue(e.isGuestException());
+            }
+        }
+    }
+
+    @Test
+    public void testSerialization() throws IOException {
+        try (Context c = Context.create()) {
+            Value throwError = c.asValue((ProxyExecutable) arguments -> {
+                throw new RuntimeException();
+            });
+            AtomicReference<PolyglotException> polyglotExceptionHolder = new AtomicReference<>();
+            AbstractPolyglotTest.assertFails(() -> throwError.execute(), PolyglotException.class, (pe) -> polyglotExceptionHolder.set(pe));
+            assertNotNull(polyglotExceptionHolder.get());
+            try (ObjectOutputStream out = new ObjectOutputStream(new ByteArrayOutputStream())) {
+                AbstractPolyglotTest.assertFails(() -> {
+                    out.writeObject(polyglotExceptionHolder.get());
+                    return null;
+                }, IOException.class, (ioe) -> assertEquals("PolyglotException serialization is not supported.", ioe.getMessage()));
+            }
+        }
+    }
+
+    abstract static class BaseNode extends Node {
+        abstract Object execute(VirtualFrame frame);
+    }
+
+    @GenerateInline(false)
+    abstract static class ReadBindingsNode extends BaseNode {
+
+        @Specialization
+        Object doGeneric(@CachedLibrary(limit = "1") InteropLibrary interop) {
+            try {
+                Object bindings = TestAPIAccessor.engineAccess().getPolyglotBindingsObject();
+                return interop.readMember(bindings, "receiver");
+            } catch (UnsupportedMessageException | UnknownIdentifierException e) {
+                throw CompilerDirectives.shouldNotReachHere();
+            }
+        }
+    }
+
+    @NodeChild("receiver")
+    abstract static class SizeNode extends BaseNode {
+
+        @Specialization(limit = "1")
+        Object doGeneric(Object arg, @CachedLibrary(value = "arg") InteropLibrary interop) {
+            try {
+                return interop.getArraySize(arg);
+            } catch (UnsupportedMessageException unsupportedMessageException) {
+                throw CompilerDirectives.shouldNotReachHere();
+            }
+        }
+    }
+
+    private static final class CallHostRootNode extends RootNode {
+
+        @Child BaseNode body;
+        Source source;
+
+        CallHostRootNode(TruffleLanguage<?> language, Source source, BaseNode body) {
+            super(language);
+            this.source = source;
+            this.body = body;
+        }
+
+        @Override
+        public Object execute(VirtualFrame frame) {
+            return body.execute(frame);
+        }
+
+        @Override
+        @TruffleBoundary
+        public SourceSection getSourceSection() {
+            return source.createSection(1);
+        }
+    }
+
+    @SuppressWarnings("serial")
+    private static final class BrokenList<T> extends ArrayList<T> {
+
+        @Override
+        public int size() {
+            throw new NullPointerException();
+        }
+    }
+}
