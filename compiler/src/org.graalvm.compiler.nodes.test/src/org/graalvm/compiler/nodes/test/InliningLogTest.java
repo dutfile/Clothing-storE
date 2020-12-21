@@ -56,4 +56,14 @@ public class InliningLogTest extends GraalCompilerTest {
      * of the original call-tree node.
      */
     @Test
-    public void du
+    public void duplicatedInvokesAttachedCorrectly() {
+        OptionValues optionValues = new OptionValues(getInitialOptions(), GraalOptions.TraceInlining, true, LoopPolicies.Options.PeelALot, true);
+        ResolvedJavaMethod method = getResolvedJavaMethod("snippetA");
+        StructuredGraph graph = parseEager(method, StructuredGraph.AllowAssumptions.YES, getCompilationId(method), optionValues);
+        compile(method, graph);
+        InliningLog inliningLog = graph.getInliningLog();
+        InliningLog.Callsite root = inliningLog.getRootCallsite();
+        Assert.assertEquals(1, root.getChildren().size());
+        Assert.assertTrue(root.getChildren().get(0).getChildren().size() > 1);
+    }
+}
