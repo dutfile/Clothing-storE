@@ -70,4 +70,6 @@ public abstract class SubstrateAccessor {
     }
 
     public Executable getMember() {
-      
+        return member;
+    }
+}
