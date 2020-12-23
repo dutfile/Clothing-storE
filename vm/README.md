@@ -105,4 +105,64 @@ And the following environment variables:
   NATIVE_IMAGES                 Same as '--native-images'
   DISABLE_LIBPOLYGLOT           Same as '--disable-libpolyglot'
   DISABLE_POLYGLOT              Same as '--disable-polyglot'
- 
+  FORCE_BASH_LAUNCHERS          Same as '--force-bash-launchers'
+```
+
+Note that when the shared polyglot library is not built, Graal.nodejs can only work in JVM-mode (`node --jvm [args]`).
+
+
+### Example: avoid building the polyglot image and the polyglot shared library
+
+```bash
+$ mx --disable-polyglot --disable-libpolyglot --dynamicimports /substratevm,/tools,/sulong,/graal-js build
+```
+builds the native SubstrateVM launchers for native-image, Graal.js, and Sulong, but no polyglot launcher and polyglot library.
+
+
+### Example: force bash launchers
+```bash
+$ mx --force-bash-launchers=true --dynamicimports /substratevm,/tools,/sulong,/graal-nodejs build
+```
+builds the native SubstrateVM launcher for native-image, and creates bash launchers for Sulong, Graal.js, and `polyglot`
+
+### Example: build only TruffleRuby with bash launchers
+```bash
+$ mx --dy truffleruby --components='TruffleRuby' build
+```
+
+### Example: build only the TruffleRuby launcher
+```bash
+$ mx --dy truffleruby,/substratevm,/tools --components='TruffleRuby,Native Image,suite:tools' --native-images=lib:rubyvm build
+```
+or as env file (e.g., in `mx.vm/ruby`):
+```
+DYNAMIC_IMPORTS=truffleruby,/substratevm,/tools
+COMPONENTS=TruffleRuby,Native Image,suite:tools
+NATIVE_IMAGES=lib:rubyvm
+```
+```bash
+$ mx --env ruby build
+```
+
+This also include all tools, which is of course optional.
+
+## Versioned dynamic imports
+Dynamic imports typically require the user to locate and clone the dynamically imported suites.
+There is also no indication of which version of those suites would work.
+To avoid this issue, the `vm` suite uses "versioned dynamic imports".
+
+The `mx.vm/suite.py` file contains references to all the suites that might be imported to compose a GraalVM.
+Unlike usual suite imports, they are marked as `dynamic`, which means they are only considered if they are part of the dynamically imported suites.
+However, when they are included, they have URLs and versions which allow mx to automatically clone the correct version.
+
+More details can be found in `docs/dynamic-imports.md` in the `mx` repository.
+
+
+### Example: checkout the correct imports of Graal.js and Sulong, then build a GraalVM CE image
+```bash
+$ mx --env ce sforceimports
+$ mx --env ce build
+```
+
+## Registering custom components
+Suites can register new, custom components calling`mx_sdk.register_graalvm_component()`.
