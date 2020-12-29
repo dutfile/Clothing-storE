@@ -35,4 +35,21 @@ public final class CommandResult {
         this(reply, null, null);
     }
 
-    CommandResult(PacketStream reply, List<Callable
+    CommandResult(PacketStream reply, List<Callable<Void>> preFutures, List<Callable<Void>> postFutures) {
+        this.reply = reply;
+        this.preFutures = preFutures;
+        this.postFutures = postFutures;
+    }
+
+    public PacketStream getReply() {
+        return reply;
+    }
+
+    public List<Callable<Void>> getPreFutures() {
+        return preFutures;
+    }
+
+    public List<Callable<Void>> getPostFutures() {
+        return postFutures;
+    }
+}
