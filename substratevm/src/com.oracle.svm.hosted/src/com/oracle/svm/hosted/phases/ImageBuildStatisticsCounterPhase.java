@@ -47,4 +47,10 @@ public class ImageBuildStatisticsCounterPhase extends Phase {
         for (Node node : graph.getNodes()) {
             if (node instanceof BytecodeExceptionNode || node instanceof ThrowBytecodeExceptionNode) {
                 assert node.isAlive() : "ImageBuildStatisticsCounterPhase must be run after proper canonicalization to get the right numbers. Found not alive node: " + node;
-             
+                BytecodeExceptionNode.BytecodeExceptionKind bytecodeExceptionKind = node instanceof BytecodeExceptionNode ? ((BytecodeExceptionNode) node).getExceptionKind()
+                                : ((ThrowBytecodeExceptionNode) node).getExceptionKind();
+                counters().incByteCodeException(bytecodeExceptionKind, location);
+            }
+        }
+    }
+}
