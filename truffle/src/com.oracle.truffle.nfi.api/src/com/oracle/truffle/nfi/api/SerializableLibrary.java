@@ -28,4 +28,32 @@
  *
  * The above copyright notice and either this complete permission notice or at a
  * minimum a reference to the UPL must be included in all copies or substantial
- * portions of the Softw
+ * portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+package com.oracle.truffle.nfi.api;
+
+import com.oracle.truffle.api.dsl.GenerateAOT;
+import com.oracle.truffle.api.interop.UnsupportedMessageException;
+import com.oracle.truffle.api.library.GenerateLibrary;
+import com.oracle.truffle.api.library.Library;
+
+@GenerateLibrary
+@GenerateAOT
+public abstract class SerializableLibrary extends Library {
+
+    public boolean isSerializable(@SuppressWarnings("unused") Object value) {
+        return false;
+    }
+
+    public void serialize(@SuppressWarnings("unused") Object value, @SuppressWarnings("unused") Object buffer) throws UnsupportedMessageException {
+        throw UnsupportedMessageException.create();
+    }
+}
