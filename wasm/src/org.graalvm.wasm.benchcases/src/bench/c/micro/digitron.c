@@ -493,4 +493,105 @@ expr* parse_atom(const char* expression, int32_t* offset) {
   } else if (is_alphabetic(expression[*offset])) {
     return parse_ident(expression, offset);
   } else if (is_at_sign(expression[*offset])) {
-    return p
+    return parse_function(expression, offset);
+  } else {
+    fail("Expected constant or identifier at %d.\n", *offset);
+  }
+  return NULL;
+}
+
+expr* parse_binary(
+  const char* expression, int32_t* offset,
+  const char *op_chars, int8_t *types, parse_expr_t parse_sub
+) {
+  expr* e = parse_sub(expression, offset);
+  do {
+    parse_skip_spaces(expression, offset);
+    int found = 0;
+    for (const char* p = op_chars; *p != '\0'; p++) {
+      char op_char = *p;
+      int8_t type = types[p - op_chars];
+      if (expression[*offset] == op_char) {
+        (*offset)++;
+        parse_skip_spaces(expression, offset);
+        expr* atom = parse_sub(expression, offset);
+        expr* op = expr_create(type);
+        op->data.binary.left = e;
+        op->data.binary.right = atom;
+        e = op;
+        found = 1;
+        break;
+      }
+    }
+    if (!found) {
+      break;
+    }
+  } while (1);
+  return e;
+}
+
+expr* parse_mul(const char* expression, int32_t* offset) {
+  return parse_binary(expression, offset, "*/%", multiplicative_ops, parse_atom);
+}
+
+expr* parse_add(const char* expression, int32_t* offset) {
+  return parse_binary(expression, offset, "+-", additive_ops, parse_mul);
+}
+
+expr* parse_expr(const char* expression, int32_t* offset) {
+  parse_skip_spaces(expression, offset);
+  return parse_add(expression, offset);
+}
+
+expr* parse(const char* expression) {
+  int32_t offset = 0;
+  expr* e = parse_expr(expression, &offset);
+  if (expression[offset] != '\0') {
+    fail("Unexpected character at %d.\n", offset);
+  }
+  return e;
+}
+
+double do_calculations() {
+  // Parse the programs.
+  for (int32_t i = 0; i < PROGRAM_COUNT; i++) {
+    programs[i] = parse(functions[i]);
+    // if (i == PROGRAM_COUNT - 1) expr_print(programs[i], 0);
+  }
+
+  double checksum = 0.0;
+
+  // Evaluate each program on all the inputs.
+  environment env;
+  environment_init(&env);
+  for (int32_t i = 0; i < PROGRAM_COUNT; i++) {
+    for (int32_t j = 0; j < INPUT_COUNT; j++) {
+      env.inputs['x' - 'a'] = inputs[j];
+      double result = programs[i]->exec(programs[i], &env);
+      checksum += result;
+    }
+  }
+
+  return checksum;
+}
+
+int benchmarkIterationsCount() {
+  return 20;
+}
+
+void benchmarkSetupOnce() {
+  for (int32_t i = 0; i < INPUT_COUNT; i++) {
+    inputs[i] = (double) i;
+  }
+}
+
+void benchmarkSetupEach() {
+  freelist_init();
+}
+
+void benchmarkTeardownEach(char* outputFile) {
+}
+
+int benchmarkRun() {
+  return (int) ((int64_t) do_calculations());
+}
