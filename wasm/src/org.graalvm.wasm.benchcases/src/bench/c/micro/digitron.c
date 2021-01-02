@@ -253,4 +253,244 @@ void freelist_init() {
 expr* expr_create(int8_t type) {
   expr* e = allocate();
   if (e == NULL) abort();
-  e->type = typ
+  e->type = type;
+  switch (type) {
+    case ID_CONSTANT:
+      e->exec = execute_constant;
+      break;
+    case ID_ADD:
+      e->exec = execute_add;
+      break;
+    case ID_SUB:
+      e->exec = execute_sub;
+      break;
+    case ID_MUL:
+      e->exec = execute_mul;
+      break;
+    case ID_DIV:
+      e->exec = execute_div;
+      break;
+    case ID_REM:
+      e->exec = execute_rem;
+      break;
+    case ID_SQRT:
+      e->exec = execute_sqrt;
+      break;
+    case ID_LOAD:
+      e->exec = execute_load;
+      break;
+    case ID_STORE:
+      e->exec = execute_store;
+      break;
+    case ID_IDENT:
+      e->exec = execute_ident;
+      break;
+    default:
+      fprintf(stderr, "Unknown type: %d.\n", type);
+      abort();
+  }
+  return e;
+}
+
+void print_indents(int32_t indents) {
+  for (int32_t i = 0; i < indents; i++) {
+    fprintf(stderr, " ");
+  }
+  if (indents >= 0) {
+    fprintf(stderr, "|-");
+  }
+  fprintf(stderr, " ");
+}
+
+void expr_print(expr* e, int32_t indents) {
+  print_indents(indents);
+  switch (e->type) {
+    case ID_CONSTANT:
+      fprintf(stderr, "%f\n", e->data.constant.value);
+      break;
+    case ID_ADD:
+      fprintf(stderr, "+ \n");
+      expr_print(e->data.binary.left, indents + 3);
+      expr_print(e->data.binary.right, indents + 3);
+      break;
+    case ID_SUB:
+      fprintf(stderr, "- \n");
+      expr_print(e->data.binary.left, indents + 3);
+      expr_print(e->data.binary.right, indents + 3);
+      break;
+    case ID_MUL:
+      fprintf(stderr, "* \n");
+      expr_print(e->data.binary.left, indents + 3);
+      expr_print(e->data.binary.right, indents + 3);
+      break;
+    case ID_DIV:
+      fprintf(stderr, "/ \n");
+      expr_print(e->data.binary.left, indents + 3);
+      expr_print(e->data.binary.right, indents + 3);
+      break;
+    case ID_REM:
+      fprintf(stderr, "%% \n");
+      expr_print(e->data.binary.left, indents + 3);
+      expr_print(e->data.binary.right, indents + 3);
+      break;
+    case ID_SQRT:
+      fprintf(stderr, "sqrt \n");
+      expr_print(e->data.unary.argument, indents + 3);
+      break;
+    case ID_LOAD:
+      fprintf(stderr, "load %d \n", e->data.load.reg_index);
+      break;
+    case ID_STORE:
+      fprintf(stderr, "store %d \n", e->data.store.reg_index);
+      expr_print(e->data.store.argument, indents + 3);
+      break;
+    case ID_IDENT:
+      fprintf(stderr, "arg %c\n", e->data.ident.name);
+      break;
+  }
+}
+
+/* Parser. */
+
+expr* programs[PROGRAM_COUNT];
+
+void fail(const char* msg, int32_t value) {
+  fprintf(stderr, msg, value);
+  abort();
+}
+
+typedef expr* (*parse_expr_t)(const char*, int32_t*);
+
+int is_digit(char c) {
+  return c >= '0' && c <= '9';
+}
+
+int is_alphabetic(char c) {
+  return c >= 'a' && c <= 'z';
+}
+
+int is_space(char c) {
+  return c == ' ';
+}
+
+int is_at_sign(char c) {
+  return c == '@';
+}
+
+int is_left_paren(char c) {
+  return c == '(';
+}
+
+int is_right_paren(char c) {
+  return c == ')';
+}
+
+int is_comma(char c) {
+  return c == ',';
+}
+
+expr* parse_add(const char* expression, int32_t* offset);
+
+void parse_skip_spaces(const char* expression, int32_t* offset) {
+  while (is_space(expression[*offset])) {
+    (*offset)++;
+  }
+}
+
+void parse_args(const char* expression, int32_t* offset, expr** args) {
+  if (!is_left_paren(expression[*offset])) fail("Expected left-paren at %d.\n", *offset);
+  (*offset)++;
+  parse_skip_spaces(expression, offset);
+  expr* arg0 = parse_add(expression, offset);
+  expr* arg1 = NULL;
+  parse_skip_spaces(expression, offset);
+  if (is_comma(expression[*offset])) {
+    (*offset)++;
+    parse_skip_spaces(expression, offset);
+    arg1 = parse_add(expression, offset);
+    parse_skip_spaces(expression, offset);
+  }
+  if (!is_right_paren(expression[*offset])) fail("Expected right-paren at %d.\n", *offset);
+  (*offset)++;
+  args[0] = arg0;
+  args[1] = arg1;
+}
+
+expr* parse_constant(const char* expression, int32_t* offset) {
+  double value = 0.0;
+  if (!is_digit(expression[*offset])) fail("Non-digit at %d.\n", *offset);
+  while (is_digit(expression[*offset])) {
+    value = 10 * value + ((int32_t) (expression[*offset] - '0'));
+    (*offset)++;
+  }
+  expr* e = expr_create(ID_CONSTANT);
+  e->data.constant.value = value;
+  return e;
+}
+
+expr* parse_ident(const char* expression, int32_t* offset) {
+  if (!is_alphabetic(expression[*offset])) fail("Non-alphabetic character at %d.\n", *offset);
+  char name = expression[*offset];
+  (*offset)++;
+  expr* e = expr_create(ID_IDENT);
+  e->data.ident.name = name;
+  return e;
+}
+
+expr* parse_function(const char* expression, int32_t* offset) {
+  if (!is_at_sign(expression[*offset])) fail("An '@' expected at %d.\n", *offset);
+  (*offset)++;
+  if (!is_alphabetic(expression[*offset])) fail("No name for call at %d.\n", *offset);
+  char name[MAX_FUNCTION_NAME_LENGTH + 1];
+  int length = 0;
+  while (is_alphabetic(expression[*offset]) && length < MAX_FUNCTION_NAME_LENGTH) {
+    name[length] = expression[*offset];
+    (*offset)++;
+    length++;
+  }
+  name[length] = '\0';
+  expr* args[2];
+  parse_args(expression, offset, args);
+  if (strcmp("sqrt", name) == 0) {
+    expr* e = expr_create(ID_SQRT);
+    e->data.unary.argument = args[0];
+    if (args[1] != NULL) {
+      fail("The sqrt function accepts exactly 1 argument, at %d.\n", *offset);
+    }
+    return e;
+  } else if (strcmp("store", name) == 0) {
+    expr* e = expr_create(ID_STORE);
+    if (args[1] == NULL) {
+      fail("The store function accepts exactly 2 arguments, at %d.\n", *offset);
+    }
+    if (args[0]->type != ID_CONSTANT) {
+      fail("The first argument of a store must be a constant, at %d.\n", *offset);
+    }
+    int reg_index = (int) args[0]->data.constant.value;
+    e->data.store.reg_index = reg_index;
+    e->data.store.argument = args[1];
+    return e;
+  } else if (strcmp("load", name) == 0) {
+    expr* e = expr_create(ID_LOAD);
+    if (args[1] != NULL) {
+      fail("The load function accepts exactly 1 argument, at %d.\n", *offset);
+    }
+    if (args[0]->type != ID_CONSTANT) {
+      fail("The first argument of a load must be a constant, at %d.\n", *offset);
+    }
+    int reg_index = (int) args[0]->data.constant.value;
+    e->data.load.reg_index = reg_index;
+    return e;
+  } else {
+    fail("Unknown function at %d.\n", *offset);
+  }
+  return NULL;
+}
+
+expr* parse_atom(const char* expression, int32_t* offset) {
+  if (is_digit(expression[*offset])) {
+    return parse_constant(expression, offset);
+  } else if (is_alphabetic(expression[*offset])) {
+    return parse_ident(expression, offset);
+  } else if (is_at_sign(expression[*offset])) {
+    return p
