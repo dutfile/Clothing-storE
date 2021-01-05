@@ -208,4 +208,169 @@ final class BitSet {
         CodeTreeBuilder builder = CodeTreeBuilder.createBuilder();
         builder.tree(createMaskedReference(frameState, elements));
         builder.string(" != 0 ");
-        builder.string(" /* is-not ", getS
+        builder.string(" /* is-not ", getStates().toString(elements, " && "), " */");
+        return builder.build();
+    }
+
+    public String formatMask(long mask) {
+        if (mask == 0) {
+            return "0";
+        }
+        int bitsUsed = 64 - Long.numberOfLeadingZeros(mask);
+        if (bitsUsed <= 16) {
+            return "0b" + Integer.toBinaryString((int) mask);
+        } else {
+            if (getBitCount() <= 32) {
+                return "0x" + Integer.toHexString((int) mask);
+            } else {
+                return "0x" + Long.toHexString(mask) + "L";
+            }
+        }
+    }
+
+    public CodeTree createIsOneBitOf(FrameState frameState, StateQuery elements) {
+        CodeTree masked = createMaskedReference(frameState, elements);
+        CodeTreeBuilder builder = CodeTreeBuilder.createBuilder();
+
+        // use the calculation of power of two
+        // (state & (state - 1L)) == 0L
+        builder.startParantheses().tree(masked).string(" & ").startParantheses().tree(masked).string(" - 1").end().end().string(" == 0");
+
+        builder.string(" /* ", "is-single ", " */");
+        return builder.build();
+    }
+
+    public CodeTree createContains(FrameState frameState, StateQuery query) {
+        return createContains(createReference(frameState), query);
+    }
+
+    public CodeTree createContains(CodeTree receiver, StateQuery query) {
+        CodeTreeBuilder builder = CodeTreeBuilder.createBuilder();
+        builder.tree(createMaskedReference(receiver, query));
+        builder.string(" != 0");
+        builder.string(" /* ", "is ", getStates().toString(query, " || "), " */");
+        return builder.build();
+    }
+
+    public CodeTree createNotContains(CodeTree receiver, StateQuery elements) {
+        CodeTreeBuilder builder = CodeTreeBuilder.createBuilder();
+        builder.startParantheses();
+        builder.tree(createMaskedReference(receiver, elements));
+        builder.end();
+        builder.string(" == 0");
+        builder.string(" /* ", "is-not ", getStates().toString(elements, " && "), " */");
+        return builder.build();
+    }
+
+    public CodeTree createNotContains(FrameState frameState, StateQuery elements) {
+        return createNotContains(createReference(frameState), elements);
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public CodeTree createExtractInteger(CodeTree receiver, StateQuery query) {
+        CodeTreeBuilder builder = CodeTreeBuilder.createBuilder();
+        if (getBitCount() > 32) {
+            builder.string("(int)(");
+        }
+        builder.tree(createMaskedReference(receiver, createMask(query)));
+        builder.string(" >>> ", Integer.toString(getStateOffset(query)));
+        if (getBitCount() > 32) {
+            builder.string(")");
+        }
+        builder.string(" /* ", "get-int" + " ", getStates().toString(query, ""), " */");
+        return builder.build();
+    }
+
+    public CodeTree createExtractInteger(FrameState frameState, StateQuery query) {
+        return createExtractInteger(createReference(frameState), query);
+    }
+
+    public CodeTree createSetZero(FrameState frameState, boolean persist) {
+        return createPersist(frameState, persist, CodeTreeBuilder.singleString("0"), false);
+    }
+
+    public CodeTree createSetExpression(CodeTree receiver, StateQuery elements, Boolean value) {
+        CodeTreeBuilder valueBuilder = CodeTreeBuilder.createBuilder();
+        valueBuilder.tree(receiver);
+        if (elements != null) {
+            if (value) {
+                valueBuilder.string(" | ");
+                valueBuilder.string(formatMask(createMask(elements)));
+                valueBuilder.string(" /* ", "add" + " ", getStates().toString(elements, ", "), " */");
+            } else {
+                valueBuilder.string(" & ");
+                valueBuilder.string(formatMask(~createMask(elements)));
+                valueBuilder.string(" /* ", "remove" + " ", getStates().toString(elements, ", "), " */");
+            }
+        }
+        return valueBuilder.build();
+    }
+
+    public CodeTree createSet(FrameState frameState, StateQuery elements, Boolean value, boolean persist) {
+        CodeTreeBuilder valueBuilder = CodeTreeBuilder.createBuilder();
+        boolean isEmpty = elements == null || elements.isEmpty();
+        if (!hasLocal(frameState) && isEmpty) {
+            return valueBuilder.build();
+        }
+        valueBuilder.tree(createSetExpression(createReference(frameState), elements, value));
+        return createPersist(frameState, persist, valueBuilder.build(), !isEmpty);
+    }
+
+    private CodeTree createPersist(FrameState frameState, boolean persist, CodeTree valueTree, boolean update) {
+        CodeTreeBuilder builder = CodeTreeBuilder.createBuilder();
+        builder.startStatement();
+        if (persist) {
+            builder.string("this.", name, "_");
+            if (frameState != null && frameState.isInlinedNode()) {
+                builder.startCall(".set");
+                builder.tree(frameState.getValue(0).createReference());
+            } else {
+                builder.string(" = ");
+            }
+
+            builder.startGroup();
+            // if there is a local variable we need to update it as well
+            CodeTree localReference = createLocalReference(frameState);
+            if (localReference != null && update) {
+                builder.tree(localReference).string(" = ");
+            }
+        } else {
+            builder.startGroup();
+            builder.tree(createReference(frameState)).string(" = ");
+        }
+        builder.tree(valueTree);
+        builder.end();
+
+        if (persist && frameState != null && frameState.isInlinedNode()) {
+            builder.end();
+        }
+
+        builder.end(); // statement
+        return builder.build();
+    }
+
+    public CodeTree createSetInteger(CodeTree receiver, StateQuery element, CodeTree value) {
+        int offset = getStateOffset(element);
+        CodeTreeBuilder builder = CodeTreeBuilder.createBuilder();
+        builder.tree(receiver).string(" = ");
+        builder.startParantheses();
+        builder.tree(receiver);
+        builder.string(" | (");
+        if (getBitCount() > 32) {
+            builder.string("(long) ");
+        }
+        builder.tree(value).string(" << ", Integer.toString(offset), ")");
+        builder.string(" /* ", "set-int" + " ", getStates().toString(element, ""), " */");
+        builder.end();
+        return builder.build();
+    }
+
+    public CodeTree createSetInteger(FrameState frameState, StateQuery element, CodeTree value) {
+        return createSetInteger(createReference(frameState), element, value);
+    }
+
+    public long createMask(StateQuery... e) {
+        return 
