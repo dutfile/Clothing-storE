@@ -130,3 +130,182 @@ public abstract class SwitchNode extends ControlSplitNode {
         double newProbability = successorProfileData.getDesignatedSuccessorProbability();
         assert newProbability <= 1.0 && newProbability >= 0.0 : newProbability;
         assert assertProbabilities();
+
+        double[] keyProbabilities = getKeyProbabilities().clone();
+        double sum = 0;
+        double otherSum = 0;
+        for (int i = 0; i < keySuccessors.length; i++) {
+            if (successors.get(keySuccessors[i]) == successor) {
+                sum += keyProbabilities[i];
+            } else {
+                otherSum += keyProbabilities[i];
+            }
+        }
+
+        if (otherSum == 0 || sum == 0) {
+            // Cannot correctly adjust probabilities.
+            return false;
+        }
+
+        double delta = newProbability - sum;
+
+        for (int i = 0; i < keySuccessors.length; i++) {
+            if (successors.get(keySuccessors[i]) == successor) {
+                keyProbabilities[i] = Math.max(0.0, keyProbabilities[i] + (delta * keyProbabilities[i]) / sum);
+            } else {
+                keyProbabilities[i] = Math.max(0.0, keyProbabilities[i] - (delta * keyProbabilities[i]) / otherSum);
+            }
+        }
+        profileData = SwitchProbabilityData.create(keyProbabilities, profileData.getProfileSource().combine(successorProfileData.getProfileSource()));
+        assert assertProbabilities();
+        return true;
+    }
+
+    @Override
+    public SwitchProbabilityData getProfileData() {
+        return profileData;
+    }
+
+    public ValueNode value() {
+        return value;
+    }
+
+    public abstract boolean isSorted();
+
+    /**
+     * The number of distinct keys in this switch.
+     */
+    public abstract int keyCount();
+
+    /**
+     * The key at the specified position, encoded in a Constant.
+     */
+    public abstract Constant keyAt(int i);
+
+    public boolean structureEquals(SwitchNode switchNode) {
+        return Arrays.equals(keySuccessors, switchNode.keySuccessors) && equalKeys(switchNode);
+    }
+
+    /**
+     * Returns true if the switch has the same keys in the same order as this switch.
+     */
+    public abstract boolean equalKeys(SwitchNode switchNode);
+
+    /**
+     * Returns the index of the successor belonging to the key at the specified index.
+     */
+    public int keySuccessorIndex(int i) {
+        return keySuccessors[i];
+    }
+
+    /**
+     * Returns the successor for the key at the given index.
+     */
+    public AbstractBeginNode keySuccessor(int i) {
+        return successors.get(keySuccessors[i]);
+    }
+
+    /**
+     * Returns the probability of the key at the given index.
+     */
+    public double keyProbability(int i) {
+        return getKeyProbabilities()[i];
+    }
+
+    /**
+     * Returns the probability of taking the default branch.
+     */
+    public double defaultProbability() {
+        return getKeyProbabilities()[getKeyProbabilities().length - 1];
+    }
+
+    /**
+     * Returns the index of the default (fall through) successor of this switch.
+     */
+    public int defaultSuccessorIndex() {
+        return keySuccessors[keySuccessors.length - 1];
+    }
+
+    public AbstractBeginNode blockSuccessor(int i) {
+        return successors.get(i);
+    }
+
+    public void setBlockSuccessor(int i, AbstractBeginNode s) {
+        successors.set(i, s);
+    }
+
+    public int blockSuccessorCount() {
+        return successors.count();
+    }
+
+    /**
+     * Gets the successor corresponding to the default (fall through) case.
+     *
+     * @return the default successor
+     */
+    public AbstractBeginNode defaultSuccessor() {
+        if (defaultSuccessorIndex() == -1) {
+            throw new GraalError("unexpected");
+        }
+        return successors.get(defaultSuccessorIndex());
+    }
+
+    @Override
+    public AbstractBeginNode getPrimarySuccessor() {
+        return null;
+    }
+
+    /**
+     * Delete all other successors except for the one reached by {@code survivingEdge}.
+     *
+     * @param tool
+     * @param survivingEdge index of the edge in the {@link SwitchNode#successors} list
+     */
+    protected void killOtherSuccessors(SimplifierTool tool, int survivingEdge) {
+        for (Node successor : successors()) {
+            /*
+             * Deleting a branch change change the successors so reload the surviving successor each
+             * time.
+             */
+            if (successor != blockSuccessor(survivingEdge)) {
+                tool.deleteBranch(successor);
+            }
+        }
+        tool.addToWorkList(blockSuccessor(survivingEdge));
+        graph().removeSplit(this, blockSuccessor(survivingEdge));
+    }
+
+    public abstract Stamp getValueStampForSuccessor(AbstractBeginNode beginNode);
+
+    @Override
+    public NodeCycles estimatedNodeCycles() {
+        if (keyCount() == 1) {
+            // if
+            return CYCLES_2;
+        } else if (isSorted()) {
+            // good heuristic
+            return CYCLES_8;
+        } else {
+            // not so good
+            return CYCLES_64;
+        }
+    }
+
+    @Override
+    protected NodeSize dynamicNodeSizeEstimate() {
+        if (keyCount() == 1) {
+            // if
+            return SIZE_2;
+        } else if (isSorted()) {
+            // good heuristic
+            return SIZE_8;
+        } else {
+            // not so good
+            return SIZE_64;
+        }
+    }
+
+    public int[] getKeySuccessors() {
+        return keySuccessors.clone();
+    }
+}
