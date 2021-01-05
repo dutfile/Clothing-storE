@@ -85,3 +85,18 @@ public final class LLVMNegatedForeignObject extends LLVMInternalTruffleObject {
     }
 
     @ExportMessage
+    long asPointer(@CachedLibrary("this.foreign") InteropLibrary interop) throws UnsupportedMessageException {
+        return -interop.asPointer(getForeign());
+    }
+
+    @ExportMessage
+    void toNative(@CachedLibrary("this.foreign") InteropLibrary interop) {
+        interop.toNative(getForeign());
+    }
+
+    @ExportMessage
+    public static boolean isForeign(@SuppressWarnings("unused") LLVMNegatedForeignObject receiver) {
+        return false;
+    }
+
+}
