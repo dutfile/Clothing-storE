@@ -373,4 +373,40 @@ final class BitSet {
     }
 
     public long createMask(StateQuery... e) {
-        return 
+        return createMask(0, -1, e);
+    }
+
+    private long createMask(int offset, int length, StateQuery... queries) {
+        long mask = 0;
+        for (StateQuery e : queries) {
+            for (BitRange range : getStates().queryRanges(e)) {
+                int realLength = length < 0 ? range.length : Math.min(range.length, offset + length);
+                for (int i = offset; i < realLength; i++) {
+                    mask |= 1L << (range.offset + i);
+                }
+            }
+        }
+        return mask;
+    }
+
+    private int getStateOffset(StateQuery query) {
+        List<BitRange> ranges = getStates().queryRanges(query);
+        for (BitRange range : ranges) {
+            return range.offset;
+        }
+        return 0;
+    }
+
+    static final class BitRange {
+
+        final int offset;
+        final int length;
+
+        BitRange(int offset, int length) {
+            this.offset = offset;
+            this.length = length;
+        }
+
+    }
+
+}
