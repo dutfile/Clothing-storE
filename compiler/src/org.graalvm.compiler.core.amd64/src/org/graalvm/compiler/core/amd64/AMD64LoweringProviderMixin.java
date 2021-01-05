@@ -39,4 +39,84 @@ import org.graalvm.compiler.core.common.memory.MemoryExtendKind;
 import org.graalvm.compiler.nodes.spi.LoweringProvider;
 import org.graalvm.compiler.replacements.nodes.BitScanForwardNode;
 import org.graalvm.compiler.replacements.nodes.BitScanReverseNode;
-import org.g
+import org.graalvm.compiler.replacements.nodes.CountLeadingZerosNode;
+import org.graalvm.compiler.replacements.nodes.CountTrailingZerosNode;
+
+import jdk.vm.ci.amd64.AMD64;
+import jdk.vm.ci.meta.JavaKind;
+
+public interface AMD64LoweringProviderMixin extends LoweringProvider {
+
+    @Override
+    default boolean divisionOverflowIsJVMSCompliant() {
+        // amd64 traps on a division overflow
+        return false;
+    }
+
+    @Override
+    default Integer smallestCompareWidth() {
+        return 8;
+    }
+
+    @Override
+    default boolean supportsBulkZeroing() {
+        return true;
+    }
+
+    @Override
+    default boolean writesStronglyOrdered() {
+        /*
+         * While AMD64 supports non-temporal stores, these are not used by Graal for Java code.
+         */
+        return true;
+    }
+
+    @Override
+    default boolean narrowsUseCastValue() {
+        return false;
+    }
+
+    @Override
+    default boolean supportsFoldingExtendIntoAccess(ExtendableMemoryAccess access, MemoryExtendKind extendKind) {
+        return false;
+    }
+
+    /**
+     * Performs AMD64-specific lowerings. Returns {@code true} if the given Node {@code n} was
+     * lowered, {@code false} otherwise.
+     */
+    default boolean lowerAMD64(Node n) {
+        if (n instanceof CountLeadingZerosNode) {
+            AMD64 arch = (AMD64) getTarget().arch;
+            CountLeadingZerosNode count = (CountLeadingZerosNode) n;
+            if (!arch.getFeatures().contains(AMD64.CPUFeature.LZCNT) || !arch.getFlags().contains(AMD64.Flag.UseCountLeadingZerosInstruction)) {
+                StructuredGraph graph = count.graph();
+                JavaKind kind = count.getValue().getStackKind();
+                ValueNode zero = ConstantNode.forIntegerKind(kind, 0, graph);
+                LogicNode compare = IntegerEqualsNode.create(count.getValue(), zero, NodeView.DEFAULT);
+                ValueNode result = new SubNode(ConstantNode.forIntegerKind(JavaKind.Int, kind.getBitCount() - 1), new BitScanReverseNode(count.getValue()));
+                ValueNode conditional = ConditionalNode.create(compare, ConstantNode.forInt(kind.getBitCount()), result, NodeView.DEFAULT);
+                conditional = graph.addOrUniqueWithInputs(conditional);
+                count.replaceAndDelete(conditional);
+                return true;
+            }
+        }
+
+        if (n instanceof CountTrailingZerosNode) {
+            AMD64 arch = (AMD64) getTarget().arch;
+            CountTrailingZerosNode count = (CountTrailingZerosNode) n;
+            if (!arch.getFeatures().contains(AMD64.CPUFeature.BMI1) || !arch.getFlags().contains(AMD64.Flag.UseCountTrailingZerosInstruction)) {
+                StructuredGraph graph = count.graph();
+                JavaKind kind = count.getValue().getStackKind();
+                ValueNode zero = ConstantNode.forIntegerKind(kind, 0, graph);
+                LogicNode compare = IntegerEqualsNode.create(count.getValue(), zero, NodeView.DEFAULT);
+                ValueNode conditional = ConditionalNode.create(compare, ConstantNode.forInt(kind.getBitCount()), new BitScanForwardNode(count.getValue()), NodeView.DEFAULT);
+                conditional = graph.addOrUniqueWithInputs(conditional);
+                count.replaceAndDelete(conditional);
+                return true;
+            }
+        }
+
+        return false;
+    }
+}
