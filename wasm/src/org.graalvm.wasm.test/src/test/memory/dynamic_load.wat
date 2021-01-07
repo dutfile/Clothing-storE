@@ -42,4 +42,6 @@
     (memory 1)
     (data (i32.const 0) "\42\43\44\45\46\47\48\49")
     (func (export "_main") (param $i i32)(result i32)
-        (i32.l
+        (i32.load offset=3 (local.get $i))
+    )
+)
