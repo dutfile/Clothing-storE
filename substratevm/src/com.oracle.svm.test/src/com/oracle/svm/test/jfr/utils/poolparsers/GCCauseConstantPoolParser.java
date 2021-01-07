@@ -34,4 +34,11 @@ import java.io.IOException;
 public class GCCauseConstantPoolParser extends ConstantPoolParser {
 
     @Override
-    public
+    public void parse(RecordingInput input) throws IOException {
+        int numberOfGCCauses = input.readInt();
+        for (int i = 0; i < numberOfGCCauses; i++) {
+            addFoundId(input.readInt()); // Id.
+            Assert.assertFalse("GCCause name is empty!", input.readUTF().isEmpty());
+        }
+    }
+}
