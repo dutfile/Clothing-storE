@@ -49,3 +49,97 @@ import org.graalvm.word.Pointer;
 
 public abstract class SerialWriteBarrierSnippets extends WriteBarrierSnippets implements Snippets {
     static class Counters {
+        Counters(SnippetCounter.Group.Factory factory) {
+            Group countersWriteBarriers = factory.createSnippetCounterGroup("Serial WriteBarriers");
+            serialWriteBarrierCounter = new SnippetCounter(countersWriteBarriers, "serialWriteBarrier", "Number of Serial Write Barriers");
+        }
+
+        final SnippetCounter serialWriteBarrierCounter;
+    }
+
+    @Snippet
+    public void serialImpreciseWriteBarrier(Object object, @ConstantParameter Counters counters, @ConstantParameter boolean verifyOnly) {
+        if (verifyBarrier()) {
+            verifyNotArray(object);
+        }
+        serialWriteBarrier(Word.objectToTrackedPointer(object), counters, verifyOnly);
+    }
+
+    @Snippet
+    public void serialPreciseWriteBarrier(Address address, @ConstantParameter Counters counters, @ConstantParameter boolean verifyOnly) {
+        serialWriteBarrier(Word.fromAddress(address), counters, verifyOnly);
+    }
+
+    @Snippet
+    public void serialArrayRangeWriteBarrier(Address address, long length, @ConstantParameter int elementStride) {
+        if (probability(NOT_FREQUENT_PROBABILITY, length == 0)) {
+            return;
+        }
+
+        int cardShift = cardTableShift();
+        Word cardTableAddress = cardTableAddress();
+        Word start = cardTableAddress.add(getPointerToFirstArrayElement(address, length, elementStride).unsignedShiftRight(cardShift));
+        Word end = cardTableAddress.add(getPointerToLastArrayElement(address, length, elementStride).unsignedShiftRight(cardShift));
+
+        Word cur = start;
+        do {
+            cur.writeByte(0, dirtyCardValue(), GC_CARD_LOCATION);
+            cur = cur.add(1);
+        } while (GraalDirectives.injectIterationCount(10, cur.belowOrEqual(end)));
+    }
+
+    private void serialWriteBarrier(Pointer ptr, Counters counters, boolean verifyOnly) {
+        if (!verifyOnly) {
+            counters.serialWriteBarrierCounter.inc();
+        }
+
+        Word base = cardTableAddress().add(ptr.unsignedShiftRight(cardTableShift()));
+        if (verifyOnly) {
+            byte cardValue = base.readByte(0, GC_CARD_LOCATION);
+            AssertionNode.dynamicAssert(cardValue == dirtyCardValue(), "card must be dirty");
+        } else {
+            base.writeByte(0, dirtyCardValue(), GC_CARD_LOCATION);
+        }
+    }
+
+    protected abstract Word cardTableAddress();
+
+    protected abstract int cardTableShift();
+
+    protected abstract boolean verifyBarrier();
+
+    protected abstract byte dirtyCardValue();
+
+    public static class SerialWriteBarrierLowerer {
+        private final Counters counters;
+
+        public SerialWriteBarrierLowerer(Group.Factory factory) {
+            this.counters = new Counters(factory);
+        }
+
+        public void lower(AbstractTemplates templates, SnippetInfo preciseSnippet, SnippetInfo impreciseSnippet, SerialWriteBarrier barrier, LoweringTool tool) {
+            Arguments args;
+            if (barrier.usePrecise()) {
+                args = new Arguments(preciseSnippet, barrier.graph().getGuardsStage(), tool.getLoweringStage());
+                args.add("address", barrier.getAddress());
+            } else {
+                args = new Arguments(impreciseSnippet, barrier.graph().getGuardsStage(), tool.getLoweringStage());
+                OffsetAddressNode address = (OffsetAddressNode) barrier.getAddress();
+                args.add("object", address.getBase());
+            }
+            args.addConst("counters", counters);
+            args.addConst("verifyOnly", barrier.getVerifyOnly());
+
+            templates.template(tool, barrier, args).instantiate(tool.getMetaAccess(), barrier, DEFAULT_REPLACER, args);
+        }
+
+        public void lower(AbstractTemplates templates, SnippetInfo snippet, SerialArrayRangeWriteBarrier barrier, LoweringTool tool) {
+            Arguments args = new Arguments(snippet, barrier.graph().getGuardsStage(), tool.getLoweringStage());
+            args.add("address", barrier.getAddress());
+            args.add("length", barrier.getLengthAsLong());
+            args.addConst("elementStride", barrier.getElementStride());
+
+            templates.template(tool, barrier, args).instantiate(tool.getMetaAccess(), barrier, DEFAULT_REPLACER, args);
+        }
+    }
+}
