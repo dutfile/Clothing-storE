@@ -189,4 +189,10 @@ It starts from the entry points of the application (i.e., the `main` method).
 The newly discovered elements are iteratively scanned until further scanning yields no additional changes in element's reachability.
 
 Only **reachable** elements are included in the final image.
-Once a native image is built, no new elements can be added at run time, for example, th
+Once a native image is built, no new elements can be added at run time, for example, through class loading.
+We refer to this constraint as the **closed-world assumption**.
+
+### Further Reading
+
+* [Native Image Build Overview](BuildOverview.md)
+* [Class Initialization in Native Image](ClassInitialization.md)
