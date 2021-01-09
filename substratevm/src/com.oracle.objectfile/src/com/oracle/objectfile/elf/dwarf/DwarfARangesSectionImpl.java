@@ -220,4 +220,39 @@ public class DwarfARangesSectionImpl extends DwarfSectionImpl {
                         (p1, compiledEntry) -> {
                             int pos = p1;
                             Range primary = compiledEntry.getPrimary();
-                            log(context, "  [0x%08x] %016x %016x %s", pos, d
+                            log(context, "  [0x%08x] %016x %016x %s", pos, debugTextBase + primary.getLo(), primary.getHi() - primary.getLo(), primary.getFullMethodNameWithParams());
+                            pos = writeRelocatableCodeOffset(primary.getLo(), buffer, pos);
+                            pos = writeLong(primary.getHi() - primary.getLo(), buffer, pos);
+                            return pos;
+                        },
+                        (oldpos, newpos) -> newpos);
+    }
+
+    private int sortByLowPC(ClassEntry classEntry1, ClassEntry classEntry2) {
+        return classEntry1.lowpc() - classEntry2.lowpc();
+    }
+
+    private int sortByLowPCDeopt(ClassEntry classEntry1, ClassEntry classEntry2) {
+        return classEntry1.lowpcDeopt() - classEntry2.lowpcDeopt();
+    }
+
+    /*
+     * The debug_aranges section depends on debug_frame section.
+     */
+    private static final String TARGET_SECTION_NAME = DwarfDebugInfo.DW_FRAME_SECTION_NAME;
+
+    @Override
+    public String targetSectionName() {
+        return TARGET_SECTION_NAME;
+    }
+
+    private final LayoutDecision.Kind[] targetSectionKinds = {
+                    LayoutDecision.Kind.CONTENT,
+                    LayoutDecision.Kind.SIZE
+    };
+
+    @Override
+    public LayoutDecision.Kind[] targetSectionKinds() {
+        return targetSectionKinds;
+    }
+}
