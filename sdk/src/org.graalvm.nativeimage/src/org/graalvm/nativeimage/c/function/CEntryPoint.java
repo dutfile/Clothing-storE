@@ -32,4 +32,176 @@
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS F
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+package org.graalvm.nativeimage.c.function;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+import java.util.function.BooleanSupplier;
+
+import org.graalvm.nativeimage.CurrentIsolate;
+import org.graalvm.nativeimage.Isolate;
+import org.graalvm.nativeimage.IsolateThread;
+import org.graalvm.nativeimage.LogHandler;
+import org.graalvm.nativeimage.c.constant.CEnum;
+import org.graalvm.nativeimage.c.constant.CEnumLookup;
+import org.graalvm.nativeimage.c.constant.CEnumValue;
+import org.graalvm.word.WordBase;
+import org.graalvm.word.WordFactory;
+
+/**
+ * Annotates a method that is a VM entry point. Such a method must be declared <i>static</i>, and is
+ * made accessible so that it can be called as a C function using the native ABI.
+ * <p>
+ * An execution context must be passed as a parameter and can be either an {@link IsolateThread}
+ * that is specific to the current thread, or an {@link Isolate} for an isolate in which the current
+ * thread is attached. These pointers can be obtained via the methods of {@link CurrentIsolate}.
+ * When there is more than one parameter of these types, exactly one of the parameters must be
+ * annotated with {@link IsolateThreadContext} for {@link IsolateThread}, or {@link IsolateContext}
+ * for {@link Isolate}.
+ * <p>
+ * Exceptions cannot be thrown to the caller and must be explicitly caught in the entry point
+ * method. Any uncaught exception causes the termination of the process after it is printed.
+ * <p>
+ * No object types are permitted for parameters or return types; only primitive Java values,
+ * {@link WordBase word} values, and enum values are allowed. Enum values are automatically
+ * converted from integer constants to Java enum object constants. The enum class must have a
+ * {@link CEnum} annotation. When enum values are passed as parameters, the enum class must have a
+ * method with a {@link CEnumLookup} annotation. For enum return types, the enum class must have a
+ * method that is annotated with {@link CEnumValue}.
+ *
+ * @since 19.0
+ */
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.METHOD)
+public @interface CEntryPoint {
+
+    /**
+     * The symbol name to use for this entry point.
+     *
+     * @since 19.0
+     */
+    String name() default "";
+
+    /**
+     * Method documentation to be included in the header file, as an array of lines.
+     *
+     * @since 19.0
+     */
+    String[] documentation() default "";
+
+    /**
+     * Provides an exception handler for all exceptions that are not handled explicitly by the entry
+     * point method. Java exceptions cannot be passed back to C code. If this property is not set,
+     * any uncaught exception is treated as a {@link LogHandler#fatalError() fatal error}.
+     * <p>
+     * The provided class must have exactly one declared method (the exception handler method). The
+     * method must be static, have one parameter of type {@link Throwable} or {@link Object}, and
+     * must have a return type that is assignable to the return type of the annotated entry point
+     * method. That exception handler method is invoked when an exception reaches the entry point,
+     * and the exception is passed as the argument. The return value of the exception handler method
+     * is then the return value of the entry point, i.e., passed back to the C code.
+     *
+     * @since 19.0
+     */
+    Class<? extends ExceptionHandler> exceptionHandler() default FatalExceptionHandler.class;
+
+    /**
+     * Special placeholder value for {@link #exceptionHandler()} to print the caught exception and
+     * treat it as a {@link LogHandler#fatalError() fatal error}.
+     *
+     * @since 19.0
+     */
+    final class FatalExceptionHandler implements ExceptionHandler {
+        private FatalExceptionHandler() {
+        }
+    }
+
+    /**
+     * Specifies that the annotated entry point method is an alias for a built-in function as
+     * provided by the C API. Such aliases may have extra arguments which are ignored and can be
+     * used to adhere to specific external conventions. The annotated method must be declared
+     * {@code native} and as such, cannot have its own code body. Refer to the C API for
+     * descriptions of the built-ins, and to the {@linkplain Builtin individual built-ins} for their
+     * requirements to the annotated method's signature.
+     *
+     * @since 19.0
+     */
+    Builtin builtin() default Builtin.NO_BUILTIN;
+
+    /**
+     * If the supplier returns {@code true}, this entry point is added automatically when building a
+     * shared library. This means the method is a root method for compilation, and everything
+     * reachable from it is compiled too.
+     *
+     * The provided class must have a nullary constructor, which is used to instantiate the class.
+     * Then the supplier function is called on the newly instantiated instance.
+     *
+     * @since 22.0
+     */
+    Class<? extends BooleanSupplier> include() default AlwaysIncluded.class;
+
+    /**
+     * A {@link BooleanSupplier} that always returns {@code true}.
+     *
+     * @since 22.0
+     */
+    final class AlwaysIncluded implements BooleanSupplier {
+
+        private AlwaysIncluded() {
+        }
+
+        /**
+         * Returns {@code true}.
+         *
+         * @since 22.0
+         */
+        @Override
+        public boolean getAsBoolean() {
+            return true;
+        }
+    }
+
+    /**
+     * A {@link BooleanSupplier} that always returns {@code false}.
+     *
+     * @since 22.0
+     */
+    final class NotIncludedAutomatically implements BooleanSupplier {
+
+        private NotIncludedAutomatically() {
+        }
+
+        /**
+         * Returns {@code false}.
+         *
+         * @since 22.0
+         */
+        @Override
+        public boolean getAsBoolean() {
+            return false;
+        }
+    }
+
+    /**
+     * @since 22.0
+     */
+    enum Publish {
+        /**
+         * Do not publish the entry point method.
+         */
+        NotPublished,
+        /**
+         * Create a symbol for the entry point method in the native image.
+         */
+        SymbolOnly,
+        /**
+         * Create a symbol for the entry point method in the native image, and if building a shared
+         * library image, also include a C declaration in the 
