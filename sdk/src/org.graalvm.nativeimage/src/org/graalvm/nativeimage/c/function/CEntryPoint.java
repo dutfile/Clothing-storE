@@ -204,4 +204,118 @@ public @interface CEntryPoint {
         SymbolOnly,
         /**
          * Create a symbol for the entry point method in the native image, and if building a shared
-         * library image, also include a C declaration in the 
+         * library image, also include a C declaration in the generated C header file.
+         */
+        SymbolAndHeader,
+    }
+
+    /**
+     * Whether the entry point is part of the symbols and header files produced by Native Image.
+     *
+     * @since 22.0
+     */
+    Publish publishAs() default Publish.SymbolAndHeader;
+
+    /**
+     * The built-in methods which can be {@linkplain #builtin() aliased}.
+     *
+     * @since 19.0
+     */
+    enum Builtin {
+        /**
+         * The annotated method is not an alias for a built-in method.
+         *
+         * @since 19.0
+         */
+        NO_BUILTIN,
+
+        /**
+         * The annotated method creates an isolate. An alias for this built-in requires no
+         * arguments, and must have a return type of {@link IsolateThread}. In case of an error,
+         * {@link WordFactory#nullPointer() NULL} is returned.
+         *
+         * @since 19.0
+         */
+        CREATE_ISOLATE,
+
+        /**
+         * The annotated method attaches the current thread to an isolate. It requires a parameter
+         * of type {@link Isolate} with the isolate to attach to, and a return type of
+         * {@link IsolateThread}. In case of an error, {@link WordFactory#nullPointer() NULL} is
+         * returned.
+         *
+         * @since 19.0
+         */
+        ATTACH_THREAD,
+
+        /**
+         * The annotated method returns the {@link IsolateThread} of the current thread in a
+         * specified {@link Isolate}. It requires a parameter of type {@link Isolate} for the
+         * isolate in question, and a return type of {@link IsolateThread}. In case of an error or
+         * if the current thread is not attached to the specified isolate,
+         * {@link WordFactory#nullPointer() NULL} is returned.
+         *
+         * @since 19.0
+         */
+        GET_CURRENT_THREAD,
+
+        /**
+         * The annotated method returns the {@link Isolate} for an {@link IsolateThread}. It
+         * requires a parameter of type {@link IsolateThread}, and a return type of {@link Isolate}.
+         * In case of an error, {@link WordFactory#nullPointer() NULL} is returned.
+         *
+         * @since 19.0
+         */
+        GET_ISOLATE,
+
+        /**
+         * The annotated method detaches the current thread, given as an {@link IsolateThread}, from
+         * an isolate. It requires a parameter of type {@link IsolateThread}, and a return type of
+         * {@code int} or {@code void}. With an {@code int} return type, zero is returned when
+         * successful, or non-zero in case of an error.
+         *
+         * @since 19.0
+         */
+        DETACH_THREAD,
+
+        /**
+         * The annotated method tears down the specified isolate. It requires a parameter of type
+         * {@link IsolateThread}, and a return type of {@code int} or {@code void}. With an
+         * {@code int} return type, zero is returned when successful, or non-zero in case of an
+         * error.
+         *
+         * @since 19.0
+         */
+        TEAR_DOWN_ISOLATE,
+    }
+
+    /**
+     * Designates an {@link IsolateThread} parameter to use as the execution context. At most one
+     * parameter can be annotated with this annotation or {@link IsolateContext}.
+     *
+     * @since 19.0
+     */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.PARAMETER)
+    @interface IsolateThreadContext {
+    }
+
+    /**
+     * Designates an {@link Isolate} parameter to use as the execution context. At most one
+     * parameter can be annotated with this annotation or {@link IsolateThreadContext}.
+     *
+     * @since 19.0
+     */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.PARAMETER)
+    @interface IsolateContext {
+    }
+
+    /**
+     * Marker interface for all {@link CEntryPoint#exceptionHandler() exception handler} classes.
+     *
+     * @since 22.0
+     */
+    interface ExceptionHandler {
+    }
+}
