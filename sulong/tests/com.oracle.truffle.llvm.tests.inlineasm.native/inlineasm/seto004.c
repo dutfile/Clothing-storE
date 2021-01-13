@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, 2020, Oracle and/or its affiliates.
+ * Copyright (c) 2016, 2021, Oracle and/or its affiliates.
  *
  * All rights reserved.
  *
@@ -27,14 +27,8 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-struct test {
-    int a[3];
-    char c;
-    long d;
-    int b;
-};
-
 int main() {
-    struct test t = {};
-    return t.a[0] + t.a[1] + t.a[2] + t.c + t.d + t.b;
+    char out = 0x55;
+    __asm__("movb $0xFE, %%al; cmpb $0xFF, %%al; seto %%al" : "=a"(out));
+    return out;
 }
