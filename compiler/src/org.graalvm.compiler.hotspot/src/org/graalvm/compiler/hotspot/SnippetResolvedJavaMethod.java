@@ -159,3 +159,98 @@ public final class SnippetResolvedJavaMethod implements ResolvedJavaMethod {
     @Override
     public Annotation[][] getParameterAnnotations() {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Type[] getGenericParameterTypes() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean canBeInlined() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean hasNeverInlineDirective() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean shouldBeInlined() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public LineNumberTable getLineNumberTable() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public LocalVariableTable getLocalVariableTable() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Constant getEncoding() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean isInVirtualMethodTable(ResolvedJavaType resolved) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public SpeculationLog getSpeculationLog() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public <T extends Annotation> T getAnnotation(Class<T> annotationClass) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Annotation[] getAnnotations() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Annotation[] getDeclaredAnnotations() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public int getModifiers() {
+        return modifiers;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        SnippetResolvedJavaMethod that = (SnippetResolvedJavaMethod) o;
+        return modifiers == that.modifiers &&
+                        name.equals(that.name) &&
+                        type.equals(that.type) &&
+                        signature.equals(that.signature);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, modifiers, type, signature);
+    }
+
+    @Override
+    public String toString() {
+        return "SnippetResolvedJavaMethod{" +
+                        "name='" + name + '\'' +
+                        ", type=" + type +
+                        '}';
+    }
+}
