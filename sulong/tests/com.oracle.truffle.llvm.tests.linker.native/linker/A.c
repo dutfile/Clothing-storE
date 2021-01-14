@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, 2019, Oracle and/or its affiliates.
+ * Copyright (c) 2019, 2020, Oracle and/or its affiliates.
  *
  * All rights reserved.
  *
@@ -27,17 +27,12 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package com.oracle.truffle.llvm.tests.pipe;
+#include <stdlib.h>
+#include <stdio.h>
 
-import java.io.IOException;
+int globalA = 1;
 
-public interface CaptureOutput extends AutoCloseable {
-
-    @Override
-    void close() throws IOException;
-
-    String getStdOut() throws IOException;
-
-    String getStdErr() throws IOException;
-
+int methodA(int a, int b) {
+    printf("A\n");
+    return a + b + globalA;
 }
