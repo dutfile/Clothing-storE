@@ -241,4 +241,164 @@ public class LocContextSynchronizer implements PropertyChangeListener, Runnable,
                 return;
             }
             
+            DiagramViewerLocator locator = Lookup.getDefault().lookup(DiagramViewerLocator.class);
+            DiagramViewer viewer = locator.getActiveViewer();
+            DiagramViewer cached = refViewer.get();
+            if (cached != viewer) {
+                return;
+            }
+            InputGraph graph = viewer.getModel().getGraphToView();
+            GraphSource gs = GraphSource.getGraphSource(graph);
+            List<Location> lineLocs = new ArrayList<>();
+            Collection<InputNode> nodes = SourceUtils.findLineNodes(pane, gs, lineLocs, true);        
+            if (nodes == null || nodes.isEmpty()) {
+                // take a little help: from "traversing" nodes, find such ones that were active
+                // in the graph
+                nodes = new HashSet<>(SourceUtils.findLineNodes(pane, gs, lineLocs, false));
+                nodes.retainAll(locContext.getContextNodes());
+            }
+            SourceUtils.resolveSelectableNodes(nodes, viewer, (nn) -> {
+                if (!nn.isEmpty()) {
+                    inSync = true;
+//                    locContext.setSelectedNodes(nn);
+                    inSync = false;
+                }
+            }, true);
+        }
+    }
     
+    private EditorAndViewerListener evListener;
+    
+    private void updateContextFromEditor(JEditorPane pane) {
+        if (!SwingUtilities.isDescendingFrom(pane, registry.getActivated())) {
+            return;
+        }
+        DiagramViewerLocator locator = Lookup.getDefault().lookup(DiagramViewerLocator.class);
+        DiagramViewer viewer = locator.getActiveViewer();
+        boolean immediate = false;
+        if (evListener != null) {
+            if (!evListener.matches(viewer, pane)) {
+                evListener.detach();
+                evListener = null;
+                delayedSync = null;
+            }
+        }
+        if (evListener == null) {
+            if (pane == null || viewer == null) {
+                return;
+            }
+            evListener = new EditorAndViewerListener(viewer, pane);
+            immediate = true;
+        }
+        if (immediate)  {
+            evListener.run();
+        } else {
+            if (delayedSync == null) {
+                delayedSync = EDITSYNC_RP.create(evListener);
+            }
+            delayedSync.cancel();
+            delayedSync.schedule(200);
+        }
+    }
+    
+    private InputGraph findGraph(TopComponent tc) {
+        if (tc == null) {
+            return null;
+        }
+        InputGraphProvider provider = tc.getLookup().lookup(InputGraphProvider.class);
+        if (provider == null) {
+            return null;
+        }
+        return provider.getGraph();
+    }
+    
+    private Collection<InputNode> findNodes(TopComponent tc) {
+        return findNodes(tc, findGraph(tc));
+    }
+    
+    private Collection<InputNode> findNodes(TopComponent tc, InputGraph graph) {
+        if (graph == null) {
+            return Collections.emptyList();
+        }
+        Node[] nodes = tc.getActivatedNodes();
+        if (nodes == null) {
+            return Collections.emptyList();
+        }
+        List<InputNode> graphNodes = new ArrayList<>(nodes.length);
+        DiagramViewer vwr = tc.getLookup().lookup(DiagramViewer.class);
+        for (Node n : nodes) {
+            InputNode in = n.getLookup().lookup(InputNode.class);
+            if (in != null) {
+                InputGraph g = n.getLookup().lookup(InputGraph.class);
+                if (g != null) {
+                    if (graph != null && graph != g) {
+                        // do not change context if nodes from more graphs are selected (unlikely)
+                        return Collections.emptyList();
+                    }
+                }
+                if (vwr != null) {
+                    Collection<Figure> figs = vwr.figuresForNodes(Collections.singletonList(in));
+                    if (figs.size() != 1) {
+                        continue;
+                    }
+                }
+                graphNodes.add(in);
+            }
+        }
+        return graphNodes;
+    }
+
+    @Override
+    public void resultChanged(LookupEvent ev) {
+        TopComponent tc = lastGraphComponentRef.get();
+        
+        Collection<InputNode> nodes = findNodes(tc);
+        if (!nodes.isEmpty()) {
+            InputGraph graph = tc.getLookup().lookup(InputGraph.class);
+            locContext.setGraphContext(graph, nodes);
+        }
+    }
+
+    @Override
+    public void selectedNodeChanged(NodeLocationEvent evt) {
+    }
+
+    @Override
+    public void nodesChanged(NodeLocationEvent evt) {
+        if (inSync) {
+            return;
+        }
+        Collection<InputNode> nodes = evt.getNodes();
+        InputGraph graph = evt.getContext().getGraph();
+        if (nodes == null || nodes.isEmpty()) {
+            return;
+        }
+        DiagramViewerLocator loc = Lookup.getDefault().lookup(DiagramViewerLocator.class);
+        List<DiagramViewer> vwrList = loc.find(graph);
+        if (vwrList == null || vwrList.isEmpty()) {
+            return;
+        }
+        InputNode selNode = evt.getSelectedNode();
+        if (selNode != null) {
+            nodes = Collections.singletonList(selNode);
+        }
+        Collection<InputNode> fNodes = new ArrayList<>(nodes);
+        DiagramViewer vwr = vwrList.iterator().next();
+        
+        SwingUtilities.invokeLater(()-> {
+            Collection<Figure> figs = vwr.figuresForNodes(fNodes);
+            if (!figs.isEmpty()) {
+                vwr.centerFigures(Collections.singletonList(figs.iterator().next()));
+            }
+        });
+    }
+
+    @Override
+    public void locationsResolved(NodeLocationEvent evt) {
+    }
+
+    @Override
+    public void selectedLocationChanged(NodeLocationEvent evt) {
+    }
+
+}
