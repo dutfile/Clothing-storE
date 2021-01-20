@@ -1,5 +1,6 @@
+
 /*
- * Copyright (c) 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2007, 2018, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,38 +23,31 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.truffle.tools.chromeinspector.objects;
-
-import static com.oracle.truffle.tools.chromeinspector.objects.JSONTruffleObject.getTruffleValueFromJSONValue;
-
-import com.oracle.truffle.api.CompilerDirectives;
-import com.oracle.truffle.api.interop.InvalidArrayIndexException;
-import com.oracle.truffle.tools.utils.json.JSONArray;
-
-/**
- * TruffleObject of a JSON array.
+/*
+ * Copyright (c) 2007, 2018, Oracle and/or its affiliates. All rights reserved.
  */
-public final class JSONTruffleArray extends AbstractInspectorArray {
+package org.graalvm.compiler.jtt.bytecode;
 
-    private final JSONArray json;
+import org.junit.Test;
 
-    public JSONTruffleArray(JSONArray json) {
-        this.json = json;
+import org.graalvm.compiler.jtt.JTTTest;
+
+/*
+ */
+public class BC_ifnull_2 extends JTTTest {
+
+    public static boolean test(Object a) {
+        return a == null;
     }
 
-    @Override
-    int getArraySize() {
-        return json.length();
+    @Test
+    public void run0() throws Throwable {
+        runTest("test", (Object) null);
     }
 
-    @Override
-    @CompilerDirectives.TruffleBoundary
-    Object readArrayElement(long index) throws InvalidArrayIndexException {
-        if (index < 0 || index >= json.length()) {
-            throw InvalidArrayIndexException.create(index);
-        }
-        Object value = json.get((int) index);
-        return getTruffleValueFromJSONValue(value);
+    @Test
+    public void run1() throws Throwable {
+        runTest("test", "");
     }
 
 }

@@ -1,5 +1,6 @@
+
 /*
- * Copyright (c) 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2007, 2018, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,38 +23,60 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.truffle.tools.chromeinspector.objects;
 
-import static com.oracle.truffle.tools.chromeinspector.objects.JSONTruffleObject.getTruffleValueFromJSONValue;
+package org.graalvm.compiler.jtt.micro;
 
-import com.oracle.truffle.api.CompilerDirectives;
-import com.oracle.truffle.api.interop.InvalidArrayIndexException;
-import com.oracle.truffle.tools.utils.json.JSONArray;
+import org.junit.Test;
 
-/**
- * TruffleObject of a JSON array.
+import org.graalvm.compiler.jtt.JTTTest;
+
+/*
  */
-public final class JSONTruffleArray extends AbstractInspectorArray {
+public class BC_invokevirtual2 extends JTTTest {
 
-    private final JSONArray json;
+    static Unresolved object;
 
-    public JSONTruffleArray(JSONArray json) {
-        this.json = json;
-    }
+    public static class Unresolved {
 
-    @Override
-    int getArraySize() {
-        return json.length();
-    }
-
-    @Override
-    @CompilerDirectives.TruffleBoundary
-    Object readArrayElement(long index) throws InvalidArrayIndexException {
-        if (index < 0 || index >= json.length()) {
-            throw InvalidArrayIndexException.create(index);
+        public int id(int i) {
+            return i;
         }
-        Object value = json.get((int) index);
-        return getTruffleValueFromJSONValue(value);
+    }
+
+    private static Unresolved object() {
+        if (object == null) {
+            object = new Unresolved();
+        }
+        return object;
+    }
+
+    public static int test(int a) {
+        return object().id(a);
+    }
+
+    @Test
+    public void run0() throws Throwable {
+        runTest("test", 0);
+    }
+
+    @Test
+    public void run1() throws Throwable {
+        runTest("test", 1);
+    }
+
+    @Test
+    public void run2() throws Throwable {
+        runTest("test", 2);
+    }
+
+    @Test
+    public void run3() throws Throwable {
+        runTest("test", 3);
+    }
+
+    @Test
+    public void run4() throws Throwable {
+        runTest("test", -4);
     }
 
 }
