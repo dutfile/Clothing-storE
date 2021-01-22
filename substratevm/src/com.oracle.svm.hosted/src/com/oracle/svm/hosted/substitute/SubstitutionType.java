@@ -147,3 +147,180 @@ public class SubstitutionType implements ResolvedJavaType, OriginalClassProvider
             result = result & ~Modifier.FINAL;
         }
         return result;
+    }
+
+    @Override
+    public boolean isInitialized() {
+        return annotated.isInitialized();
+    }
+
+    @Override
+    public void initialize() {
+        original.initialize();
+        annotated.initialize();
+    }
+
+    @Override
+    public boolean isAssignableFrom(ResolvedJavaType other) {
+        return annotated.isAssignableFrom(other) || original.isAssignableFrom(other);
+    }
+
+    @Override
+    public boolean isInstance(JavaConstant obj) {
+        return annotated.isInstance(obj) || original.isInstance(obj);
+    }
+
+    @Override
+    public ResolvedJavaType getSuperclass() {
+        return annotated.getSuperclass();
+    }
+
+    @Override
+    public ResolvedJavaType[] getInterfaces() {
+        return annotated.getInterfaces();
+    }
+
+    @Override
+    public ResolvedJavaType findLeastCommonAncestor(ResolvedJavaType otherType) {
+        return annotated.findLeastCommonAncestor(otherType);
+    }
+
+    @Override
+    public ResolvedJavaType getSingleImplementor() {
+        return annotated.getSingleImplementor();
+    }
+
+    @Override
+    public AssumptionResult<ResolvedJavaType> findLeafConcreteSubtype() {
+        /* We don't want to speculate with substitutions. */
+        return null;
+    }
+
+    @Override
+    public ResolvedJavaType getComponentType() {
+        return annotated.getComponentType();
+    }
+
+    @Override
+    public ResolvedJavaType getArrayClass() {
+        return annotated.getArrayClass();
+    }
+
+    @Override
+    public ResolvedJavaMethod resolveConcreteMethod(ResolvedJavaMethod method, ResolvedJavaType callerType) {
+        /* First check the annotated class. @Substitute methods are found there. */
+        ResolvedJavaMethod result = annotated.resolveConcreteMethod(method, callerType);
+        if (result == null) {
+            /* Then check the original class. @KeepOriginal methods are found there. */
+            result = original.resolveConcreteMethod(method, callerType);
+        }
+        return result;
+    }
+
+    @Override
+    public ResolvedJavaMethod resolveMethod(ResolvedJavaMethod method, ResolvedJavaType callerType) {
+        ResolvedJavaMethod result = annotated.resolveMethod(method, callerType);
+        if (result == null) {
+            result = original.resolveMethod(method, callerType);
+        }
+        return result;
+    }
+
+    @Override
+    public AssumptionResult<ResolvedJavaMethod> findUniqueConcreteMethod(ResolvedJavaMethod method) {
+        /* We don't want to speculate with substitutions. */
+        return null;
+    }
+
+    @Override
+    public ResolvedJavaField[] getStaticFields() {
+        return annotated.getStaticFields();
+    }
+
+    @Override
+    public AnnotatedElement getAnnotationRoot() {
+        return annotated;
+    }
+
+    @Override
+    public ResolvedJavaField findInstanceFieldWithOffset(long offset, JavaKind expectedKind) {
+        return annotated.findInstanceFieldWithOffset(offset, expectedKind);
+    }
+
+    @Override
+    public String getSourceFileName() {
+        return annotated.getSourceFileName();
+    }
+
+    @Override
+    public boolean isLocal() {
+        return annotated.isLocal();
+    }
+
+    @Override
+    public boolean isMember() {
+        return annotated.isMember();
+    }
+
+    @Override
+    public ResolvedJavaType getEnclosingType() {
+        return annotated.getEnclosingType();
+    }
+
+    @Override
+    public ResolvedJavaMethod[] getDeclaredConstructors() {
+        return annotated.getDeclaredConstructors();
+    }
+
+    @Override
+    public ResolvedJavaMethod[] getDeclaredMethods() {
+        return annotated.getDeclaredMethods();
+    }
+
+    @Override
+    public ResolvedJavaMethod getClassInitializer() {
+        return annotated.getClassInitializer();
+    }
+
+    @Override
+    public boolean isLinked() {
+        assert original.isLinked() && annotated.isLinked();
+        return true;
+    }
+
+    @Override
+    public void link() {
+        assert isLinked();
+    }
+
+    @Override
+    public boolean hasDefaultMethods() {
+        return original.hasDefaultMethods();
+    }
+
+    @Override
+    public boolean declaresDefaultMethods() {
+        return original.declaresDefaultMethods();
+    }
+
+    @Override
+    public boolean isCloneableWithAllocation() {
+        throw JVMCIError.unimplemented();
+    }
+
+    @SuppressWarnings("deprecation")
+    @Override
+    public ResolvedJavaType getHostClass() {
+        return original.getHostClass();
+    }
+
+    @Override
+    public Class<?> getJavaClass() {
+        return OriginalClassProvider.getJavaClass(original);
+    }
+
+    @Override
+    public String toString() {
+        return "SubstitutionType<definition " + original.toString() + ", implementation " + annotated.toString() + ">";
+    }
+}
