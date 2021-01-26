@@ -94,4 +94,82 @@ public final class RegexSource implements JsonConvertible {
 
     @Override
     public int hashCode() {
-        if 
+        if (!hashComputed) {
+            final int prime = 31;
+            int hash = 1;
+            hash = prime * hash + pattern.hashCode();
+            hash = prime * hash + flags.hashCode();
+            hash = prime * hash + options.hashCode();
+            cachedHash = hash;
+            hashComputed = true;
+        }
+        return cachedHash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return this == obj || obj instanceof RegexSource &&
+                        pattern.equals(((RegexSource) obj).pattern) &&
+                        flags.equals(((RegexSource) obj).flags) &&
+                        options.equals(((RegexSource) obj).options);
+    }
+
+    @TruffleBoundary
+    @Override
+    public String toString() {
+        return "/" + pattern + "/" + flags;
+    }
+
+    @TruffleBoundary
+    public String toStringEscaped() {
+        StringBuilder sb = new StringBuilder(pattern.length() + 2);
+        sb.append('/');
+        int i = 0;
+        while (i < pattern.length()) {
+            int c = pattern.codePointAt(i);
+            if (0x20 <= c && c <= 0x7e) {
+                sb.appendCodePoint(c);
+            } else {
+                sb.append("\\u");
+                if (c > 0xffff) {
+                    i++;
+                    sb.append(String.format("{%06x}", c));
+                } else {
+                    sb.append(String.format("%04x", c));
+                }
+            }
+            i++;
+        }
+        return sb.append('/').append(flags).toString();
+    }
+
+    @TruffleBoundary
+    public String toFileName() {
+        StringBuilder sb = new StringBuilder(20);
+        int i = 0;
+        while (i < Math.min(pattern.length(), 20)) {
+            int c = pattern.codePointAt(i);
+            if (DebugUtil.isValidCharForFileName(c)) {
+                sb.appendCodePoint(c);
+            } else {
+                sb.append('_');
+            }
+            if (c > 0xffff) {
+                i += 2;
+            } else {
+                i++;
+            }
+        }
+        if (!flags.isEmpty()) {
+            sb.append('_').append(flags);
+        }
+        return sb.toString();
+    }
+
+    @TruffleBoundary
+    @Override
+    public JsonValue toJson() {
+        return Json.obj(Json.prop("pattern", pattern),
+                        Json.prop("flags", flags));
+    }
+}
