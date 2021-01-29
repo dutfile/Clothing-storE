@@ -76,4 +76,161 @@ public final class LIRVerifier {
 
     public static boolean verify(final LIRInstruction op) {
 
-        op.visitEachInput(LIRV
+        op.visitEachInput(LIRVerifier::allowed);
+        op.visitEachAlive(LIRVerifier::allowed);
+        op.visitEachState(LIRVerifier::allowed);
+        op.visitEachTemp(LIRVerifier::allowed);
+        op.visitEachOutput(LIRVerifier::allowed);
+
+        op.verify();
+        return true;
+    }
+
+    public static boolean verify(boolean beforeRegisterAllocation, LIR lir, FrameMap frameMap) {
+        LIRVerifier verifier = new LIRVerifier(beforeRegisterAllocation, lir, frameMap);
+        verifier.verify();
+        return true;
+    }
+
+    private LIRVerifier(boolean beforeRegisterAllocation, LIR lir, FrameMap frameMap) {
+        this.beforeRegisterAllocation = beforeRegisterAllocation;
+        this.lir = lir;
+        this.frameMap = frameMap;
+        this.blockLiveOut = new BitSet[lir.linearScanOrder().length];
+        this.variableDefinitions = new Object[lir.numVariables()];
+    }
+
+    private BitSet curVariablesLive;
+    private Value[] curRegistersLive;
+
+    private BasicBlock<?> curBlock;
+    private Object curInstruction;
+    private BitSet curRegistersDefined;
+
+    private void verify() {
+        ValueConsumer useConsumer = new ValueConsumer() {
+
+            @Override
+            public void visitValue(Value value, OperandMode mode, EnumSet<OperandFlag> flags) {
+                use(value, mode, flags);
+            }
+        };
+        ValueConsumer defConsumer = new ValueConsumer() {
+
+            @Override
+            public void visitValue(Value value, OperandMode mode, EnumSet<OperandFlag> flags) {
+                def(value, mode, flags);
+            }
+        };
+
+        int maxRegisterNum = maxRegisterNum();
+        curRegistersDefined = new BitSet();
+        for (int blockId : lir.linearScanOrder()) {
+            BasicBlock<?> block = lir.getBlockById(blockId);
+
+            curBlock = block;
+            curVariablesLive = new BitSet();
+            curRegistersLive = new Value[maxRegisterNum];
+
+            if (block.getDominator() != null) {
+                curVariablesLive.or(liveOutFor(block.getDominator()));
+            }
+
+            assert lir.getLIRforBlock(block).get(0) instanceof StandardOp.LabelOp : "block must start with label";
+
+            if (block.getSuccessorCount() > 0) {
+                LIRInstruction last = lir.getLIRforBlock(block).get(lir.getLIRforBlock(block).size() - 1);
+                assert last instanceof StandardOp.JumpOp : "block with successor must end with unconditional jump";
+            }
+            if (block.getPredecessorCount() > 1) {
+                SSAUtil.verifyPhi(lir, block);
+            }
+
+            for (LIRInstruction op : lir.getLIRforBlock(block)) {
+                curInstruction = op;
+
+                op.visitEachInput(useConsumer);
+                if (op.destroysCallerSavedRegisters()) {
+                    for (Register register : frameMap.getRegisterConfig().getCallerSaveRegisters()) {
+                        curRegistersLive[register.number] = null;
+                    }
+                }
+                curRegistersDefined.clear();
+                op.visitEachAlive(useConsumer);
+                op.visitEachState(useConsumer);
+                op.visitEachTemp(defConsumer);
+                op.visitEachOutput(defConsumer);
+
+                curInstruction = null;
+            }
+
+            setLiveOutFor(block, curVariablesLive);
+        }
+    }
+
+    private void use(Value value, OperandMode mode, EnumSet<OperandFlag> flags) {
+        allowed(curInstruction, value, mode, flags);
+
+        if (isVariable(value)) {
+            assert beforeRegisterAllocation;
+
+            int variableIdx = asVariable(value).index;
+            if (!curVariablesLive.get(variableIdx)) {
+                TTY.println("block %s  instruction %s", curBlock, curInstruction);
+                TTY.println("live variables: %s", curVariablesLive);
+                if (variableDefinitions[variableIdx] != null) {
+                    TTY.println("definition of %s: %s", value, variableDefinitions[variableIdx]);
+                }
+                TTY.println("ERROR: Use of variable %s that is not defined in dominator", value);
+                throw GraalError.shouldNotReachHere(); // ExcludeFromJacocoGeneratedReport
+            }
+
+        } else if (isAllocatableRegister(value)) {
+            int regNum = asRegister(value).number;
+            if (mode == OperandMode.ALIVE) {
+                curRegistersDefined.set(regNum);
+            }
+
+            if (beforeRegisterAllocation && !curRegistersLive[regNum].equals(value)) {
+                TTY.println("block %s  instruction %s", curBlock, curInstruction);
+                TTY.println("live registers: %s", Arrays.toString(curRegistersLive));
+                TTY.println("ERROR: Use of fixed register %s that is not defined in this block", value);
+                throw GraalError.shouldNotReachHere(); // ExcludeFromJacocoGeneratedReport
+            }
+        }
+    }
+
+    private void def(Value value, OperandMode mode, EnumSet<OperandFlag> flags) {
+        allowed(curInstruction, value, mode, flags);
+
+        if (isVariable(value)) {
+            assert beforeRegisterAllocation;
+
+            int variableIdx = asVariable(value).index;
+            if (variableDefinitions[variableIdx] != null) {
+                TTY.println("block %s  instruction %s", curBlock, curInstruction);
+                TTY.println("live variables: %s", curVariablesLive);
+                TTY.println("definition of %s: %s", value, variableDefinitions[variableIdx]);
+                TTY.println("ERROR: Variable %s defined multiple times", value);
+                throw GraalError.shouldNotReachHere(); // ExcludeFromJacocoGeneratedReport
+            }
+            assert curInstruction != null;
+            variableDefinitions[variableIdx] = curInstruction;
+            assert !curVariablesLive.get(variableIdx);
+            if (mode == OperandMode.DEF) {
+                curVariablesLive.set(variableIdx);
+            }
+
+        } else if (isAllocatableRegister(value)) {
+            int regNum = asRegister(value).number;
+            if (curRegistersDefined.get(regNum)) {
+                TTY.println("block %s  instruction %s", curBlock, curInstruction);
+                TTY.println("ERROR: Same register defined twice in the same instruction: %s", value);
+                throw GraalError.shouldNotReachHere(); // ExcludeFromJacocoGeneratedReport
+            }
+            curRegistersDefined.set(regNum);
+
+            if (beforeRegisterAllocation) {
+                if (mode == OperandMode.DEF) {
+                    curRegistersLive[regNum] = value;
+      
