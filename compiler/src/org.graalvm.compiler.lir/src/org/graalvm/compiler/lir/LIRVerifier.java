@@ -233,4 +233,25 @@ public final class LIRVerifier {
             if (beforeRegisterAllocation) {
                 if (mode == OperandMode.DEF) {
                     curRegistersLive[regNum] = value;
-      
+                } else {
+                    curRegistersLive[regNum] = null;
+                }
+            }
+        }
+    }
+
+    // @formatter:off
+    private static void allowed(Object op, Value val, OperandMode mode, EnumSet<OperandFlag> flags) {
+        Value value = stripCast(val);
+        if ((isVariable(value) && flags.contains(OperandFlag.REG)) ||
+            (isRegister(value) && flags.contains(OperandFlag.REG)) ||
+            (isStackSlotValue(value) && flags.contains(OperandFlag.STACK)) ||
+            (isConstantValue(value) && flags.contains(OperandFlag.CONST) && mode != OperandMode.DEF) ||
+            (isIllegal(value) && flags.contains(OperandFlag.ILLEGAL))) {
+            return;
+        }
+        throw new GraalError("Invalid LIR%n  Instruction: %s%n  Mode: %s%n  Flags: %s%n  Unexpected value: %s %s",
+                        op, mode, flags, value.getClass().getSimpleName(), value);
+    }
+    // @formatter:on
+}
