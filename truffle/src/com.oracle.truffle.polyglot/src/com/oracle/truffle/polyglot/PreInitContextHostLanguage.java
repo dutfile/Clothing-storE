@@ -36,4 +36,26 @@
  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFT
+ * SOFTWARE.
+ */
+package com.oracle.truffle.polyglot;
+
+import com.oracle.truffle.api.CompilerDirectives;
+import com.oracle.truffle.api.TruffleLanguage;
+
+/**
+ * A marker host language used at the time of the context pre-initialization. A host language
+ * context must not be created during pre initialization. The creation of the host language context
+ * must be postponed until the time of patching.
+ */
+final class PreInitContextHostLanguage extends TruffleLanguage<Object> {
+
+    @Override
+    protected Object createContext(Env env) {
+        throw CompilerDirectives.shouldNotReachHere("Host language context must not be created during context pre-initialization.");
+    }
+
+    static boolean isInstance(PolyglotLanguage language) {
+        return language.isHost() && language.cache.loadLanguage().getClass() == PreInitContextHostLanguage.class;
+    }
+}
