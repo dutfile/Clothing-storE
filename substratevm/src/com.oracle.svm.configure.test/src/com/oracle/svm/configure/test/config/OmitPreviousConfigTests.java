@@ -78,4 +78,129 @@ public class OmitPreviousConfigTests {
                 Assert.fail("Exception occurred while loading configuration: " + e + System.lineSeparator() + sw);
                 return e;
             };
-            Predicate<String> shouldExcludeClassesWithHash =
+            Predicate<String> shouldExcludeClassesWithHash = null;
+            if (omittedConfig != null) {
+                shouldExcludeClassesWithHash = omittedConfig.getPredefinedClassesConfiguration()::containsClassWithHash;
+            }
+            return configurationFileCollection.loadConfigurationSet(handler, null, shouldExcludeClassesWithHash);
+        } catch (Exception e) {
+            throw VMError.shouldNotReachHere("Unexpected error while loading the configuration files.", e);
+        }
+    }
+
+    @Test
+    public void testSameConfig() {
+        ConfigurationSet omittedConfig = loadTraceProcessorFromResourceDirectory(PREVIOUS_CONFIG_DIR_NAME, null);
+        ConfigurationSet config = loadTraceProcessorFromResourceDirectory(PREVIOUS_CONFIG_DIR_NAME, omittedConfig);
+        config = config.copyAndSubtract(omittedConfig);
+
+        assertTrue(config.getJniConfiguration().isEmpty());
+        assertTrue(config.getReflectionConfiguration().isEmpty());
+        assertTrue(config.getProxyConfiguration().isEmpty());
+        assertTrue(config.getResourceConfiguration().isEmpty());
+        assertTrue(config.getSerializationConfiguration().isEmpty());
+        assertTrue(config.getPredefinedClassesConfiguration().isEmpty());
+    }
+
+    @Test
+    public void testConfigDifference() {
+        ConfigurationSet omittedConfig = loadTraceProcessorFromResourceDirectory(PREVIOUS_CONFIG_DIR_NAME, null);
+        ConfigurationSet config = loadTraceProcessorFromResourceDirectory(CURRENT_CONFIG_DIR_NAME, omittedConfig);
+        config = config.copyAndSubtract(omittedConfig);
+
+        doTestGeneratedTypeConfig();
+        doTestTypeConfig(config.getJniConfiguration());
+
+        doTestProxyConfig(config.getProxyConfiguration());
+
+        doTestResourceConfig(config.getResourceConfiguration());
+
+        doTestSerializationConfig(config.getSerializationConfiguration());
+
+        doTestPredefinedClassesConfig(config.getPredefinedClassesConfiguration());
+    }
+
+    private static void doTestGeneratedTypeConfig() {
+        TypeMethodsWithFlagsTest typeMethodsWithFlagsTestDeclared = new TypeMethodsWithFlagsTest(ConfigurationMemberDeclaration.DECLARED);
+        typeMethodsWithFlagsTestDeclared.doTest();
+
+        TypeMethodsWithFlagsTest typeMethodsWithFlagsTestPublic = new TypeMethodsWithFlagsTest(ConfigurationMemberDeclaration.PUBLIC);
+        typeMethodsWithFlagsTestPublic.doTest();
+
+        TypeMethodsWithFlagsTest typeMethodsWithFlagsTestDeclaredPublic = new TypeMethodsWithFlagsTest(ConfigurationMemberDeclaration.DECLARED_AND_PUBLIC);
+        typeMethodsWithFlagsTestDeclaredPublic.doTest();
+    }
+
+    private static void doTestTypeConfig(TypeConfiguration typeConfig) {
+        doTestExpectedMissingTypes(typeConfig);
+
+        doTestTypeFlags(typeConfig);
+
+        doTestFields(typeConfig);
+
+        doTestMethods(typeConfig);
+    }
+
+    private static void doTestExpectedMissingTypes(TypeConfiguration typeConfig) {
+        Assert.assertNull(typeConfig.get(ConfigurationCondition.alwaysTrue(), "FlagTestA"));
+        Assert.assertNull(typeConfig.get(ConfigurationCondition.alwaysTrue(), "FlagTestB"));
+    }
+
+    private static void doTestTypeFlags(TypeConfiguration typeConfig) {
+        ConfigurationType flagTestHasDeclaredType = getConfigTypeOrFail(typeConfig, "FlagTestC");
+        Assert.assertTrue(ConfigurationType.TestBackdoor.haveAllDeclaredClasses(flagTestHasDeclaredType) || ConfigurationType.TestBackdoor.haveAllDeclaredFields(flagTestHasDeclaredType) ||
+                        ConfigurationType.TestBackdoor.getAllDeclaredConstructors(flagTestHasDeclaredType) == ConfigurationMemberAccessibility.ACCESSED);
+
+        ConfigurationType flagTestHasPublicType = getConfigTypeOrFail(typeConfig, "FlagTestD");
+        Assert.assertTrue(ConfigurationType.TestBackdoor.haveAllPublicClasses(flagTestHasPublicType) || ConfigurationType.TestBackdoor.haveAllPublicFields(flagTestHasPublicType) ||
+                        ConfigurationType.TestBackdoor.getAllPublicConstructors(flagTestHasPublicType) == ConfigurationMemberAccessibility.ACCESSED);
+    }
+
+    private static void doTestFields(TypeConfiguration typeConfig) {
+        ConfigurationType fieldTestType = getConfigTypeOrFail(typeConfig, "MethodAndFieldTest");
+
+        Assert.assertNull(ConfigurationType.TestBackdoor.getFieldInfoIfPresent(fieldTestType, "SimpleField"));
+        Assert.assertNull(ConfigurationType.TestBackdoor.getFieldInfoIfPresent(fieldTestType, "AllowWriteField"));
+
+        FieldInfo newField = ConfigurationType.TestBackdoor.getFieldInfoIfPresent(fieldTestType, "NewField");
+        Assert.assertFalse(newField.isFinalButWritable());
+
+        FieldInfo newWritableField = getFieldInfoOrFail(fieldTestType, "NewAllowWriteField");
+        Assert.assertTrue(newWritableField.isFinalButWritable());
+
+        FieldInfo newlyWritableField = getFieldInfoOrFail(fieldTestType, "NewNowWritableField");
+        Assert.assertTrue(newlyWritableField.isFinalButWritable());
+    }
+
+    private static void doTestMethods(TypeConfiguration typeConfig) {
+        ConfigurationType methodTestType = getConfigTypeOrFail(typeConfig, "MethodAndFieldTest");
+
+        Assert.assertNull(ConfigurationType.TestBackdoor.getMethodInfoIfPresent(methodTestType, new ConfigurationMethod("<init>", "(I)V")));
+        Assert.assertNotNull(ConfigurationType.TestBackdoor.getMethodInfoIfPresent(methodTestType, new ConfigurationMethod("method", "()V")));
+    }
+
+    private static void doTestProxyConfig(ProxyConfiguration proxyConfig) {
+        ConfigurationCondition condition = ConfigurationCondition.alwaysTrue();
+        Assert.assertFalse(proxyConfig.contains(condition, "testProxySeenA", "testProxySeenB", "testProxySeenC"));
+        Assert.assertTrue(proxyConfig.contains(condition, "testProxyUnseen"));
+    }
+
+    private static void doTestResourceConfig(ResourceConfiguration resourceConfig) {
+        Assert.assertFalse(resourceConfig.anyResourceMatches("seenResource.txt"));
+        Assert.assertTrue(resourceConfig.anyResourceMatches("unseenResource.txt"));
+
+        ConfigurationCondition condition = ConfigurationCondition.alwaysTrue();
+        Assert.assertFalse(resourceConfig.anyBundleMatches(condition, "seenBundle"));
+        Assert.assertTrue(resourceConfig.anyBundleMatches(condition, "unseenBundle"));
+    }
+
+    private static void doTestSerializationConfig(SerializationConfiguration serializationConfig) {
+        ConfigurationCondition condition = ConfigurationCondition.alwaysTrue();
+        Assert.assertFalse(serializationConfig.contains(condition, "seenType", null));
+        Assert.assertTrue(serializationConfig.contains(condition, "unseenType", null));
+    }
+
+    private static ConfigurationType getConfigTypeOrFail(TypeConfiguration typeConfig, String typeName) {
+        ConfigurationType type = typeConfig.get(ConfigurationCondition.alwaysTrue(), typeName);
+        Assert.assertNotNull(type);
+        return 
