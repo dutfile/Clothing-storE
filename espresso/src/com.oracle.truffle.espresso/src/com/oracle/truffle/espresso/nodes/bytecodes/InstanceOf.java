@@ -64,4 +64,199 @@ public abstract class InstanceOf extends EspressoNode {
     public abstract boolean execute(Klass maybeSubtype);
 
     /**
-     * Dynamic instance
+     * Dynamic instanceof check. Takes the type to check as parameter.
+     */
+    @GenerateUncached
+    @NodeInfo(shortName = "INSTANCEOF dynamic check")
+    public abstract static class Dynamic extends EspressoNode {
+        protected static final int LIMIT = 4;
+
+        public abstract boolean execute(Klass maybeSubtype, Klass superType);
+
+        protected static InstanceOf createInstanceOf(Klass superType) {
+            return InstanceOf.create(superType, true);
+        }
+
+        @Specialization(guards = "superType == maybeSubtype")
+        boolean doSame(@SuppressWarnings("unused") Klass maybeSubtype, @SuppressWarnings("unused") Klass superType) {
+            return true;
+        }
+
+        @SuppressWarnings("unused")
+        @Specialization(guards = "superType == cachedSuperType", limit = "LIMIT")
+        boolean doCached(Klass maybeSubType, Klass superType,
+                        @Cached("superType") Klass cachedSuperType,
+                        @Cached("createInstanceOf(cachedSuperType)") InstanceOf instanceOf) {
+            return instanceOf.execute(maybeSubType);
+        }
+
+        @Specialization(replaces = "doCached")
+        @HostCompilerDirectives.InliningCutoff
+        protected boolean doGeneric(Klass maybeSubType, Klass superType) {
+            return superType.isAssignableFrom(maybeSubType);
+        }
+    }
+
+    /**
+     * Creates a specialized {@link InstanceOf} node for the given type.
+     *
+     * @param superType the type to check
+     * @param useInlineCache uses an inline cache, then fallback to specialized nodes.
+     */
+    public static InstanceOf create(Klass superType, boolean useInlineCache) {
+        // Cheap checks first.
+        if (superType.isJavaLangObject()) {
+            return ObjectClass.INSTANCE;
+        }
+        if (superType.isPrimitive()) {
+            return new PrimitiveClass((PrimitiveKlass) superType);
+        }
+
+        if (!superType.isArray() && superType.isFinalFlagSet()) {
+            return new FinalClass(superType);
+        }
+
+        // Prefer an inline cache for non-trivial checks.
+        if (useInlineCache) {
+            return InstanceOfFactory.InlineCacheNodeGen.create(superType);
+        }
+
+        if (superType.isInstanceClass()) {
+            return InstanceOfFactory.ConstantClassNodeGen.create((ObjectKlass) superType);
+        }
+
+        // Non-trivial checks.
+        if (superType.isArray()) {
+            return InstanceOfFactory.ArrayClassNodeGen.create((ArrayKlass) superType);
+        }
+        if (superType.isInterface()) {
+            return InstanceOfFactory.ConstantInterfaceNodeGen.create((ObjectKlass) superType);
+        }
+
+        throw EspressoError.shouldNotReachHere();
+    }
+
+    @NodeInfo(shortName = "INSTANCEOF primitive")
+    private static final class PrimitiveClass extends InstanceOf {
+
+        private final PrimitiveKlass superType;
+
+        PrimitiveClass(PrimitiveKlass superType) {
+            this.superType = superType;
+        }
+
+        @Override
+        public boolean execute(Klass maybeSubtype) {
+            return superType == maybeSubtype;
+        }
+    }
+
+    @NodeInfo(shortName = "INSTANCEOF Ljava/lang/Object;")
+    private static final class ObjectClass extends InstanceOf {
+
+        private ObjectClass() {
+            // single instance
+        }
+
+        static final InstanceOf INSTANCE = new ObjectClass();
+
+        @Override
+        public boolean execute(Klass maybeSubtype) {
+            // Faster than: return maybeSubtype.isPrimitive();
+            return !(maybeSubtype instanceof PrimitiveKlass);
+        }
+
+        @Override
+        public boolean isAdoptable() {
+            return false;
+        }
+    }
+
+    @NodeInfo(shortName = "INSTANCEOF final non-array class")
+    private static final class FinalClass extends InstanceOf {
+
+        private final Klass superType;
+
+        FinalClass(Klass superType) {
+            assert superType.isFinalFlagSet() && !superType.isArray();
+            this.superType = superType;
+        }
+
+        @Override
+        public boolean execute(Klass maybeSubtype) {
+            return superType == maybeSubtype;
+        }
+    }
+
+    @NodeInfo(shortName = "INSTANCEOF array class")
+    abstract static class ArrayClass extends InstanceOf {
+
+        private final ArrayKlass superType;
+        @Child InstanceOf elementalInstanceOf;
+
+        protected ArrayClass(ArrayKlass superType) {
+            this.superType = superType;
+            this.elementalInstanceOf = InstanceOf.create(superType.getElementalType(), true);
+        }
+
+        @Specialization
+        boolean doArray(ArrayKlass maybeSubtype,
+                        @Cached BranchProfile nonTrivialProfile,
+                        @Cached BranchProfile elementalCheckProfile,
+                        @Cached BranchProfile simpleSubTypeCheckProfile) {
+            if (superType == maybeSubtype) {
+                return true;
+            }
+
+            nonTrivialProfile.enter();
+            int comparison = Integer.compare(superType.getDimension(), maybeSubtype.getDimension());
+            if (comparison == 0) {
+                elementalCheckProfile.enter();
+                return elementalInstanceOf.execute(maybeSubtype.getElementalType());
+            }
+
+            if (comparison < 0) {
+                simpleSubTypeCheckProfile.enter();
+                Klass elemental = superType.getElementalType();
+                Meta meta = getMeta();
+                return elemental == meta.java_lang_Object || elemental == meta.java_io_Serializable || elemental == meta.java_lang_Cloneable;
+            }
+
+            return false; // if (comparison > 0)
+        }
+
+        @Fallback
+        boolean doFallback(Klass maybeSubtype) {
+            assert !maybeSubtype.isArray();
+            return false;
+        }
+    }
+
+    @NodeInfo(shortName = "INSTANCEOF class")
+    abstract static class ConstantClass extends InstanceOf {
+
+        private final ObjectKlass superType;
+
+        ConstantClass(ObjectKlass superType) {
+            this.superType = superType;
+        }
+
+        @NeverDefault
+        protected ClassHierarchyAssumption getNoImplementorsAssumption() {
+            return getContext().getClassHierarchyOracle().hasNoImplementors(superType);
+        }
+
+        @NeverDefault
+        protected AssumptionGuardedValue<ObjectKlass> readSingleImplementor() {
+            return getContext().getClassHierarchyOracle().readSingleImplementor(superType);
+        }
+
+        @Specialization(guards = "noImplementors.isValid()")
+        public boolean doNoImplementors(@SuppressWarnings("unused") Klass maybeSubtype,
+                        @SuppressWarnings("unused") @Cached("getNoImplementorsAssumption().getAssumption()") Assumption noImplementors) {
+            return false;
+        }
+
+        /**
+         * If {@code superType} has a single implementor (itself if {@code superType} is a concrete
+  
