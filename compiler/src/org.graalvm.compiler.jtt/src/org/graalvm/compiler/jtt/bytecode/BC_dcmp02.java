@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2008, 2018, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,43 +22,38 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-// Checkstyle: stop
-package org.graalvm.compiler.jtt.loop;
+package org.graalvm.compiler.jtt.bytecode;
 
 import org.junit.Test;
 
 import org.graalvm.compiler.jtt.JTTTest;
 
 /*
- * Test around an object that escapes directly from inside a loop (no virtual phi on the loop)
  */
-public class Loop17 extends JTTTest {
+public class BC_dcmp02 extends JTTTest {
 
-    private static class L {
-
-        public int a;
-        public int b;
-        public int c;
-
-        public L(int a, int b, int c) {
-            this.a = a;
-            this.b = b;
-            this.c = c;
-        }
-    }
-
-    public static int test(int count) {
-        int i = 0;
-        L l;
-        do {
-            l = new L(i, i + 1, i + 2);
-        } while (++i < count);
-
-        return l.a + l.b * 10 + l.c * 100;
+    public static boolean test(double a) {
+        return (a / a) < 0.0;
     }
 
     @Test
     public void run0() throws Throwable {
-        runTest("test", new L(4, 4, 4).a);
+        runTest("test", -1.0d);
     }
+
+    @Test
+    public void run1() throws Throwable {
+        runTest("test", 1.0d);
+    }
+
+    @Test
+    public void run2() throws Throwable {
+        runTest("test", 0.0d);
+    }
+
+    @Test
+    public void run3() throws Throwable {
+        runTest("test", -0.0d);
+    }
+
 }
