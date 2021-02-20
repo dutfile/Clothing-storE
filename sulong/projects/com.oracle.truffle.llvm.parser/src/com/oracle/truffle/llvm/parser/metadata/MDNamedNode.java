@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, 2020, Oracle and/or its affiliates.
+ * Copyright (c) 2016, 2018, Oracle and/or its affiliates.
  *
  * All rights reserved.
  *
@@ -27,20 +27,38 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-struct test {
-    int arr[3][2];
-};
+package com.oracle.truffle.llvm.parser.metadata;
 
-int main() {
-    struct test at = { { { 1, 2 }, { 3, 4 }, { 5, 6 } } };
-    struct test t = at;
-    int sum = 0;
-    int i, j;
-    for (i = 0; i < 2; i++) {
-        for (j = 0; j < 3; j++) {
-            sum += t.arr[i][j];
-            sum *= 2;
-        }
+public final class MDNamedNode extends MDAggregateNode {
+
+    public static final String COMPILEUNIT_NAME = "llvm.dbg.cu";
+
+    private final String name;
+
+    public MDNamedNode(String name, int size) {
+        super(size);
+        this.name = name;
     }
-    return sum;
+
+    public String getName() {
+        return name;
+    }
+
+    @Override
+    public void accept(MetadataVisitor visitor) {
+        visitor.visit(this);
+    }
+
+    @Override
+    public String toString() {
+        return String.format("!%s", getName());
+    }
+
+    public static MDNamedNode create(String name, long[] record, MetadataValueList md) {
+        final MDNamedNode node = new MDNamedNode(name, record.length);
+        for (int i = 0; i < record.length; i++) {
+            node.set(i, md.getNonNullable(record[i], node));
+        }
+        return node;
+    }
 }
