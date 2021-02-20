@@ -259,4 +259,109 @@ public abstract class InstanceOf extends EspressoNode {
 
         /**
          * If {@code superType} has a single implementor (itself if {@code superType} is a concrete
-  
+         * class or a single concrete child, if {@code superType} is an abstract class),
+         * {@code maybeSubtype} is its subtype iff it's equal to the implementing class.
+         */
+        @Specialization(assumptions = "maybeSingleImplementor.hasValue()", guards = "implementor != null")
+        public boolean doSingleImplementor(ObjectKlass maybeSubtype,
+                        @SuppressWarnings("unused") @Cached("readSingleImplementor()") AssumptionGuardedValue<ObjectKlass> maybeSingleImplementor,
+                        @Cached("maybeSingleImplementor.get()") ObjectKlass implementor) {
+            return maybeSubtype == implementor;
+        }
+
+        @Specialization
+        public boolean doObjectKlass(ObjectKlass maybeSubtype) {
+            return superType == maybeSubtype || superType.checkOrdinaryClassSubclassing(maybeSubtype);
+        }
+
+        @Fallback
+        public boolean doFallback(@SuppressWarnings("unused") Klass maybeSubtype) {
+            return false;
+        }
+    }
+
+    @NodeInfo(shortName = "INSTANCEOF interface")
+    abstract static class ConstantInterface extends InstanceOf {
+
+        private final ObjectKlass superType;
+
+        ConstantInterface(ObjectKlass superType) {
+            this.superType = superType;
+            assert superType.isInterface();
+        }
+
+        @NeverDefault
+        protected ClassHierarchyAssumption getNoImplementorsAssumption() {
+            return getContext().getClassHierarchyOracle().hasNoImplementors(superType);
+        }
+
+        @NeverDefault
+        protected AssumptionGuardedValue<ObjectKlass> readSingleImplementor() {
+            return getContext().getClassHierarchyOracle().readSingleImplementor(superType);
+        }
+
+        @Specialization(guards = "noImplementors.isValid()")
+        public boolean doNoImplementors(@SuppressWarnings("unused") Klass maybeSubtype,
+                        @SuppressWarnings("unused") @Cached("getNoImplementorsAssumption().getAssumption()") Assumption noImplementors) {
+            return false;
+        }
+
+        @Specialization(assumptions = "maybeSingleImplementor.hasValue()", guards = "implementor != null", replaces = "doNoImplementors")
+        public boolean doSingleImplementor(ObjectKlass maybeSubtype,
+                        @SuppressWarnings("unused") @Cached("readSingleImplementor()") AssumptionGuardedValue<ObjectKlass> maybeSingleImplementor,
+                        @Cached("maybeSingleImplementor.get()") ObjectKlass implementor) {
+            return maybeSubtype == implementor;
+        }
+
+        @Specialization(replaces = "doSingleImplementor")
+        public boolean doObjectKlass(ObjectKlass maybeSubtype) {
+            // This check can be expensive.
+            return superType.checkInterfaceSubclassing(maybeSubtype);
+        }
+
+        @Specialization
+        public boolean doArrayKlass(@SuppressWarnings("unused") ArrayKlass maybeSubtype) {
+            Meta meta = getMeta();
+            return superType == meta.java_lang_Cloneable || superType == meta.java_io_Serializable;
+        }
+
+        @Fallback
+        public boolean doFallback(@SuppressWarnings("unused") Klass maybeSubtype) {
+            return false;
+        }
+    }
+
+    @NodeInfo(shortName = "INSTANCEOF + inline cache")
+    abstract static class InlineCache extends InstanceOf {
+
+        protected static final int LIMIT = 4;
+
+        protected final Klass superType;
+
+        protected InlineCache(Klass superType) {
+            this.superType = superType;
+        }
+
+        @Specialization(guards = "superType == maybeSubtype")
+        boolean doSame(@SuppressWarnings("unused") Klass maybeSubtype) {
+            return true;
+        }
+
+        @Specialization(guards = "cachedMaybeSubtype == maybeSubtype", limit = "LIMIT", assumptions = {"redefineAssumption"})
+        boolean doCached(@SuppressWarnings("unused") Klass maybeSubtype,
+                        @SuppressWarnings("unused") @Cached("maybeSubtype") Klass cachedMaybeSubtype,
+                        @SuppressWarnings("unused") @Cached("maybeSubtype.getRedefineAssumption()") Assumption redefineAssumption,
+                        @Cached("superType.isAssignableFrom(maybeSubtype)") boolean result) {
+            return result;
+        }
+
+        @Specialization(replaces = "doCached")
+        public boolean doGeneric(Klass maybeSubtype, @Cached("createGeneric(superType)") InstanceOf genericInstanceOf) {
+            return genericInstanceOf.execute(maybeSubtype);
+        }
+
+        protected static InstanceOf createGeneric(Klass superType) {
+            return InstanceOf.create(superType, false);
+        }
+    }
+}
