@@ -203,4 +203,115 @@ public class OmitPreviousConfigTests {
     private static ConfigurationType getConfigTypeOrFail(TypeConfiguration typeConfig, String typeName) {
         ConfigurationType type = typeConfig.get(ConfigurationCondition.alwaysTrue(), typeName);
         Assert.assertNotNull(type);
-        return 
+        return type;
+    }
+
+    private static FieldInfo getFieldInfoOrFail(ConfigurationType type, String field) {
+        FieldInfo fieldInfo = ConfigurationType.TestBackdoor.getFieldInfoIfPresent(type, field);
+        Assert.assertNotNull(fieldInfo);
+        return fieldInfo;
+    }
+
+    private static void doTestPredefinedClassesConfig(PredefinedClassesConfiguration predefinedClassesConfig) {
+        Assert.assertFalse("Must not contain a previously seen class.", predefinedClassesConfig.containsClassWithName("previouslySeenClass"));
+        Assert.assertTrue("Must contain a newly seen class.", predefinedClassesConfig.containsClassWithName("unseenClass"));
+    }
+}
+
+class TypeMethodsWithFlagsTest {
+
+    static final String TEST_CLASS_NAME_PREFIX = "MethodsWithFlagsType";
+    static final String INTERNAL_SIGNATURE_ONE = "([Ljava/lang/String;)V";
+    static final String INTERNAL_SIGNATURE_TWO = "([Ljava/lang/String;Ljava/lang/String;)V";
+
+    final ConfigurationMemberDeclaration methodKind;
+
+    final Map<ConfigurationMethod, ConfigurationMemberDeclaration> methodsThatMustExist = new HashMap<>();
+    final Map<ConfigurationMethod, ConfigurationMemberDeclaration> methodsThatMustNotExist = new HashMap<>();
+
+    final TypeConfiguration previousConfig = new TypeConfiguration();
+    final TypeConfiguration currentConfig = new TypeConfiguration();
+
+    TypeMethodsWithFlagsTest(ConfigurationMemberDeclaration methodKind) {
+        this.methodKind = methodKind;
+        generateTestMethods();
+        populateConfig();
+    }
+
+    void generateTestMethods() {
+        Map<ConfigurationMethod, ConfigurationMemberDeclaration> targetMap;
+
+        targetMap = getMethodsMap(ConfigurationMemberDeclaration.DECLARED);
+        targetMap.put(new ConfigurationMethod("<init>", INTERNAL_SIGNATURE_ONE), ConfigurationMemberDeclaration.DECLARED);
+        targetMap.put(new ConfigurationMethod("testMethodDeclaredSpecificSignature", INTERNAL_SIGNATURE_ONE), ConfigurationMemberDeclaration.DECLARED);
+        targetMap.put(new ConfigurationMethod("testMethodDeclaredMatchesAllSignature", null), ConfigurationMemberDeclaration.DECLARED);
+
+        targetMap = getMethodsMap(ConfigurationMemberDeclaration.PUBLIC);
+        targetMap.put(new ConfigurationMethod("<init>", INTERNAL_SIGNATURE_TWO), ConfigurationMemberDeclaration.PUBLIC);
+        targetMap.put(new ConfigurationMethod("testMethodPublicSpecificSignature", INTERNAL_SIGNATURE_ONE), ConfigurationMemberDeclaration.PUBLIC);
+        targetMap.put(new ConfigurationMethod("testMethodPublicMatchesAllSignature", null), ConfigurationMemberDeclaration.PUBLIC);
+    }
+
+    Map<ConfigurationMethod, ConfigurationMemberDeclaration> getMethodsMap(ConfigurationMemberDeclaration otherKind) {
+        if (methodKind.equals(otherKind) || methodKind.equals(ConfigurationMemberDeclaration.DECLARED_AND_PUBLIC)) {
+            return methodsThatMustNotExist;
+        }
+        return methodsThatMustExist;
+    }
+
+    void populateConfig() {
+        ConfigurationType oldType = new ConfigurationType(ConfigurationCondition.alwaysTrue(), getTypeName());
+        setFlags(oldType);
+        previousConfig.add(oldType);
+
+        ConfigurationType newType = new ConfigurationType(ConfigurationCondition.alwaysTrue(), getTypeName());
+        for (Map.Entry<ConfigurationMethod, ConfigurationMemberDeclaration> methodEntry : methodsThatMustExist.entrySet()) {
+            newType.addMethod(methodEntry.getKey().getName(), methodEntry.getKey().getInternalSignature(), methodEntry.getValue());
+        }
+        for (Map.Entry<ConfigurationMethod, ConfigurationMemberDeclaration> methodEntry : methodsThatMustNotExist.entrySet()) {
+            newType.addMethod(methodEntry.getKey().getName(), methodEntry.getKey().getInternalSignature(), methodEntry.getValue());
+        }
+        currentConfig.add(newType);
+    }
+
+    void setFlags(ConfigurationType config) {
+        if (methodKind.equals(ConfigurationMemberDeclaration.DECLARED) || methodKind.equals(ConfigurationMemberDeclaration.DECLARED_AND_PUBLIC)) {
+            config.setAllDeclaredClasses();
+            config.setAllDeclaredConstructors(ConfigurationMemberAccessibility.ACCESSED);
+            config.setAllDeclaredMethods(ConfigurationMemberAccessibility.ACCESSED);
+            config.setAllDeclaredFields();
+        }
+        if (methodKind.equals(ConfigurationMemberDeclaration.PUBLIC) || methodKind.equals(ConfigurationMemberDeclaration.DECLARED_AND_PUBLIC)) {
+            config.setAllPublicClasses();
+            config.setAllPublicConstructors(ConfigurationMemberAccessibility.ACCESSED);
+            config.setAllPublicMethods(ConfigurationMemberAccessibility.ACCESSED);
+            config.setAllPublicFields();
+        }
+    }
+
+    String getTypeName() {
+        return TEST_CLASS_NAME_PREFIX + "_" + methodKind.name();
+    }
+
+    void doTest() {
+        TypeConfiguration currentConfigWithoutPrevious = currentConfig.copyAndSubtract(previousConfig);
+
+        String name = getTypeName();
+        ConfigurationType configurationType = currentConfigWithoutPrevious.get(ConfigurationCondition.alwaysTrue(), name);
+        if (methodsThatMustExist.size() == 0) {
+            Assert.assertNull("Generated configuration type " + name + " exists. Expected it to be cleared as it is empty.", configurationType);
+        } else {
+            Assert.assertNotNull("Generated configuration type " + name + " does not exist. Has the test code changed?", configurationType);
+
+            for (Map.Entry<ConfigurationMethod, ConfigurationMemberDeclaration> methodEntry : methodsThatMustExist.entrySet()) {
+                ConfigurationMemberDeclaration kind = ConfigurationType.TestBackdoor.getMethodInfoIfPresent(configurationType, methodEntry.getKey()).getDeclaration();
+                Assert.assertNotNull("Method " + methodEntry.getKey() + " unexpectedly NOT found in the new configuration.", kind);
+                Assert.assertEquals("Method " + methodEntry.getKey() + " contains a different kind than expected in the new configuration.", kind, methodEntry.getValue());
+            }
+            for (Map.Entry<ConfigurationMethod, ConfigurationMemberDeclaration> methodEntry : methodsThatMustNotExist.entrySet()) {
+                ConfigurationMemberInfo kind = ConfigurationType.TestBackdoor.getMethodInfoIfPresent(configurationType, methodEntry.getKey());
+                Assert.assertNull("Method " + methodEntry.getKey() + " unexpectedly found in the new configuration.", kind);
+            }
+        }
+    }
+}
