@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2021, Oracle and/or its affiliates.
+ * Copyright (c) 2017, 2020, Oracle and/or its affiliates.
  *
  * All rights reserved.
  *
@@ -27,28 +27,8 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package com.oracle.truffle.llvm.runtime.nodes.memory.load;
+char local = 'a';
 
-import com.oracle.truffle.api.dsl.GenerateUncached;
-import com.oracle.truffle.api.dsl.Specialization;
-import com.oracle.truffle.llvm.runtime.nodes.api.LLVMNode;
-import com.oracle.truffle.llvm.runtime.pointer.LLVMManagedPointer;
-import com.oracle.truffle.llvm.runtime.pointer.LLVMNativePointer;
-
-@GenerateUncached
-public abstract class LLVMDerefHandleGetReceiverNode extends LLVMNode {
-
-    public abstract LLVMManagedPointer execute(LLVMNativePointer addr);
-
-    public abstract LLVMManagedPointer execute(long addr);
-
-    @Specialization
-    public LLVMManagedPointer doPointer(LLVMNativePointer addr) {
-        return doLong(addr.asNative());
-    }
-
-    @Specialization
-    public LLVMManagedPointer doLong(long address) {
-        return getContext().getDerefHandleContainer().getValue(this, address).copy();
-    }
+int main() {
+    return local;
 }
