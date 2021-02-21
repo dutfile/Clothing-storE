@@ -42,4 +42,57 @@ import jdk.vm.ci.meta.JavaConstant;
 import jdk.vm.ci.meta.JavaType;
 import jdk.vm.ci.meta.ResolvedJavaMethod;
 
-public class InstalledC
+public class InstalledCodeExecuteHelperTest extends GraalCompilerTest {
+
+    private static final int ITERATIONS = 100000;
+    Object[] argsToBind;
+
+    @Test
+    public void test1() throws InvalidInstalledCodeException {
+        final ResolvedJavaMethod fooMethod = getResolvedJavaMethod("foo");
+        final HotSpotInstalledCode fooCode = (HotSpotInstalledCode) getCode(fooMethod);
+
+        argsToBind = new Object[]{fooCode};
+
+        final ResolvedJavaMethod benchmarkMethod = getResolvedJavaMethod("benchmark");
+        final HotSpotInstalledCode installedBenchmarkCode = (HotSpotInstalledCode) getCode(benchmarkMethod);
+
+        Assert.assertEquals(Integer.valueOf(42), benchmark(fooCode));
+
+        Assert.assertEquals(Integer.valueOf(42), installedBenchmarkCode.executeVarargs(argsToBind[0]));
+
+    }
+
+    public static Integer benchmark(HotSpotInstalledCode code) throws InvalidInstalledCodeException {
+        int val = 0;
+        for (int j = 0; j < 100; j++) {
+            for (int i = 0; i < ITERATIONS; i++) {
+                val = (Integer) code.executeVarargs();
+            }
+        }
+        return val;
+    }
+
+    public static Integer foo() {
+        return 42;
+    }
+
+    @Override
+    protected StructuredGraph parse(Builder builder, PhaseSuite<HighTierContext> graphBuilderSuite) {
+        StructuredGraph graph = super.parse(builder, graphBuilderSuite);
+        if (argsToBind != null) {
+            ResolvedJavaMethod m = graph.method();
+            Object receiver = isStatic(m.getModifiers()) ? null : this;
+            Object[] args = argsWithReceiver(receiver, argsToBind);
+            JavaType[] parameterTypes = m.toParameterTypes();
+            assert parameterTypes.length == args.length;
+            for (int i = 0; i < argsToBind.length; i++) {
+                ParameterNode param = graph.getParameter(i);
+                JavaConstant c = getSnippetReflection().forBoxed(parameterTypes[i].getJavaKind(), argsToBind[i]);
+                ConstantNode replacement = ConstantNode.forConstant(c, getMetaAccess(), graph);
+                param.replaceAtUsages(replacement);
+            }
+        }
+        return graph;
+    }
+}
