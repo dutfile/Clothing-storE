@@ -231,4 +231,39 @@ public final class CompressedCodePointSet {
     }
 
     private static boolean rangeCrossesPlanes(ImmutableSortedListOfIntRanges ranges, int i) {
-        return highByte(ranges.getLo(i)) != highByte(ranges.getHi(i
+        return highByte(ranges.getLo(i)) != highByte(ranges.getHi(i));
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj instanceof CompressedCodePointSet) {
+            return Arrays.equals(ranges, ((CompressedCodePointSet) obj).ranges) && Arrays.deepEquals(bitSets, ((CompressedCodePointSet) obj).bitSets);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return Arrays.hashCode(ranges) * 31 + Arrays.deepHashCode(bitSets);
+    }
+
+    @TruffleBoundary
+    @Override
+    public String toString() {
+        if (bitSets == null) {
+            return "[" + CharMatchers.rangesToString(ranges) + "]";
+        }
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < ranges.length; i += 2) {
+            if (bitSets[i / 2] == null) {
+                sb.append(Range.toString(ranges[i], ranges[i + 1]));
+            } else {
+                sb.append("[range: ").append(Range.toString(ranges[i], ranges[i + 1])).append(", bs: ").append(BitSets.toString(bitSets[i / 2])).append("]");
+            }
+        }
+        return sb.append("]").toString();
+    }
+}
