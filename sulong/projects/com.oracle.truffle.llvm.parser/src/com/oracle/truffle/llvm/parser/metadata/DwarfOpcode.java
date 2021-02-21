@@ -212,4 +212,100 @@ public final class DwarfOpcode {
         return 1;
     }
 
-    public static boolean hasOp(MDExpr
+    public static boolean hasOp(MDExpression expression, long operand) {
+        final int elementCount = expression.getElementCount();
+        int i = 0;
+        while (i < elementCount) {
+            final long op = expression.getOperand(i);
+            if (op == operand) {
+                return true;
+            }
+            i += numElements(op);
+        }
+        return false;
+    }
+
+    public static boolean isDeref(MDExpression expression) {
+        return hasOp(expression, DEREF);
+    }
+
+    public static BigInteger toIntegerSymbol(MDExpression exp) {
+        final ArrayDeque<BigInteger> dwStack = new ArrayDeque<>(4);
+
+        int i = 0;
+        while (i < exp.getElementCount()) {
+            final long op = exp.getOperand(i++);
+
+            if (op >= LIT0 && op <= LIT31) {
+                dwStack.push(BigInteger.valueOf(op - LIT0));
+
+            } else if (op >= CONST1U && op <= CONSTS) {
+                if (i >= exp.getElementCount()) {
+                    return null;
+                }
+
+                final long arg = exp.getOperand(i++);
+                BigInteger res;
+                switch ((int) op) {
+                    case (int) CONST1S:
+                        res = BigInteger.valueOf((byte) arg);
+                        break;
+
+                    case (int) CONST1U:
+                        res = BigInteger.valueOf(arg & 0xff);
+                        break;
+
+                    case (int) CONST2S:
+                        res = BigInteger.valueOf((short) arg);
+                        break;
+
+                    case (int) CONST2U:
+                        res = BigInteger.valueOf(arg & 0xffff);
+                        break;
+
+                    case (int) CONST4S:
+                        res = BigInteger.valueOf((int) arg);
+                        break;
+
+                    case (int) CONST4U:
+                        res = BigInteger.valueOf(arg & 0xffffffffL);
+                        break;
+
+                    case (int) CONST8S:
+                        res = BigInteger.valueOf(arg);
+                        break;
+
+                    case (int) CONST8U:
+                        res = new BigInteger(Long.toUnsignedString(arg));
+                        break;
+
+                    case (int) CONSTS:
+                    case (int) CONSTU: {
+                        // in practice, CONSTU is used also for signed value and of max 64bit
+                        res = BigInteger.valueOf(arg);
+                        break;
+                    }
+
+                    default:
+                        return null;
+                }
+
+                dwStack.push(res);
+
+            } else if (op == STACK_VALUE) {
+                return !dwStack.isEmpty() ? dwStack.getFirst() : null;
+
+            } else {
+                // currently unsupported operation like PLUS_CONSTU which may expect the current
+                // value of the source-level symbol to be on the expression stack
+                return null;
+            }
+        }
+
+        return null;
+
+    }
+
+    private DwarfOpcode() {
+    }
+}
