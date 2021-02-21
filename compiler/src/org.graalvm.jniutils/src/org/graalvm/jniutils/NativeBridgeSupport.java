@@ -1,6 +1,5 @@
 /*
- * Copyright (c) 2021, 2021, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2021, 2021, Red Hat Inc. All rights reserved.
+ * Copyright (c) 2021, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -23,25 +22,37 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
+package org.graalvm.jniutils;
 
-package com.oracle.svm.test.jfr.utils.poolparsers;
+import org.graalvm.nativeimage.ImageSingletons;
 
-import java.io.IOException;
+/**
+ * Services used by the {@code org.graalvm.jniutils} module. To enable the
+ * {@code org.graalvm.jniutils} module a {@code NativeBridgeSupport} instance must be registered in
+ * the {@link ImageSingletons}.
+ */
+public interface NativeBridgeSupport {
 
-import com.oracle.svm.core.jfr.JfrType;
-import com.oracle.svm.test.jfr.utils.RecordingInput;
+    /**
+     * Returns the name of a feature using {@code org.graalvm.jniutils} module. The feature name is
+     * used in the logging output.
+     */
+    String getFeatureName();
 
-public class ModuleConstantPoolParser extends ConstantPoolParser {
+    /**
+     * Checks if logging at given level is enabled.
+     */
+    boolean isTracingEnabled(int level);
 
-    @Override
-    public void parse(RecordingInput input) throws IOException {
-        int numberOfModules = input.readInt();
-        for (int i = 0; i < numberOfModules; i++) {
-            addFoundId(input.readLong()); // ModuleId.
-            addExpectedId(JfrType.Symbol, input.readLong()); // ModuleName.
-            addExpectedId(JfrType.Symbol, input.readLong()); // Version.
-            addExpectedId(JfrType.Symbol, input.readLong()); // Location.
-            addExpectedId(JfrType.ClassLoader, input.readLong()); // ClassLoaderId.
-        }
+    /**
+     * Logs the message.
+     */
+    void trace(String message);
+
+    /**
+     * Returns a {@code NativeBridgeSupport} instance registered in the {@link ImageSingletons}.
+     */
+    static NativeBridgeSupport getInstance() {
+        return ImageSingletons.lookup(NativeBridgeSupport.class);
     }
 }

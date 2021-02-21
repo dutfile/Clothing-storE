@@ -1,6 +1,5 @@
 /*
- * Copyright (c) 2021, 2021, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2021, 2021, Red Hat Inc. All rights reserved.
+ * Copyright (c) 2020, 2021, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -23,25 +22,33 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
+package com.oracle.svm.core.jfr;
 
-package com.oracle.svm.test.jfr.utils.poolparsers;
+import com.oracle.svm.core.Uninterruptible;
 
-import java.io.IOException;
+/**
+ * Epoch-based storage for metadata. Switching the epoch and iterating the collected data may only
+ * be done at a safepoint. All methods that manipulate data in the constant pool must be
+ * {@link Uninterruptible} to guarantee that a safepoint always sees a consistent state. Otherwise,
+ * other JFR code could see partially added data when it tries to iterate the data at a safepoint.
+ */
+public interface JfrConstantPool {
 
-import com.oracle.svm.core.jfr.JfrType;
-import com.oracle.svm.test.jfr.utils.RecordingInput;
+    /**
+     * If constant pool is empty, the {@link JfrConstantPool#write(JfrChunkWriter)} function returns
+     * this value.
+     */
+    int EMPTY = 0;
 
-public class ModuleConstantPoolParser extends ConstantPoolParser {
+    /**
+     * If constant pool is not empty, the {@link JfrConstantPool#write(JfrChunkWriter)} function
+     * returns this value.
+     */
+    int NON_EMPTY = 1;
 
-    @Override
-    public void parse(RecordingInput input) throws IOException {
-        int numberOfModules = input.readInt();
-        for (int i = 0; i < numberOfModules; i++) {
-            addFoundId(input.readLong()); // ModuleId.
-            addExpectedId(JfrType.Symbol, input.readLong()); // ModuleName.
-            addExpectedId(JfrType.Symbol, input.readLong()); // Version.
-            addExpectedId(JfrType.Symbol, input.readLong()); // Location.
-            addExpectedId(JfrType.ClassLoader, input.readLong()); // ClassLoaderId.
-        }
-    }
+    /**
+     * Persists the data of the previous epoch. May only be called at a safepoint, after the epoch
+     * changed.
+     */
+    int write(JfrChunkWriter writer);
 }
