@@ -106,4 +106,6 @@ public class VectorizedMismatchNode extends PureFunctionStubIntrinsicNode {
 
     @Override
     public void emitIntrinsic(NodeLIRBuilderTool gen) {
-        gen.setResult(this, gen.getLIRGeneratorTool().emitVectorizedMis
+        gen.setResult(this, gen.getLIRGeneratorTool().emitVectorizedMismatch(getRuntimeCheckedCPUFeatures(), gen.operand(arrayA), gen.operand(arrayB), gen.operand(length), gen.operand(stride)));
+    }
+}
