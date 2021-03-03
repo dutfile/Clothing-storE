@@ -1,5 +1,6 @@
+
 /*
- * Copyright (c) 2022, Oracle and/or its affiliates.
+ * Copyright (c) 2017, 2020, Oracle and/or its affiliates.
  *
  * All rights reserved.
  *
@@ -27,8 +28,11 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-//TODO GR-42838 fix warnings
-@SuppressPackageWarnings({"truffle-inlining", "truffle-sharing", "truffle-neverdefault", "truffle-limit"})
-package com.oracle.truffle.llvm.runtime.debug.scope;
 
-import com.oracle.truffle.api.dsl.SuppressPackageWarnings;
+#include <stdlib.h>
+
+int main() {
+    int *p = (int *) malloc(8);
+    free(p);
+    return 0;
+}
