@@ -87,4 +87,19 @@ public class JVMInformation {
             jvmInfo.jvmArguments = getVmArgs(support);
             jvmInfo.jvmFlags = "";
             jvmInfo.javaArguments = support.getJavaCommand();
-       
+            jvmInfo.jvmStartTime = ManagementFactory.getRuntimeMXBean().getStartTime();
+            jvmInfo.jvmPid = ManagementFactory.getRuntimeMXBean().getPid();
+        }
+
+        return jvmInfo;
+    }
+
+    private static String getVmArgs(JavaMainWrapper.JavaMainSupport support) {
+        StringBuilder vmArgs = new StringBuilder();
+
+        for (String arg : support.getInputArguments()) {
+            vmArgs.append(arg).append(' ');
+        }
+        return vmArgs.toString().trim();
+    }
+}
