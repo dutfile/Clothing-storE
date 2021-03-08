@@ -452,3 +452,22 @@ end
 
 class IdEntry < Entry
   def match(hash, key)
+    @hash == hash && (@key.equal? key)
+  end
+end
+
+class IdentityDictionary < Dictionary
+  def new_entry(key, value, hash)
+    IdEntry.new(hash, key, value, nil)
+  end
+end
+
+class Random
+  def initialize
+    @seed = 74_755
+  end
+
+  def next
+    @seed = ((@seed * 1_309) + 13_849) & 65_535
+  end
+end
