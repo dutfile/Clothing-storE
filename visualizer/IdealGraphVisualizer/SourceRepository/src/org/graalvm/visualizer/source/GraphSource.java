@@ -100,4 +100,196 @@ public final class GraphSource {
         }
 
         @Override
-        public v
+        public void run() {
+            reset();
+        }
+    }
+    
+    Location uniqueLocation(Location l) {
+        synchronized (uniqueLocations) {
+            Location orig = uniqueLocations.putIfAbsent(l, l);
+            return orig == null ? l : orig;
+        }
+    }
+    
+    public Location findNodeLocation(InputNode n) {
+        InputGraph g = getGraph();
+        if (g == null) {
+            return null;
+        }
+        synchronized (children) {
+            if (!g.getNodes().contains(n)) {
+                return null;
+            }
+        }
+        NodeStack st = getNodeStack(n);
+        return st == null ? null : st.top().getLocation();
+    }
+    
+    public Collection<InputNode> getNodesAt(Location l) {
+        Set<InputNode> nodes = new HashSet<>();
+        synchronized (children) {
+            InputGraph g = getGraph();
+            if (g == null) {
+                return Collections.emptySet();
+            }
+            Object o = nodeMap.get(l);
+            Collection<StackData> data;
+            if (o == null) {
+                return Collections.emptySet();
+            }
+            if (o instanceof Collection) {
+                data = ((Collection)o);
+            } else {
+                data = Collections.singletonList((StackData)o);
+            }
+            for (StackData sd : data) {
+                InputNode n = g.getNode(sd.getNodeId());
+                if (n != null) {
+                    nodes.add(n);
+                }
+            }
+        }
+        return nodes;
+    }
+    
+    Collection<FileKey>  getFileKeys() {
+        compute(null);
+        synchronized (children) {
+            Set<FileKey> result = new HashSet<>(keyLocations.keySet());
+            for (Map.Entry<FileObject, List<Location>> e : fileLocations.entrySet()) {
+                FileObject f = e.getKey();
+                Collection<Location> c = e.getValue();
+                FileKey k;
+                if (!c.isEmpty()) {
+                    k = c.iterator().next().getFile();
+                } else {
+                    Language lng = Language.getRegistry().findLanguageByMime(f.getMIMEType());
+                    if (lng == null) {
+                        continue;
+                    }
+                    k = FileKey.fromFile(f);
+                }
+                result.add(k);
+            }
+            return result;
+        }
+    }
+    
+    Collection<Location> getFileLocations(FileKey fk, boolean nodesPresent) {
+        if (fk.isResolved()) {
+            return getFileLocations(fk.getResolvedFile(), nodesPresent);
+        }
+        Collection<Location> locs;
+        synchronized (children) {
+            locs = keyLocations.get(fk);
+        }
+        return filterLocations(new ArrayList<>(locs), nodesPresent);
+    }
+    
+    private Loader createLoader(InputGraph g, Collection<InputNode> nodesToLoad) {
+        Collection<? extends StackProcessor.Factory> factories = Lookup.getDefault().lookupAll(StackProcessor.Factory.class);
+        Map<String, ProcessorContext> contexts = new HashMap<>();
+        String[] allIds = null;
+        for (StackProcessor.Factory f : factories) {
+            String[] ids = f.getLanguageIDs();
+            if (ids == null) {
+                if (allIds == null) {
+                    allIds = Language.getRegistry().getMimeTypes().toArray(new String[1]);
+                }
+                ids = allIds;
+            }
+            for (String m : ids) {
+                ProcessorContext ctx = contexts.computeIfAbsent(m, (mime) -> new ProcessorContext(this, g, fileRegistry, mime));
+                StackProcessor p = f.createProcessor(ctx);
+                if (p == null) {
+                    continue;
+                }
+                ctx.addProcessor(p);
+            }
+        }
+        return new Loader(contexts.values(), nodesToLoad);
+    }
+    
+    private int compareLine(Location l1, Location l2) {
+        return l1.getLine() - l2.getLine();
+    }
+    
+    // @GuardedBy(children)
+    private void mergeResults(ProcessorContext ctx) {
+        // merge children
+        if (this.children.isEmpty()) {
+            this.children.putAll(ctx.successors);
+        } else {
+            for (Map.Entry en : ctx.successors.entrySet()) {
+                Location parent = (Location)en.getKey();
+                Set<Location> nue = (Set<Location>)en.getValue();
+                
+                Set<Location> existing = children.get(parent);
+                if (existing == null) {
+                    children.put(parent, nue);
+                } else {
+                    existing.addAll(nue);
+                }
+            }
+        }
+        
+        // merge file locations
+        for (Map.Entry en : ctx.fileLocations.entrySet()) {
+            FileObject f = (FileObject)en.getKey();
+            List l = (List)en.getValue();
+            List<Location> locs = fileLocations.putIfAbsent(f, l);
+            if (locs != null) {
+                Set<Location> x = new HashSet<>(locs);
+                x.addAll(l);
+                locs = new ArrayList<>(x);
+                fileLocations.put(f, locs);
+            } else {
+                locs = l;
+            }
+            Collections.sort(locs, this::compareLine);
+        }
+        for (Map.Entry en : ctx.keyLocations.entrySet()) {
+            FileKey f = (FileKey)en.getKey();
+            List l = (List)en.getValue();
+            if (f.isResolved()) {
+                List<Location> locs = fileLocations.putIfAbsent(f.getResolvedFile(), l);
+                if (locs != null) {
+                    Set<Location> all = new HashSet<>(locs);
+                    all.addAll(l);
+                    locs = new ArrayList<>(all);
+                    fileLocations.put(f.getResolvedFile(), locs);
+                } else {
+                    locs = l;
+                }
+                Collections.sort(locs, this::compareLine);
+            } else {
+                keyLocations.computeIfAbsent(f, (x) -> new HashSet<Location>()).addAll(l);
+            }
+        }
+        
+        // merge final locations
+        for (Map.Entry<Location, Collection<StackData>> en : ctx.finalLocations.entrySet()) {
+            addNodeMap(en.getKey(), en.getValue());
+        }
+    }
+    
+    private volatile boolean computed;
+    
+    private ScheduledFuture computeTask;
+    
+    class Loader implements Runnable {
+        private final Collection<ProcessorContext> contexts;
+        private Collection<InputNode> nodesToLoad;
+        
+        
+        public Loader(Collection<ProcessorContext> contexts, Collection<InputNode> nodesToLoad) {
+            this.contexts = new ArrayList<>(contexts);
+            this.nodesToLoad = nodesToLoad == null ? null : new HashSet<>(nodesToLoad);
+        }
+        
+        @Override
+        public void run() {
+            boolean fullLoad = nodesToLoad == null;
+            try {
+         
