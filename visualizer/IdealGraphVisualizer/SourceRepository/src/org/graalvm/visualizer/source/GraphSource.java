@@ -292,4 +292,205 @@ public final class GraphSource {
         public void run() {
             boolean fullLoad = nodesToLoad == null;
             try {
-         
+                InputGraph g = graph.get();
+                if (g == null) {
+                    return;
+                }
+                if (!fullLoad) {
+                    synchronized (children) {
+                        for (InputNode n : new ArrayList<>(nodesToLoad)) {
+                            if (stackData[n.getId()] != null) {
+                                nodesToLoad.remove(n);
+                            }
+                        }
+                    }
+                }
+                if (nodesToLoad == null) {
+                    nodesToLoad = g.getNodes();
+                }
+                for (InputNode n : nodesToLoad) {
+                    for (ProcessorContext c : contexts) {
+                        c.processNode(n);
+                    }
+                }
+                synchronized (children) {
+                    if (computed) {
+                        return;
+                    }
+                    if (fullLoad) {
+                        reset();
+                    }
+                    for (ProcessorContext c : contexts) {
+                        mergeResults(c);
+                    }
+                    if (fullLoad) {
+                        computed = true;
+                    } else {
+                        
+                    }
+                    computeTask = null;
+                }
+            } catch (Throwable ex) {
+                Exceptions.printStackTrace(ex);
+            }
+        }
+    }
+    
+    // @GuardedBy(children)
+    private void addNodeMap(Location l, Collection<StackData> nodes) {
+        Object o = nodeMap.get(l);
+        if (o == null) {
+            if (!nodes.isEmpty()) {
+                if (nodes.size() == 1) {
+                    nodeMap.put(l, nodes.iterator().next());
+                } else {
+                    nodeMap.put(l, nodes);
+                }
+            }
+        } else if (o instanceof Collection) {
+            ((Collection)o).addAll(nodes);
+        } else if (!nodes.isEmpty()) {
+            Collection c = new ArrayList<>();
+            c.addAll(nodes);
+            c.add((StackData)o);
+            nodeMap.put(l, c);
+        }
+        for (StackData sd : nodes) {
+            putStackData(sd);
+        }
+    }
+    
+    private void keysResolved(Collection<FileKey> keys) {
+        synchronized (children) {
+            for (FileKey rk : keys) {
+                Collection<Location> newLocs = keyLocations.remove(rk);
+                if (newLocs == null) {
+                    continue;
+                }
+                FileObject f = rk.getResolvedFile();
+                List<Location> locs = fileLocations.get(f);
+                if (locs != null) {
+                    newLocs.addAll(locs);
+                    locs = new ArrayList<>(newLocs);
+                } else {
+                    locs = new ArrayList<>(newLocs);
+                    fileLocations.put(f, locs);
+                }
+                Collections.sort(locs, this::compareLine);
+            }
+        }
+        // XXX some change event ?
+    }
+    
+    public Collection<FileObject>   getSourceFiles() {
+        compute(null);
+        synchronized (children) {
+            return new HashSet<>(fileLocations.keySet());
+        }
+    }
+    
+    /**
+     * Gets all locations within a file. If `nodePresent' is true, only locations
+     * which contains an InputNode are returned. Otherwise the method returns
+     * locations within the file, which some node stack passes through.
+     * @param f file 
+     * @param nodePresent if true, only locations where a Node was generated from
+     * are returned
+     * @return list of locations, sorted by line number
+     */
+    public List<Location> getFileLocations(FileObject f, boolean nodePresent) {
+        compute(null);
+        List<Location> locs;
+        synchronized (children) {
+            locs = fileLocations.get(f);
+        }
+        return filterLocations(locs, nodePresent);
+    }
+    
+    private List<Location> filterLocations(List<Location> locs, boolean nodePresent) {
+        if (locs == null || locs.isEmpty()) {
+            return Collections.emptyList();
+        } else if (!nodePresent) {
+            return locs;
+        }
+        List<Location> result = new ArrayList<>(locs);
+        synchronized (children) {
+            for (Iterator<Location> it = result.iterator(); it.hasNext(); ) {
+                Location l = it.next();
+                if (!nodeMap.containsKey(l)) {
+                    it.remove();
+                }
+            }
+        }
+        return result;
+    }
+    
+    public Collection<InputNode>  findLangugageNodes(String mime) {
+        compute(null);
+        Collection<InputNode> result = new ArrayList<>();
+        InputGraph g = graph.get();
+        if (g == null) {
+            return Collections.emptyList();
+        }
+        synchronized (children) {
+            for (int i = 0; i < stackData.length; i++) {
+                StackData sd = getStackData(i, mime);
+                if (sd != null) {
+                    result.add(g.getNode(i));
+                }
+            }
+        }
+        return result;
+    }
+    
+    /**
+     * Prepares data structures, in a dedicated thread.
+     * @param nodes nodes to load
+     * @return Future which becomes complete when data loads.
+     */
+    public Future<Void> prepare(Collection<InputNode> nodes) {
+        InputGraph g = getGraph();
+        if (g == null) {
+            CompletableFuture<Void> cf = new CompletableFuture<>();
+            cf.complete(null);
+            return cf;
+        }
+        synchronized (children) {
+            boolean ready = computed;
+            if (!ready && nodes != null) {
+                ready = true;
+                for (InputNode n : nodes) {
+                    Reference<NodeStack> r = nodeStacks[n.getId()];
+                    if (r == null) {
+                        ready = false;
+                        break;
+                    }
+                }
+            }
+            if (ready) {
+                CompletableFuture<Void> cf = new CompletableFuture<Void>();
+                cf.complete(null);
+                return cf;
+            }
+            ScheduledFuture task;
+            if (nodes == null) {
+                if (computeTask == null) {
+                    computeTask = loaderProc.schedule(createLoader(g, nodes), 0, TimeUnit.MILLISECONDS);
+                }
+                task = computeTask;
+            } else {
+                task = loaderProc.schedule(createLoader(g, nodes), 0, TimeUnit.MILLISECONDS);
+            }
+            return task;
+        }
+    }
+    
+
+    private void compute(Collection<InputNode> nodes) {
+        try {
+            prepare(nodes).get();
+        } catch (InterruptedException | ExecutionException ex) {
+        }
+    }
+    
+    private void addStackResult(Collection<Nod
