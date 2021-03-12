@@ -691,4 +691,70 @@ public final class GraphSource {
      * @param nodeId ID of the node
      * @return list of languages attached to the node
      */
-    public List<String> getStackLa
+    public List<String> getStackLanguages(int nodeId) {
+        synchronized (stackData) {
+            if (nodeId >= stackData.length) {
+                // bad node ID ?
+                return Collections.emptyList();
+            }
+            Object o = stackData[nodeId];
+            if (o == null) {
+                return Collections.emptyList();
+            }
+            if (o instanceof StackData) {
+                return Collections.singletonList(((StackData)o).getLanguageMimeType());
+            }
+            
+            Collection<StackData> c = (Collection<StackData>)o;
+            List<String> res = new ArrayList<>(c.size());
+            for (StackData sd : c) {
+                res.add(sd.getLanguageMimeType());
+            }
+            return res;
+        }
+    }
+    
+    private StackData getStackData(int nodeId, String mime) {
+        Object o = stackData[nodeId];
+        if (o == null) {
+            return null;
+        } else if (o instanceof StackData) {
+            StackData sd = (StackData)o;
+            if (mime == null || sd.getLanguageMimeType().equals(mime)) {
+                return sd;
+            }
+        } else if (o instanceof Collection) {
+            Collection<StackData> c = (Collection<StackData>)o;
+            for (StackData sd : c) {
+                if (mime == null || sd.getLanguageMimeType().equals(mime)) {
+                    return sd;
+                }
+            }
+        }
+        return null;
+    }
+    
+    private void putStackData(StackData sd) {
+        int nodeId = sd.getNodeId();
+        if (stackData[nodeId] == null) {
+            stackData[nodeId] = sd;
+            return;
+        }
+        Object o = stackData[nodeId];
+        Collection<StackData> c;
+        
+        if (o instanceof StackData) {
+            StackData other = (StackData)o;
+            if (other.getLanguageMimeType().equals(sd.getLanguageMimeType())) {
+                stackData[nodeId] = sd;
+                return;
+            }
+            c = new ArrayList<>();
+            c.add(other);
+            stackData[nodeId] = c;
+        } else {
+            c = (Collection<StackData>)o;
+        }
+        c.add(sd);
+    }
+}
