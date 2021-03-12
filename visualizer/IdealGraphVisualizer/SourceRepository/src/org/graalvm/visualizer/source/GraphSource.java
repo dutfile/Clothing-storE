@@ -493,4 +493,202 @@ public final class GraphSource {
         }
     }
     
-    private void addStackResult(Collection<Nod
+    private void addStackResult(Collection<NodeStack> result, Location l) {
+        Object o = nodeMap.get(l);
+        if (o instanceof Collection) {
+            for (StackData sd : (Collection<StackData>)o) {
+                result.add(getNodeStack(sd.getNodeId(), l.getFile().getMime()));
+            }
+        } else if (o != null) {
+            result.add(getNodeStack(((StackData)o).getNodeId(), l.getFile().getMime()));
+        }
+
+    }
+    
+    /**
+     * Enumerates nodes whose stacktraces pass through the given location. Each InputNode 
+     * and NodeStack is returned at most once, even though it passes through the location multiple
+     * times (e.g. because of recursion).
+     * 
+     * @param l the initial location.
+     * @return 
+     */
+    public Iterable<NodeStack> getNodesPassingThrough(Location l) {
+        Set<NodeStack> result = new HashSet<>();
+        Collection<Location> n;
+        synchronized (children) {
+            // initial top nodes
+            addStackResult(result, l);
+            n = getNestedLocations(l);
+            if (n == null || n.isEmpty()) {
+                // just the initial nodes
+                return result;
+            }
+        }
+        
+        class I implements Iterator<NodeStack> {
+            private Iterator<NodeStack> resIter = result.isEmpty() ? null : result.iterator();
+            private Deque<Location> toProcess = new ArrayDeque<>(n);
+            private Set<Location> seen = new HashSet<>(n);
+            private Set<NodeStack> seenStacks = new HashSet<>(result);
+
+            @Override
+            public boolean hasNext() {
+                if (resIter != null) {
+                    if (resIter.hasNext()) {
+                        return true;
+                    }
+                    resIter = null;
+                }
+                Collection<NodeStack> stacks = new HashSet<>();
+                Collection<Location> locs;
+                while (!toProcess.isEmpty()) {
+                    Location l = toProcess.poll();
+                    synchronized (children) {
+                        addStackResult(stacks, l);
+                        locs = new HashSet<>(children.getOrDefault(l, Collections.emptySet()));
+                    };
+                    locs.removeAll(seen);
+                    stacks.removeAll(seenStacks);
+                    toProcess.addAll(locs);
+                    if (!stacks.isEmpty()) {
+                        seen.addAll(locs);
+                        seenStacks.addAll(stacks);
+                        resIter = stacks.iterator();
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            @Override
+            public NodeStack next() {
+                if (resIter != null) {
+                    return resIter.next();
+                }
+                throw new NoSuchElementException();
+            }
+            
+        }
+        return new Iterable<NodeStack>() {
+            @Override
+            public Iterator<NodeStack> iterator() {
+                return new I();
+            }
+        };
+    }
+    
+    private Set<Location> getNestedLocations(Location l) {
+        synchronized (children) {
+            Set<Location> locs = children.get(l);
+            return locs == null ? Collections.emptySet() : locs;
+        }
+    }
+    
+    private static final String DEFAULT_MIME = "text/x-java"; // NOI18N
+    
+    public NodeStack getNodeStack(InputNode n) {
+        return getNodeStack(n, DEFAULT_MIME);
+    }
+    
+    /**
+     * Returns stack for the given Node.
+     * @param n the Node
+     * @return stack data
+     */
+    public NodeStack getNodeStack(InputNode n, String mime) {
+        if (n == null) {
+            return null;
+        }
+        compute(Collections.singleton(n));
+        int id = n.getId();
+        synchronized (children) {
+            return getNodeStack(id, mime);
+        }
+    }
+    
+    private final Map<String, NodeStack> nostackMarkers = new HashMap<>();
+    
+    private NodeStack getNodeStack(int id, String mime) {
+        Reference<NodeStack> rS = nodeStacks[id];
+        if (rS != null) {
+            // do not check for NO_STACK
+            NodeStack ns = rS.get();
+            if (ns != null) {
+                if (mime == null || Objects.equals(ns.getMime(), mime)) {
+                    return ns.isEmpty() ? null : ns;
+                }
+            }
+        }
+        StackData sd = getStackData(id, mime);
+        if (sd == null) {
+            NodeStack st = nostackMarkers.computeIfAbsent(mime, (m) -> new NodeStack(this, m));
+            nodeStacks[id] = new WeakReference<>(st);
+            return null;
+        }
+        NodeStack ns = new NodeStack(this, sd);
+        nodeStacks[id] = new WeakReference(ns);
+        return ns;
+    }
+    
+    private static final Lookup[] NO_LOOKUPS = new Lookup[0];
+    
+    Lookup[] findLookup(InputNode node, NodeStack.Frame f) {
+        Location l = f.getLocation();
+        Lookup lkp = GraphSourceRegistry.getDefault().providerLookup(l.getFile().getMime());
+        List<Lookup> lkps = new ArrayList<>();
+        Lookup s = null;
+        for (LocationServices srv : lkp.lookupAll(LocationServices.class)) {
+            s = srv.createLookup(f);
+            if (s != null) {
+                lkps.add(s);
+            }
+        }
+        if (lkps.isEmpty()) {
+            return NO_LOOKUPS;
+        }
+        return lkps.toArray(new Lookup[lkps.size()]);
+    }
+    
+    private static class LocationUpdater extends WeakReference<GraphSource> implements FileRegistry.FileRegistryListener, Runnable {
+        public LocationUpdater(GraphSource referent) {
+            super(referent, Utilities.activeReferenceQueue());
+        }
+        
+        @Override
+        public void filesResolved(FileRegistry.FileRegistryEvent ev) {
+            GraphSource gs = get();
+            if (gs == null) {
+                ev.getRegistry().removeFileRegistryListener(this);
+                return;
+            }
+            gs.keysResolved(ev.getResolvedKeys());
+        }
+
+        @Override
+        public void run() {
+            FileRegistry.getInstance().removeFileRegistryListener(this);
+        }
+    }
+    
+    public static GraphSource getGraphSource(InputGraph g) {
+        return GraphSourceRegistry.getDefault().getSource(g);
+    }
+    
+    public Future<Void> prepare() {
+        return prepare(null);
+    }
+    
+    /**
+     * @return true, if data is prepared and a query will not block
+     */
+    public boolean isPrepared() {
+        return computed;
+    }
+    
+    /**
+     * Languages available for the node.
+     * @param nodeId ID of the node
+     * @return list of languages attached to the node
+     */
+    public List<String> getStackLa
