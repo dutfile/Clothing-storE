@@ -40,3 +40,55 @@ import com.oracle.truffle.llvm.runtime.datalayout.DataLayout;
 import com.oracle.truffle.llvm.runtime.except.LLVMParserException;
 import com.oracle.truffle.llvm.runtime.nodes.api.LLVMExpressionNode;
 import com.oracle.truffle.llvm.runtime.pointer.LLVMNativePointer;
+import com.oracle.truffle.llvm.runtime.types.PointerType;
+import com.oracle.truffle.llvm.runtime.types.Type;
+
+public final class BlockAddressConstant extends AbstractConstant {
+
+    private FunctionDefinition function;
+
+    private final int block;
+
+    private BlockAddressConstant(Type type, int block) {
+        super(type);
+        this.block = block;
+    }
+
+    @Override
+    public void accept(SymbolVisitor visitor) {
+        visitor.visit(this);
+    }
+
+    public FunctionDefinition getFunction() {
+        return function;
+    }
+
+    @Override
+    public void replace(SymbolImpl original, SymbolImpl replacement) {
+        if (function == original) {
+            if (replacement instanceof FunctionDefinition) {
+                function = (FunctionDefinition) replacement;
+            } else {
+                throw new LLVMParserException("Illegal symbol for function in BlockAddressConstant: " + replacement);
+            }
+        }
+    }
+
+    public static BlockAddressConstant fromSymbols(SymbolTable symbols, Type type, int function, int block) {
+        final BlockAddressConstant constant = new BlockAddressConstant(type, block);
+        final SymbolImpl functionSymbol = symbols.getForwardReferenced(function, constant);
+        if (functionSymbol instanceof FunctionDefinition) {
+            constant.function = (FunctionDefinition) functionSymbol;
+        } else {
+            throw new LLVMParserException("Illegal symbol for function in BlockAddressConstant: " + functionSymbol);
+        }
+        return constant;
+    }
+
+    @Override
+    public LLVMExpressionNode createNode(LLVMParserRuntime runtime, DataLayout dataLayout, GetStackSpaceFactory stackFactory) {
+        LLVMNativePointer blockAddress = LLVMNativePointer.create(block);
+        PointerType type = new PointerType(null);
+        return CommonNodeFactory.createLiteral(blockAddress, type);
+    }
+}
