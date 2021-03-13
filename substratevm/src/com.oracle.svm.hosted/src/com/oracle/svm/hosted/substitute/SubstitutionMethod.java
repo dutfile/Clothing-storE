@@ -115,4 +115,176 @@ public class SubstitutionMethod implements ResolvedJavaMethod, GraphProvider, Or
     @Override
     public StructuredGraph buildGraph(DebugContext debug, ResolvedJavaMethod method, HostedProviders providers, Purpose purpose) {
         if (annotated instanceof GraphProvider) {
-            return ((GraphProvider) annotated).buildGraph(debug, method, pro
+            return ((GraphProvider) annotated).buildGraph(debug, method, providers, purpose);
+        }
+        return null;
+    }
+
+    @Override
+    public boolean allowRuntimeCompilation() {
+        if (annotated instanceof GraphProvider) {
+            return ((GraphProvider) annotated).allowRuntimeCompilation();
+        }
+        return true;
+    }
+
+    @Override
+    public byte[] getCode() {
+        return annotated.getCode();
+    }
+
+    @Override
+    public int getCodeSize() {
+        return annotated.getCodeSize();
+    }
+
+    @Override
+    public ResolvedJavaType getDeclaringClass() {
+        return (inClassSubstitution ? annotated.getDeclaringClass() : original.getDeclaringClass());
+    }
+
+    @Override
+    public int getMaxLocals() {
+        return annotated.getMaxLocals();
+    }
+
+    @Override
+    public int getMaxStackSize() {
+        return annotated.getMaxStackSize();
+    }
+
+    @Override
+    public int getModifiers() {
+        return annotated.getModifiers();
+    }
+
+    @Override
+    public boolean isSynthetic() {
+        return annotated.isSynthetic();
+    }
+
+    @Override
+    public boolean isVarArgs() {
+        return annotated.isVarArgs();
+    }
+
+    @Override
+    public boolean isBridge() {
+        return annotated.isBridge();
+    }
+
+    @Override
+    public boolean isClassInitializer() {
+        return original.isClassInitializer();
+    }
+
+    @Override
+    public boolean isConstructor() {
+        return original.isConstructor();
+    }
+
+    @Override
+    public boolean canBeStaticallyBound() {
+        return original.canBeStaticallyBound();
+    }
+
+    @Override
+    public ExceptionHandler[] getExceptionHandlers() {
+        return annotated.getExceptionHandlers();
+    }
+
+    @Override
+    public StackTraceElement asStackTraceElement(int bci) {
+        return annotated.asStackTraceElement(bci);
+    }
+
+    @Override
+    public ProfilingInfo getProfilingInfo(boolean includeNormal, boolean includeOSR) {
+        throw unimplemented();
+    }
+
+    @Override
+    public ConstantPool getConstantPool() {
+        return annotated.getConstantPool();
+    }
+
+    @Override
+    public AnnotatedElement getAnnotationRoot() {
+        return annotated;
+    }
+
+    @Override
+    public Annotation[][] getParameterAnnotations() {
+        return annotated.getParameterAnnotations();
+    }
+
+    @Override
+    public Parameter[] getParameters() {
+        return original.getParameters();
+    }
+
+    @Override
+    public Type[] getGenericParameterTypes() {
+        return original.getGenericParameterTypes();
+    }
+
+    @Override
+    public boolean canBeInlined() {
+        throw unimplemented();
+    }
+
+    @Override
+    public boolean hasNeverInlineDirective() {
+        throw unimplemented();
+    }
+
+    @Override
+    public boolean shouldBeInlined() {
+        throw unimplemented();
+    }
+
+    @Override
+    public LineNumberTable getLineNumberTable() {
+        return annotated.getLineNumberTable();
+    }
+
+    @Override
+    public String toString() {
+        return "SubstitutionMethod<definition " + original.toString() + ", implementation " + annotated.toString() + ">";
+    }
+
+    @Override
+    public LocalVariableTable getLocalVariableTable() {
+        return localVariableTable;
+    }
+
+    @Override
+    public void reprofile() {
+        throw unimplemented();
+    }
+
+    @Override
+    public Constant getEncoding() {
+        throw unimplemented();
+    }
+
+    @Override
+    public boolean isInVirtualMethodTable(ResolvedJavaType resolved) {
+        return false;
+    }
+
+    @Override
+    public boolean isDefault() {
+        throw unimplemented();
+    }
+
+    @Override
+    public SpeculationLog getSpeculationLog() {
+        throw shouldNotReachHere();
+    }
+
+    @Override
+    public Executable getJavaMethod() {
+        return OriginalMethodProvider.getJavaMethod(original);
+    }
+}
