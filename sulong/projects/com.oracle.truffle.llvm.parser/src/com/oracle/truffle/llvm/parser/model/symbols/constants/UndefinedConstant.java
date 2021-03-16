@@ -65,4 +65,10 @@ public final class UndefinedConstant extends AbstractConstant {
 
     @Override
     public void addToBuffer(Buffer buffer, LLVMParserRuntime runtime, DataLayout dataLayout, GetStackSpaceFactory stackFactory) throws TypeOverflowException {
-        long newOffset = buffer.get
+        long newOffset = buffer.getBuffer().position() + getType().getSize(dataLayout);
+        if (newOffset != (int) newOffset) {
+            throw new TypeOverflowException("constant offset > 2GB");
+        }
+        buffer.getBuffer().position((int) newOffset);
+    }
+}
