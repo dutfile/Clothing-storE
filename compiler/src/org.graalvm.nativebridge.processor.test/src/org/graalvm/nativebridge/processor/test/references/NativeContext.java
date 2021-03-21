@@ -1,5 +1,6 @@
+
 /*
- * Copyright (c) 2015, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2022, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,16 +23,25 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package org.graalvm.compiler.truffle.runtime;
+package org.graalvm.nativebridge.processor.test.references;
 
-/**
- * A service for getting types that can be resolved by
- * {@link GraalTruffleRuntime#resolveType(jdk.vm.ci.meta.MetaAccessProvider, String, boolean)}.
- */
-public interface TruffleTypes {
+import org.graalvm.jniutils.HSObject;
+import org.graalvm.nativebridge.ByReference;
+import org.graalvm.nativebridge.GenerateHotSpotToNativeBridge;
+import org.graalvm.nativebridge.NativeIsolate;
+import org.graalvm.nativebridge.NativeObject;
+import org.graalvm.nativebridge.processor.test.TestJNIConfig;
+import org.graalvm.nativeimage.c.function.CEntryPoint.NotIncludedAutomatically;
 
-    /**
-     * Gets the types supplied by this supplier.
-     */
-    Class<?>[] getTypes();
+@GenerateHotSpotToNativeBridge(jniConfig = TestJNIConfig.class, include = NotIncludedAutomatically.class)
+abstract class NativeContext extends NativeObject implements Context {
+
+    NativeContext(NativeIsolate isolate, long handle) {
+        super(isolate, handle);
+    }
+
+    @Override
+    @ByReference(HSObject.class)
+    public abstract Handler getHandler();
+
 }
