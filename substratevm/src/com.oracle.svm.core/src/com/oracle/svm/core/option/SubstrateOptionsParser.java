@@ -188,4 +188,58 @@ public class SubstrateOptionsParser {
         }
 
         if (option.getDescriptor().getOptionValueType() == Boolean.class) {
-            VMError.guarantee(value.equals("+") || va
+            VMError.guarantee(value.equals("+") || value.equals("-"), "Boolean option value can be only + or -");
+            for (APIOption apiOption : apiOptions) {
+                String selected = selectVariant(apiOption, apiOptionName);
+                if (selected != null) {
+                    String apiValue = apiOption.kind() == APIOption.APIOptionKind.Negated ? "-" : "+";
+                    if (apiValue.equals(value)) {
+                        return APIOption.Utils.optionName(selected);
+                    }
+                }
+            }
+            return HOSTED_OPTION_PREFIX + value + option;
+        } else {
+            String apiOptionWithValue = null;
+            for (APIOption apiOption : apiOptions) {
+                String selected = selectVariant(apiOption, apiOptionName);
+                if (selected != null) {
+                    String optionName = APIOption.Utils.optionName(selected);
+                    if (apiOption.fixedValue().length == 0) {
+                        if (apiOptionWithValue == null) {
+                            /* First APIOption that accepts value is selected as fallback */
+                            if (Arrays.equals(apiOption.defaultValue(), new String[]{value})) {
+                                /* Option with default value. Use short form */
+                                apiOptionWithValue = optionName;
+                            } else {
+                                /* Option with custom value. Use form with valueSeparator */
+                                apiOptionWithValue = optionName + apiOption.valueSeparator()[0] + value;
+                            }
+                        }
+                    } else if (apiOption.fixedValue()[0].equals(value)) {
+                        /* Return requested option expressed as fixed-value APIOption */
+                        return optionName;
+                    }
+                }
+            }
+            if (apiOptionWithValue != null) {
+                /* Returning APIOption that accepts value is better than raw option */
+                return apiOptionWithValue;
+            }
+            assert apiOptionName == null : "invalid API option name " + apiOptionName;
+            /* Return raw option if nothing else matches */
+            return HOSTED_OPTION_PREFIX + option.getName() + "=" + value;
+        }
+    }
+
+    private static String selectVariant(APIOption apiOption, String apiOptionName) {
+        VMError.guarantee(apiOption.name().length > 0, "APIOption requires at least one name");
+        if (apiOptionName == null) {
+            return apiOption.name()[0];
+        }
+        if (Arrays.asList(apiOption.name()).contains(apiOptionName)) {
+            return apiOptionName;
+        }
+        return null;
+    }
+}
