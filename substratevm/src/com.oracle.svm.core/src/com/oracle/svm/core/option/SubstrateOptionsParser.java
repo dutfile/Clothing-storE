@@ -56,4 +56,136 @@ public class SubstrateOptionsParser {
     public static final String RUNTIME_OPTION_PREFIX = CommonOptionParser.RUNTIME_OPTION_PREFIX;
 
     static OptionParseResult parseOption(EconomicMap<String, OptionDescriptor> options, Predicate<OptionKey<?>> isHosted, String option, EconomicMap<OptionKey<?>, Object> valuesMap,
-                    Str
+                    String optionPrefix, BooleanOptionFormat booleanOptionFormat) {
+        try {
+            return CommonOptionParser.parseOption(options, isHosted, option, valuesMap, optionPrefix, booleanOptionFormat);
+        } catch (UnsupportedOptionClassException e) {
+            VMError.shouldNotReachHere(e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Parses a option at image build time. When the PrintFlags option is found prints all options
+     * and interrupts compilation.
+     *
+     * @param optionPrefix prefix used before option name
+     * @param options all possible options
+     * @param valuesMap all current option values
+     * @param booleanOptionFormat help expected for boolean options
+     * @param errors a set that contains all error messages
+     * @param arg the argument currently processed
+     * @return true if {@code arg.startsWith(optionPrefix)}
+     */
+    public static boolean parseHostedOption(String optionPrefix, EconomicMap<String, OptionDescriptor> options, EconomicMap<OptionKey<?>, Object> valuesMap,
+                    BooleanOptionFormat booleanOptionFormat, Set<String> errors, String arg, PrintStream out) {
+        if (!arg.startsWith(optionPrefix)) {
+            return false;
+        }
+
+        Predicate<OptionKey<?>> isHosted = optionKey -> optionKey instanceof HostedOptionKey;
+        OptionParseResult optionParseResult = SubstrateOptionsParser.parseOption(options, isHosted, arg.substring(optionPrefix.length()), valuesMap,
+                        optionPrefix, booleanOptionFormat);
+        if (optionParseResult.printFlags() || optionParseResult.printFlagsWithExtraHelp()) {
+            SubstrateOptionsParser.printFlags(d -> {
+                OptionKey<?> key = d.getOptionKey();
+                return optionParseResult.matchesFlags(d, key instanceof RuntimeOptionKey || key instanceof HostedOptionKey);
+            }, options, optionPrefix, out, optionParseResult.printFlagsWithExtraHelp());
+            throw new InterruptImageBuilding("");
+        }
+        if (!optionParseResult.isValid()) {
+            errors.add(optionParseResult.getError());
+            return true;
+        }
+
+        // Print a warning if the option is deprecated.
+        OptionKey<?> option = optionParseResult.getOptionKey();
+        OptionDescriptor descriptor = option.getDescriptor();
+        if (descriptor != null && descriptor.isDeprecated()) {
+            String message = "Warning: Option '" + descriptor.getName() + "' is deprecated and might be removed from future versions";
+            String deprecationMessage = descriptor.getDeprecationMessage();
+            if (deprecationMessage != null && !deprecationMessage.isEmpty()) {
+                message += ": " + deprecationMessage;
+            }
+            System.err.println(message);
+        }
+        return true;
+    }
+
+    public static void collectOptions(ServiceLoader<OptionDescriptors> optionDescriptors, Consumer<OptionDescriptor> optionDescriptorConsumer) {
+        CommonOptionParser.collectOptions(optionDescriptors, optionDescriptorConsumer);
+    }
+
+    public static void printOption(Consumer<String> println, String option, String description, int indentation, int optionWidth, int wrapWidth) {
+        CommonOptionParser.printOption(println, option, description, false, indentation, optionWidth, wrapWidth);
+    }
+
+    /**
+     * This method sorts the options before printing them.
+     * <p>
+     * Sorting the values of an {@link EconomicMap}, i.e., an {@link Iterable}, is not efficient
+     * since all elements need to first be copied to a list. A stream could be used or the options
+     * could be stored already sorted, however:
+     * <ul>
+     * <li>using a stream would make a lot of types reachable for even the simplest images</li>
+     * <li>storing the options as sorted at run time, i.e., in a {@link java.util.TreeMap}, would be
+     * less space efficient; since this method is shared between the hosted and run time worlds
+     * options are stored in an {@link EconomicMap}</li>
+     * </ul>
+     * Since this method is not performance critical and it is only rarely called the tradeoff
+     * between space and execution efficiency is acceptable.
+     */
+    static void printFlags(Predicate<OptionDescriptor> filter, EconomicMap<String, OptionDescriptor> options, String prefix, PrintStream out, boolean verbose) {
+        CommonOptionParser.printFlags(filter, options, prefix, out, verbose);
+    }
+
+    public static long parseLong(String v) {
+        return CommonOptionParser.parseLong(v);
+    }
+
+    public static double parseDouble(String v) {
+        return CommonOptionParser.parseDouble(v);
+    }
+
+    /**
+     * Returns a string to be used on command line to set the option to a desirable value. If the
+     * option has one or more {@link APIOption} annotations, preference is given to a matching
+     * {@link APIOption} syntax.
+     *
+     * @param option for which the command line argument is created
+     * @return recommendation for setting a option value (e.g., for option 'Name' and value 'file'
+     *         it returns "-H:Name=file")
+     */
+    @Platforms(Platform.HOSTED_ONLY.class)
+    public static String commandArgument(OptionKey<?> option, String value) {
+        return commandArgument(option, value, null);
+    }
+
+    /**
+     * Returns a string to be used on command line to set the option to a desirable value. If the
+     * option has one or more {@link APIOption} annotations, preference is given to a matching
+     * {@link APIOption} syntax.
+     *
+     * @param option for which the command line argument is created
+     * @param apiOptionName name of the API option (in case there are multiple)
+     * @return recommendation for setting a option value (e.g., for option 'Name' and value 'file'
+     *         it returns "-H:Name=file")
+     */
+    @Platforms(Platform.HOSTED_ONLY.class)
+    public static String commandArgument(OptionKey<?> option, String value, String apiOptionName) {
+        Field field;
+        try {
+            field = option.getDescriptor().getDeclaringClass().getDeclaredField(option.getDescriptor().getFieldName());
+        } catch (ReflectiveOperationException ex) {
+            throw VMError.shouldNotReachHere(ex);
+        }
+
+        APIOption[] apiOptions = field.getAnnotationsByType(APIOption.class);
+
+        for (APIOption apiOption : apiOptions) {
+            String selected = selectVariant(apiOption, apiOptionName);
+            assert selected == null || apiOption.deprecated().equals("") : "Using the deprecated option in a description: " + apiOption;
+        }
+
+        if (option.getDescriptor().getOptionValueType() == Boolean.class) {
+            VMError.guarantee(value.equals("+") || va
