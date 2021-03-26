@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, 2019, Oracle and/or its affiliates.
+ * Copyright (c) 2017, 2020, Oracle and/or its affiliates.
  *
  * All rights reserved.
  *
@@ -27,48 +27,7 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package com.oracle.truffle.llvm.tests.types.floating;
-
-import static org.junit.Assert.assertEquals;
-
-import org.junit.Test;
-
-public class LLVM80BitGetFloatTest extends LLVM80BitTest {
-
-    @Test
-    public void testZero() {
-        assertBitEquals(0f, zero().getFloatValue());
-    }
-
-    @Test
-    public void testMinusZero() {
-        assertBitEquals(-0.0f, minusZero().getFloatValue());
-    }
-
-    @Test
-    public void testOne() {
-        float val = one().getFloatValue();
-        assertEquals(0b111111100000000000000000000000, Float.floatToRawIntBits(val));
-    }
-
-    @Test
-    public void testValue() {
-        float val = val(3.5).getFloatValue();
-        assertBitEquals(3.5, val);
-    }
-
-    @Test
-    public void testPositiveInfinity() {
-        assertBitEquals(Float.POSITIVE_INFINITY, positiveInfinity().getFloatValue());
-    }
-
-    @Test
-    public void testNegativeInfinity() {
-        assertBitEquals(Float.NEGATIVE_INFINITY, negativeInfinity().getFloatValue());
-    }
-
-    @Test
-    public void testQNaN() {
-        assertBitEquals(Float.NaN, nan().getFloatValue());
-    }
+int main() {
+    int a[3] = { 1, 2, 3 };
+    return a == &a[0];
 }
