@@ -49,4 +49,29 @@ import com.oracle.truffle.api.debug.Debugger;
 final class BreakpointDisposeListener implements Consumer<Breakpoint> {
 
     static void register(boolean[] notified, Debugger debugger, Breakpoint globalBreakpoint) {
-        Consumer<Breakpoint> disposeBPListener = new BreakpointDisposeListener(notified, globalBre
+        Consumer<Breakpoint> disposeBPListener = new BreakpointDisposeListener(notified, globalBreakpoint);
+        debugger.addBreakpointAddedListener((breakpoint) -> Assert.fail("No new breakpoint is excpected to be added. Breakpoint = " + breakpoint));
+        debugger.addBreakpointRemovedListener(disposeBPListener);
+    }
+
+    private final boolean[] notified;
+    private final Breakpoint globalBreakpoint;
+
+    private BreakpointDisposeListener(boolean[] notified, Breakpoint globalBreakpoint) {
+        this.notified = notified;
+        this.globalBreakpoint = globalBreakpoint;
+    }
+
+    @Override
+    public void accept(Breakpoint breakpoint) {
+        notified[0] = true;
+        Assert.assertNotEquals(globalBreakpoint, breakpoint);
+        try {
+            breakpoint.dispose();
+            Assert.fail("Public dispose must not be possible for global breakpoints.");
+        } catch (IllegalStateException ex) {
+            // O.K.
+        }
+    }
+
+}
