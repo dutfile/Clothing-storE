@@ -64,4 +64,31 @@ public abstract class LLVMAMD64PushNode extends LLVMStatementNode {
         }
     }
 
-    public abstract static class LLVMAMD64PushlNode extend
+    public abstract static class LLVMAMD64PushlNode extends LLVMAMD64PushNode {
+        protected LLVMAMD64PushlNode(LLVMStackAccess stackAccess) {
+            super(stackAccess);
+        }
+
+        @Specialization
+        protected void doVoid(VirtualFrame frame, int value,
+                        @Cached LLVMI32StoreNode store) {
+            LLVMPointer stackPointer = stackAccess.executeGet(frame).increment(-LLVMExpressionNode.I32_SIZE_IN_BYTES);
+            stackAccess.executeSet(frame, stackPointer);
+            store.executeWithTarget(stackPointer, value);
+        }
+    }
+
+    public abstract static class LLVMAMD64PushqNode extends LLVMAMD64PushNode {
+        protected LLVMAMD64PushqNode(LLVMStackAccess stackAccess) {
+            super(stackAccess);
+        }
+
+        @Specialization
+        protected void doVoid(VirtualFrame frame, long value,
+                        @Cached LLVMI64StoreNode store) {
+            LLVMPointer stackPointer = stackAccess.executeGet(frame).increment(-LLVMExpressionNode.I64_SIZE_IN_BYTES);
+            stackAccess.executeSet(frame, stackPointer);
+            store.executeWithTarget(stackPointer, value);
+        }
+    }
+}
