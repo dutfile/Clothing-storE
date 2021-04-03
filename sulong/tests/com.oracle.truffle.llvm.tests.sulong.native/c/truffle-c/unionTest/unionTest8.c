@@ -52,4 +52,5 @@ int main() {
     t3.t2.b = 5;
     t3.t1.a = 6;
     static int a4 = 1;
-    return t3.t2.a + t3.t2.b + t3.t1.a
+    return t3.t2.a + t3.t2.b + t3.t1.a - a1 - a2 - a3 - a4;
+}
