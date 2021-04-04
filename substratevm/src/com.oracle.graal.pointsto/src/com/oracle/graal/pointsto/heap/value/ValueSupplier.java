@@ -29,4 +29,32 @@ import java.util.function.Supplier;
 
 /**
  * Interface for accessing hosted heap values. It provides mechanisms for accessing hosted heap
- * va
+ * values either eagerly or lazily.
+ * <p/>
+ * Eager heap values are objects whose state doesn't change during heap snapshotting. Their value is
+ * immediately available.
+ * <p/>
+ * Lazy heap values are objects whose state can change during heap snapshotting, therefore reading
+ * the actual value is delayed. Instead, both a value supplier and an availability supplier are
+ * installed. The implementation guarantees that the value is indeed available, by checking the
+ * availability supplier, before it attempts to retrieve it.
+ */
+public interface ValueSupplier<V> {
+
+    static <V> ValueSupplier<V> eagerValue(V value) {
+        return new EagerValueSupplier<>(value);
+    }
+
+    static <V> ValueSupplier<V> lazyValue(Supplier<V> valueSupplier, BooleanSupplier isAvailable) {
+        return new LazyValueSupplier<>(valueSupplier, isAvailable);
+    }
+
+    /** Checks if the value is available. */
+    boolean isAvailable();
+
+    /**
+     * Retrieves the value, if available. Attempting to access a value before it is available
+     * results in error.
+     */
+    V get();
+}
