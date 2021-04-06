@@ -71,4 +71,50 @@ public class UninitializedStaticFieldValueReader {
             return JavaConstant.defaultForKind(kind);
         }
 
-        assert M
+        assert Modifier.isStatic(field.getModifiers());
+
+        /* On HotSpot the base of a static field is the Class object. */
+        Object base = field.getDeclaringClass().getJavaClass();
+        long offset = field.wrapped.getOffset();
+
+        /*
+         * We cannot rely on the reflectionField because it can be null if there is some incomplete
+         * classpath issue or the field is either missing or hidden from reflection. However we can
+         * still use it to double check our assumptions.
+         */
+        Field reflectionField = field.getJavaField();
+        if (reflectionField != null) {
+            assert kind == JavaKind.fromJavaClass(reflectionField.getType());
+
+            Object reflectionFieldBase = Unsafe.getUnsafe().staticFieldBase(reflectionField);
+            long reflectionFieldOffset = Unsafe.getUnsafe().staticFieldOffset(reflectionField);
+
+            AnalysisError.guarantee(reflectionFieldBase == base && reflectionFieldOffset == offset);
+        }
+
+        switch (kind) {
+            case Boolean:
+                return JavaConstant.forBoolean(Unsafe.getUnsafe().getBoolean(base, offset));
+            case Byte:
+                return JavaConstant.forByte(Unsafe.getUnsafe().getByte(base, offset));
+            case Char:
+                return JavaConstant.forChar(Unsafe.getUnsafe().getChar(base, offset));
+            case Short:
+                return JavaConstant.forShort(Unsafe.getUnsafe().getShort(base, offset));
+            case Int:
+                return JavaConstant.forInt(Unsafe.getUnsafe().getInt(base, offset));
+            case Long:
+                return JavaConstant.forLong(Unsafe.getUnsafe().getLong(base, offset));
+            case Float:
+                return JavaConstant.forFloat(Unsafe.getUnsafe().getFloat(base, offset));
+            case Double:
+                return JavaConstant.forDouble(Unsafe.getUnsafe().getDouble(base, offset));
+            case Object:
+                Object value = Unsafe.getUnsafe().getObject(base, offset);
+                assert value == null || value instanceof String : "String is currently the only specified object type for the ConstantValue class file attribute";
+                return function.apply(value);
+            default:
+                throw AnalysisError.shouldNotReachHere();
+        }
+    }
+}
