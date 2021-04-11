@@ -351,3 +351,33 @@ final class HeapChunkProvider {
     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
     static void freeAlignedChunkList(AlignedHeader first) {
         for (AlignedHeader chunk = first; chunk.isNonNull();) {
+            AlignedHeader next = HeapChunk.getNext(chunk);
+            freeAlignedChunk(chunk);
+            chunk = next;
+        }
+    }
+
+    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+    static void freeUnalignedChunkList(UnalignedHeader first) {
+        for (UnalignedHeader chunk = first; chunk.isNonNull();) {
+            UnalignedHeader next = HeapChunk.getNext(chunk);
+            freeUnalignedChunk(chunk);
+            chunk = next;
+        }
+    }
+
+    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+    private static void freeAlignedChunk(AlignedHeader chunk) {
+        CommittedMemoryProvider.get().freeAlignedChunk(chunk, HeapParameters.getAlignedHeapChunkSize(), HeapParameters.getAlignedHeapChunkAlignment());
+    }
+
+    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+    private static void freeUnalignedChunk(UnalignedHeader chunk) {
+        CommittedMemoryProvider.get().freeUnalignedChunk(chunk, unalignedChunkSize(chunk));
+    }
+
+    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+    private static UnsignedWord unalignedChunkSize(UnalignedHeader chunk) {
+        return HeapChunk.getEndOffset(chunk);
+    }
+}
