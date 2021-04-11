@@ -70,3 +70,51 @@ public class SubstrateMethodPointerStamp extends AbstractPointerStamp {
 
     @Override
     public LIRKind getLIRKind(LIRKindTool tool) {
+        return tool.getWordKind();
+    }
+
+    @Override
+    public Stamp join(Stamp other) {
+        return defaultPointerJoin(other);
+    }
+
+    @Override
+    public Stamp empty() {
+        return this;
+    }
+
+    @Override
+    public Stamp constant(Constant c, MetaAccessProvider meta) {
+        if (JavaConstant.NULL_POINTER.equals(c)) {
+            return METHOD_ALWAYS_NULL;
+        } else {
+            assert c instanceof SubstrateMethodPointerConstant;
+            return METHOD_NON_NULL;
+        }
+    }
+
+    @Override
+    public boolean isCompatible(Stamp other) {
+        return other instanceof SubstrateMethodPointerStamp;
+    }
+
+    @Override
+    public boolean isCompatible(Constant constant) {
+        return constant instanceof SubstrateMethodPointerConstant;
+    }
+
+    @Override
+    public boolean hasValues() {
+        return true;
+    }
+
+    @Override
+    public Constant readConstant(MemoryAccessProvider provider, Constant base, long displacement) {
+        return null;
+    }
+
+    @Override
+    public String toString() {
+        return "SVMMethod*";
+    }
+}
