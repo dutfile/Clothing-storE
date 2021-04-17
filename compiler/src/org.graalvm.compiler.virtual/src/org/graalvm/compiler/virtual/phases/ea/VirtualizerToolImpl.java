@@ -137,4 +137,145 @@ class VirtualizerToolImpl extends CoreProvidersDelegate implements VirtualizerTo
                  * int slots.
                  */
                 int nextIndex = virtual.entryIndexForOffset(getMetaAccess(), offset + 4, JavaKind.Int);
-               
+                if (nextIndex != -1) {
+                    canVirtualize = true;
+                    assert nextIndex == index + 1 : "expected to be sequential";
+                    getDebug().log(DebugContext.DETAILED_LEVEL, "virtualizing %s for double word stored in two ints", current);
+                }
+            } else if (canVirtualizeLargeByteArrayUnsafeWrite(virtual, accessKind, offset)) {
+                /*
+                 * Special case: Allow storing any primitive inside a byte array, as long as there
+                 * is enough room left, and all accesses and subsequent writes are on the exact
+                 * position of the first write, and of the same kind.
+                 *
+                 * Any other access results in materialization.
+                 */
+                int accessLastIndex = virtual.entryIndexForOffset(getMetaAccess(), offset + accessKind.getByteCount() - 1, JavaKind.Byte);
+                if (accessLastIndex != -1 && !oldIsIllegal && canStoreOverOldValue((VirtualArrayNode) virtual, oldValue, accessKind, index)) {
+                    canVirtualize = true;
+                    getDebug().log(DebugContext.DETAILED_LEVEL, "virtualizing %s for %s word stored in byte array", current, accessKind);
+                }
+            }
+        }
+
+        if (canVirtualize) {
+            getDebug().log(DebugContext.DETAILED_LEVEL, "virtualizing %s for entryKind %s and access kind %s", current, entryKind, accessKind);
+            state.setEntry(virtual.getObjectId(), index, newValue);
+            if (entryKind == JavaKind.Int) {
+                if (accessKind.needsTwoSlots()) {
+                    // Storing double word value two int slots
+                    assert virtual.entryKind(getMetaAccessExtensionProvider(), index + 1) == JavaKind.Int;
+                    state.setEntry(virtual.getObjectId(), index + 1, getIllegalConstant());
+                } else if (oldValue.getStackKind() == JavaKind.Double || oldValue.getStackKind() == JavaKind.Long) {
+                    // Splitting double word constant by storing over it with an int
+                    getDebug().log(DebugContext.DETAILED_LEVEL, "virtualizing %s producing second half of double word value %s", current, oldValue);
+                    ValueNode secondHalf = UnpackEndianHalfNode.create(oldValue, false, NodeView.DEFAULT);
+                    addNode(secondHalf);
+                    state.setEntry(virtual.getObjectId(), index + 1, secondHalf);
+                }
+            } else if (canVirtualizeLargeByteArrayUnsafeWrite(virtual, accessKind, offset)) {
+                for (int i = index + 1; i < index + accessKind.getByteCount(); i++) {
+                    state.setEntry(virtual.getObjectId(), i, getIllegalConstant());
+                }
+            }
+            if (oldIsIllegal) {
+                if (entryKind == JavaKind.Int) {
+                    // Storing into second half of double, so replace previous value
+                    ValueNode previous = getEntry(virtual, index - 1);
+                    getDebug().log(DebugContext.DETAILED_LEVEL, "virtualizing %s producing first half of double word value %s", current, previous);
+                    ValueNode firstHalf = UnpackEndianHalfNode.create(previous, true, NodeView.DEFAULT);
+                    addNode(firstHalf);
+                    state.setEntry(virtual.getObjectId(), index - 1, firstHalf);
+                }
+            }
+            return true;
+        }
+        // Should only occur if there are mismatches between the entry and access kind
+        assert entryKind != accessKind;
+        return false;
+    }
+
+    private boolean canStoreOverOldValue(VirtualArrayNode virtual, ValueNode oldValue, JavaKind accessKind, int index) {
+        if (!oldValue.getStackKind().isPrimitive()) {
+            return false;
+        }
+        if (isEntryDefaults(virtual, accessKind.getByteCount(), index)) {
+            return true;
+        }
+        return accessKind.getByteCount() == virtual.byteArrayEntryByteCount(index, this);
+    }
+
+    private boolean canVirtualizeLargeByteArrayUnsafeWrite(VirtualObjectNode virtual, JavaKind accessKind, long offset) {
+        return canVirtualizeLargeByteArrayUnsafeAccess() && virtual.isVirtualByteArrayAccess(this.getMetaAccessExtensionProvider(), accessKind) &&
+                        /*
+                         * Require aligned writes. Some architectures do not support recovering
+                         * writes to unaligned offsets. Since most use cases for this optimization
+                         * will write to reasonable offsets, disabling the optimization for
+                         * unreasonable ones is not that big an issue.
+                         */
+                        ((offset % accessKind.getByteCount()) == 0);
+    }
+
+    int getVirtualByteCount(ValueNode[] entries, int startIndex) {
+        int pos = startIndex + 1;
+        while (pos < entries.length && entries[pos].getStackKind() == JavaKind.Illegal) {
+            pos++;
+        }
+        return pos - startIndex;
+    }
+
+    boolean isEntryDefaults(ObjectState object, int byteCount, int index) {
+        for (int i = index; i < index + byteCount; i++) {
+            if (!object.getEntry(i).isDefaultConstant()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    boolean isEntryDefaults(VirtualObjectNode virtual, int byteCount, int index) {
+        return isEntryDefaults(state.getObjectState(virtual), byteCount, index);
+    }
+
+    public ValueNode getIllegalConstant() {
+        if (illegalConstant == null) {
+            /* Try not to spawn a second illegal constant in the graph. */
+            illegalConstant = ConstantNode.forConstant(JavaConstant.forIllegal(), getMetaAccess(), closure.cfg.graph);
+        }
+        return illegalConstant;
+    }
+
+    @Override
+    public void setEnsureVirtualized(VirtualObjectNode virtualObject, boolean ensureVirtualized) {
+        int id = virtualObject.getObjectId();
+        state.setEnsureVirtualized(id, ensureVirtualized);
+    }
+
+    @Override
+    public boolean getEnsureVirtualized(VirtualObjectNode virtualObject) {
+        return state.getObjectState(virtualObject).getEnsureVirtualized();
+    }
+
+    @Override
+    public void replaceWithVirtual(VirtualObjectNode virtual) {
+        closure.addVirtualAlias(virtual, current);
+        effects.deleteNode(current);
+        deleted = true;
+    }
+
+    @Override
+    public void replaceWithValue(ValueNode replacement) {
+        effects.replaceAtUsages(current, closure.getScalarAlias(replacement), position);
+        closure.addScalarAlias(current, replacement);
+        deleted = true;
+    }
+
+    @Override
+    public void delete() {
+        effects.deleteNode(current);
+        deleted = true;
+    }
+
+    @Override
+    public void replaceFirstInput(Node oldInput, Node replacement) {
+        effects.replaceF
