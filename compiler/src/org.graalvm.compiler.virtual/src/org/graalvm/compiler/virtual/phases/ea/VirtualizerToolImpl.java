@@ -278,4 +278,143 @@ class VirtualizerToolImpl extends CoreProvidersDelegate implements VirtualizerTo
 
     @Override
     public void replaceFirstInput(Node oldInput, Node replacement) {
-        effects.replaceF
+        effects.replaceFirstInput(current, oldInput, replacement);
+    }
+
+    @Override
+    public void addNode(ValueNode node) {
+        if (node instanceof FloatingNode) {
+            effects.addFloatingNode(node, "VirtualizerTool.addNode");
+        } else {
+            effects.addFixedNodeBefore((FixedWithNextNode) node, position);
+        }
+    }
+
+    @Override
+    public void ensureAdded(ValueNode node) {
+        if (node.isAlive()) {
+            // nothing to do
+            return;
+        }
+        effects.ensureAdded(node, position);
+    }
+
+    @Override
+    public void createVirtualObject(VirtualObjectNode virtualObject, ValueNode[] entryState, List<MonitorIdNode> locks, NodeSourcePosition sourcePosition, boolean ensureVirtualized) {
+        VirtualUtil.trace(options, debug, "{{%s}} ", current);
+        if (!virtualObject.isAlive()) {
+            effects.addFloatingNode(virtualObject, "newVirtualObject");
+        }
+        for (int i = 0; i < entryState.length; i++) {
+            ValueNode entry = entryState[i];
+            entryState[i] = entry instanceof VirtualObjectNode ? entry : closure.getAliasAndResolve(state, entry);
+        }
+        int id = virtualObject.getObjectId();
+        if (id == -1) {
+            id = closure.virtualObjects.size();
+            closure.virtualObjects.add(virtualObject);
+            virtualObject.setObjectId(id);
+        }
+        state.addObject(id, new ObjectState(entryState, locks, ensureVirtualized));
+        closure.addVirtualAlias(virtualObject, virtualObject);
+        PartialEscapeClosure.COUNTER_ALLOCATION_REMOVED.increment(debug);
+        effects.addVirtualizationDelta(1);
+        effects.addLog(closure.cfg.graph.getOptimizationLog(), optimizationLog -> optimizationLog.getPartialEscapeLog().allocationRemoved(virtualObject));
+        if (sourcePosition != null) {
+            assert virtualObject.getNodeSourcePosition() == null || virtualObject.getNodeSourcePosition() == sourcePosition : "unexpected source pos!";
+            virtualObject.setNodeSourcePosition(sourcePosition);
+        }
+    }
+
+    @Override
+    public int getMaximumEntryCount() {
+        return MaximumEscapeAnalysisArrayLength.getValue(current.getOptions());
+    }
+
+    @Override
+    public void replaceWith(ValueNode node) {
+        if (node instanceof VirtualObjectNode) {
+            replaceWithVirtual((VirtualObjectNode) node);
+        } else {
+            replaceWithValue(node);
+        }
+    }
+
+    @Override
+    public boolean ensureMaterialized(VirtualObjectNode virtualObject) {
+        return closure.ensureMaterialized(state, virtualObject.getObjectId(), position, effects, PartialEscapeClosure.COUNTER_MATERIALIZATIONS_UNHANDLED);
+    }
+
+    @Override
+    public void addLock(VirtualObjectNode virtualObject, MonitorIdNode monitorId) {
+        int id = virtualObject.getObjectId();
+        state.addLock(id, monitorId);
+    }
+
+    @Override
+    public MonitorIdNode removeLock(VirtualObjectNode virtualObject) {
+        int id = virtualObject.getObjectId();
+        return state.removeLock(id);
+    }
+
+    @Override
+    public boolean canVirtualizeLargeByteArrayUnsafeAccess() {
+        if (getPlatformConfigurationProvider() != null) {
+            return getPlatformConfigurationProvider().canVirtualizeLargeByteArrayAccess();
+        }
+        return false;
+    }
+
+    @Override
+    public boolean canonicalizeReads() {
+        return false;
+    }
+
+    @Override
+    public boolean allUsagesAvailable() {
+        return true;
+    }
+
+    @Override
+    public Assumptions getAssumptions() {
+        return assumptions;
+    }
+
+    @Override
+    public Integer smallestCompareWidth() {
+        if (getLowerer() != null) {
+            return getLowerer().smallestCompareWidth();
+        } else {
+            return null;
+        }
+    }
+
+    @Override
+    public boolean supportsRounding() {
+        return getLowerer().supportsRounding();
+    }
+
+    @Override
+    public VirtualizerTool createSnapshot() {
+        VirtualizerToolImpl snapshot = new VirtualizerToolImpl(getProviders(), closure, assumptions, options, debug);
+        snapshot.current = this.current;
+        snapshot.position = this.position;
+        snapshot.effects = new GraphEffectList(this.debug);
+        snapshot.state = new PartialEscapeBlockState.Final(this.getOptions(), this.getDebug());
+        for (int i = 0; i < this.state.getStateCount(); i++) {
+            if (this.state.hasObjectState(i)) {
+                snapshot.state.addObject(i, this.state.getObjectState(i).cloneState());
+            }
+        }
+        return snapshot;
+    }
+
+    @Override
+    public boolean divisionOverflowIsJVMSCompliant() {
+        if (getLowerer() != null) {
+            return getLowerer().divisionOverflowIsJVMSCompliant();
+        }
+        // prevent accidental floating of divs if we don't know the target arch
+        return false;
+    }
+}
