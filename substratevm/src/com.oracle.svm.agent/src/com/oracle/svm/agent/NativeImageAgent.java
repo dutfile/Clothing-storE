@@ -177,4 +177,112 @@ public final class NativeImageAgent extends JvmtiAgentBase<NativeImageAgentJNIHa
                 warn("restrict mode is no longer supported, ignoring option: " + token);
             } else if (token.equals("no-builtin-caller-filter")) {
                 builtinCallerFilter = false;
-            } else if (isBo
+            } else if (isBooleanOption(token, "builtin-caller-filter")) {
+                builtinCallerFilter = getBooleanTokenValue(token);
+            } else if (token.equals("no-builtin-heuristic-filter")) {
+                builtinHeuristicFilter = false;
+            } else if (isBooleanOption(token, "builtin-heuristic-filter")) {
+                builtinHeuristicFilter = getBooleanTokenValue(token);
+            } else if (isBooleanOption(token, "no-filter")) { // legacy
+                builtinCallerFilter = !getBooleanTokenValue(token);
+                builtinHeuristicFilter = builtinCallerFilter;
+            } else if (token.startsWith("caller-filter-file=")) {
+                callerFilterFiles.add(getTokenValue(token));
+            } else if (token.startsWith("access-filter-file=")) {
+                accessFilterFiles.add(getTokenValue(token));
+            } else if (isBooleanOption(token, "experimental-class-loader-support")) {
+                experimentalClassLoaderSupport = getBooleanTokenValue(token);
+            } else if (isBooleanOption(token, "experimental-class-define-support")) {
+                experimentalClassDefineSupport = getBooleanTokenValue(token);
+            } else if (isBooleanOption(token, "experimental-unsafe-allocation-support")) {
+                experimentalUnsafeAllocationSupport = getBooleanTokenValue(token);
+            } else if (token.startsWith("config-write-period-secs=")) {
+                configWritePeriod = parseIntegerOrNegative(getTokenValue(token));
+                if (configWritePeriod <= 0) {
+                    return usage(1, "config-write-period-secs must be an integer greater than 0");
+                }
+            } else if (token.startsWith("config-write-initial-delay-secs=")) {
+                configWritePeriodInitialDelay = parseIntegerOrNegative(getTokenValue(token));
+                if (configWritePeriodInitialDelay < 0) {
+                    return usage(1, "config-write-initial-delay-secs must be an integer greater or equal to 0");
+                }
+            } else if (isBooleanOption(token, "build")) {
+                build = getBooleanTokenValue(token);
+            } else if (isBooleanOption(token, "experimental-configuration-with-origins")) {
+                configurationWithOrigins = getBooleanTokenValue(token);
+            } else if (token.startsWith("experimental-conditional-config-filter-file=")) {
+                conditionalConfigUserPackageFilterFiles.add(getTokenValue(token));
+            } else if (token.startsWith("conditional-config-class-filter-file=")) {
+                conditionalConfigClassNameFilterFiles.add(getTokenValue(token));
+            } else if (isBooleanOption(token, "experimental-conditional-config-part")) {
+                conditionalConfigPartialRun = getBooleanTokenValue(token);
+            } else if (isBooleanOption(token, "track-reflection-metadata")) {
+                trackReflectionMetadata = getBooleanTokenValue(token);
+            } else {
+                return usage(1, "unknown option: '" + token + "'.");
+            }
+        }
+
+        if (traceOutputFile == null && configOutputDir == null && !build) {
+            configOutputDir = transformPath(AGENT_NAME + "_config-pid{pid}-{datetime}/");
+            inform("no output/build options provided, tracking dynamic accesses and writing configuration to directory: " + configOutputDir);
+        }
+
+        if (configurationWithOrigins && !conditionalConfigUserPackageFilterFiles.isEmpty()) {
+            return error(5, "The agent can only be used in either the configuration with origins mode or the predefined classes mode.");
+        }
+
+        if (configurationWithOrigins && !mergeConfigs.isEmpty()) {
+            configurationWithOrigins = false;
+            inform("using configuration with origins with configuration merging is currently unsupported. Disabling configuration with origins mode.");
+        }
+
+        if (configurationWithOrigins) {
+            warn("using experimental configuration with origins mode. Note that native-image cannot process these files, and this flag may change or be removed without a warning!");
+        }
+
+        ComplexFilter callerFilter = null;
+        HierarchyFilterNode callerFilterHierarchyFilterNode = null;
+        if (!builtinCallerFilter) {
+            callerFilterHierarchyFilterNode = HierarchyFilterNode.createInclusiveRoot();
+            callerFilter = new ComplexFilter(callerFilterHierarchyFilterNode);
+        }
+
+        if (!callerFilterFiles.isEmpty()) {
+            if (callerFilterHierarchyFilterNode == null) {
+                callerFilterHierarchyFilterNode = AccessAdvisor.copyBuiltinCallerFilterTree();
+                callerFilter = new ComplexFilter(callerFilterHierarchyFilterNode);
+            }
+            if (!parseFilterFiles(callerFilter, callerFilterFiles)) {
+                return 1;
+            }
+        }
+
+        ComplexFilter accessFilter = null;
+        if (!accessFilterFiles.isEmpty()) {
+            accessFilter = new ComplexFilter(AccessAdvisor.copyBuiltinAccessFilterTree());
+            if (!parseFilterFiles(accessFilter, accessFilterFiles)) {
+                return 1;
+            }
+        }
+
+        if (!conditionalConfigUserPackageFilterFiles.isEmpty() && conditionalConfigPartialRun) {
+            return error(6, "The agent can generate conditional configuration either for the current run or in the partial mode but not both at the same time.");
+        }
+
+        boolean isConditionalConfigurationRun = !conditionalConfigUserPackageFilterFiles.isEmpty() || conditionalConfigPartialRun;
+        boolean shouldTraceOriginInformation = configurationWithOrigins || isConditionalConfigurationRun;
+        final MethodInfoRecordKeeper recordKeeper = new MethodInfoRecordKeeper(shouldTraceOriginInformation);
+        final Supplier<InterceptedState> interceptedStateSupplier = shouldTraceOriginInformation ? EagerlyLoadedJavaStackAccess.stackAccessSupplier()
+                        : OnDemandJavaStackAccess.stackAccessSupplier();
+
+        if (configOutputDir != null) {
+            if (traceOutputFile != null) {
+                return usage(1, "can only once specify exactly one of trace-output=, config-output-dir= or config-merge-dir=.");
+            }
+            try {
+                configOutputDirPath = Files.createDirectories(Path.of(configOutputDir));
+                configOutputLockFilePath = configOutputDirPath.resolve(ConfigurationFile.LOCK_FILE_NAME);
+                try {
+                    Files.writeString(configOutputLockFilePath, Long.toString(ProcessProperties.getProcessID()),
+                                    StandardOpenOpti
