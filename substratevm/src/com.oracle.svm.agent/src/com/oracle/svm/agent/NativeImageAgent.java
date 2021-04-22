@@ -393,3 +393,160 @@ public final class NativeImageAgent extends JvmtiAgentBase<NativeImageAgentJNIHa
         }
         try {
             JniCallInterceptor.onLoad(tracer, this, interceptedStateSupplier);
+        } catch (Throwable t) {
+            return error(4, t.toString());
+        }
+
+        setupExecutorServiceForPeriodicConfigurationCapture(configWritePeriod, configWritePeriodInitialDelay);
+        return 0;
+    }
+
+    private static void inform(String message) {
+        System.err.println(AGENT_NAME + ": " + message);
+    }
+
+    private static void warn(String message) {
+        inform("Warning: " + message);
+    }
+
+    private static <T> T error(T result, String message) {
+        inform("Error: " + message);
+        return result;
+    }
+
+    private static <T> T usage(T result, String message) {
+        inform(message);
+        inform("Example usage: -agentlib:native-image-agent=config-output-dir=/path/to/config-dir/");
+        inform("For details, please read AutomaticMetadataCollection.md or https://www.graalvm.org/dev/reference-manual/native-image/metadata/AutomaticMetadataCollection/");
+        return result;
+    }
+
+    private static AccessAdvisor createAccessAdvisor(boolean builtinHeuristicFilter, ConfigurationFilter callerFilter, ConfigurationFilter accessFilter) {
+        AccessAdvisor advisor = new AccessAdvisor();
+        advisor.setHeuristicsEnabled(builtinHeuristicFilter);
+        if (callerFilter != null) {
+            advisor.setCallerFilterTree(callerFilter);
+        }
+        if (accessFilter != null) {
+            advisor.setAccessFilterTree(accessFilter);
+        }
+        return advisor;
+    }
+
+    private static int parseIntegerOrNegative(String number) {
+        try {
+            return Integer.parseInt(number);
+        } catch (NumberFormatException ex) {
+            return -1;
+        }
+    }
+
+    private static boolean parseFilterFiles(ComplexFilter filter, List<String> filterFiles) {
+        for (String path : filterFiles) {
+            try {
+                new FilterConfigurationParser(filter).parseAndRegister(Paths.get(path).toUri());
+            } catch (Exception e) {
+                return error(false, "cannot parse filter file " + path + ": " + e);
+            }
+        }
+        filter.getHierarchyFilterNode().removeRedundantNodes();
+        return true;
+    }
+
+    private void setupExecutorServiceForPeriodicConfigurationCapture(int writePeriod, int initialDelay) {
+        if (tracingResultWriter == null || configOutputDirPath == null || !tracingResultWriter.supportsPeriodicTraceWriting()) {
+            return;
+        }
+
+        // No periodic writing of files by default
+        if (writePeriod == -1) {
+            return;
+        }
+
+        periodicConfigWriterExecutor = new ScheduledThreadPoolExecutor(1, r -> {
+            Thread workerThread = new Thread(r);
+            workerThread.setDaemon(true);
+            workerThread.setName("AgentConfigurationsPeriodicWriter");
+            return workerThread;
+        });
+        periodicConfigWriterExecutor.setRemoveOnCancelPolicy(true);
+        periodicConfigWriterExecutor.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
+        periodicConfigWriterExecutor.scheduleAtFixedRate(this::writeConfigurationFiles,
+                        initialDelay, writePeriod, TimeUnit.SECONDS);
+    }
+
+    private static void ignoreConfigFromClasspath(JvmtiEnv jvmti, ConfigurationFileCollection ignoredConfigCollection) {
+        String classpath = Support.getSystemProperty(jvmti, "java.class.path");
+        String sep = Support.getSystemProperty(jvmti, "path.separator");
+        if (sep == null) {
+            if (Platform.includedIn(Platform.LINUX.class) || Platform.includedIn(Platform.DARWIN.class)) {
+                sep = ":";
+            } else if (Platform.includedIn(Platform.WINDOWS.class)) {
+                sep = "[:;]";
+            } else {
+                warn("Running on unknown platform. Not omitting existing config from classpath.");
+                return;
+            }
+        }
+
+        AgentMetaInfProcessor processor = new AgentMetaInfProcessor(ignoredConfigCollection);
+        for (String cpEntry : classpath.split(sep)) {
+            try {
+                NativeImageMetaInfWalker.walkMetaInfForCPEntry(Paths.get(cpEntry), processor);
+            } catch (NativeImageMetaInfWalker.MetaInfWalkException e) {
+                warn("Failed to walk the classpath entry: " + cpEntry + " Reason: " + e);
+            }
+        }
+    }
+
+    private static final Pattern propertyBlacklist = Pattern.compile("(java\\..*)|(sun\\..*)|(jvmci\\..*)");
+    private static final Pattern propertyWhitelist = Pattern.compile("(java\\.library\\.path)|(java\\.io\\.tmpdir)");
+
+    private static int buildImage(JvmtiEnv jvmti) {
+        System.out.println("Building native image ...");
+        String classpath = Support.getSystemProperty(jvmti, "java.class.path");
+        if (classpath == null) {
+            return usage(1, "Build mode could not determine classpath.");
+        }
+        String javaCommand = Support.getSystemProperty(jvmti, "sun.java.command");
+        String mainClassMissing = "Build mode could not determine main class.";
+        if (javaCommand == null) {
+            return usage(1, mainClassMissing);
+        }
+        String mainClass = SubstrateUtil.split(javaCommand, " ")[0];
+        if (mainClass.isEmpty()) {
+            return usage(1, mainClassMissing);
+        }
+        List<String> buildArgs = new ArrayList<>();
+        // buildArgs.add("--verbose");
+        String[] keys = Support.getSystemProperties(jvmti);
+        for (String key : keys) {
+            boolean whitelisted = propertyWhitelist.matcher(key).matches();
+            boolean blacklisted = !whitelisted && propertyBlacklist.matcher(key).matches();
+            if (blacklisted) {
+                continue;
+            }
+            buildArgs.add("-D" + key + "=" + Support.getSystemProperty(jvmti, key));
+        }
+        if (mainClass.toLowerCase().endsWith(".jar")) {
+            buildArgs.add("-jar");
+        } else {
+            buildArgs.addAll(Arrays.asList("-cp", classpath));
+        }
+        buildArgs.add(mainClass);
+        buildArgs.add(AGENT_NAME + ".build");
+        // System.out.println(String.join("\n", buildArgs));
+        Path javaHome = Paths.get(Support.getSystemProperty(jvmti, "java.home"));
+        String userDirStr = Support.getSystemProperty(jvmti, "user.dir");
+        NativeImage.agentBuild(javaHome, userDirStr == null ? null : Paths.get(userDirStr), buildArgs);
+        return 0;
+    }
+
+    private static String transformPath(String path) {
+        String result = path;
+        if (result.contains("{pid}")) {
+            result = result.replace("{pid}", Long.toString(ProcessProperties.getProcessID()));
+        }
+        if (result.contains("{datetime}")) {
+            DateFormat fmt = new SimpleDateFormat("yyyyMMdd'T'HHmmss'Z'");
+            
