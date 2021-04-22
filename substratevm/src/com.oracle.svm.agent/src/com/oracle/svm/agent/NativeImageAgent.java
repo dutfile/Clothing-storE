@@ -285,4 +285,111 @@ public final class NativeImageAgent extends JvmtiAgentBase<NativeImageAgentJNIHa
                 configOutputLockFilePath = configOutputDirPath.resolve(ConfigurationFile.LOCK_FILE_NAME);
                 try {
                     Files.writeString(configOutputLockFilePath, Long.toString(ProcessProperties.getProcessID()),
-                                    StandardOpenOpti
+                                    StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+                } catch (FileAlreadyExistsException e) {
+                    String process;
+                    try {
+                        process = Files.readString(configOutputLockFilePath).stripTrailing();
+                    } catch (Exception ignored) {
+                        process = "(unknown)";
+                    }
+                    return error(2, "Output directory '" + configOutputDirPath + "' is locked by process " + process + ", " +
+                                    "which means another agent instance is already writing to this directory. " +
+                                    "Only one agent instance can safely write to a specific target directory at the same time. " +
+                                    "Unless file '" + ConfigurationFile.LOCK_FILE_NAME + "' is a leftover from an earlier process that terminated abruptly, it is unsafe to delete it. " +
+                                    "For running multiple processes with agents at the same time to create a single configuration, read AutomaticMetadataCollection.md " +
+                                    "or https://www.graalvm.org/dev/reference-manual/native-image/metadata/AutomaticMetadataCollection/ on how to use the native-image-configure tool.");
+                }
+                if (experimentalOmitClasspathConfig) {
+                    ignoreConfigFromClasspath(jvmti, omittedConfigs);
+                }
+                AccessAdvisor advisor = createAccessAdvisor(builtinHeuristicFilter, callerFilter, accessFilter);
+                TraceProcessor processor = new TraceProcessor(advisor);
+                ConfigurationSet omittedConfiguration = new ConfigurationSet();
+                Predicate<String> shouldExcludeClassesWithHash = null;
+                if (!omittedConfigs.isEmpty()) {
+                    Function<IOException, Exception> ignore = e -> {
+                        warn("Failed to load omitted config: " + e);
+                        return null;
+                    };
+                    omittedConfiguration = omittedConfigs.loadConfigurationSet(ignore, null, null);
+                    shouldExcludeClassesWithHash = omittedConfiguration.getPredefinedClassesConfiguration()::containsClassWithHash;
+                }
+
+                if (shouldTraceOriginInformation) {
+                    ConfigurationWithOriginsTracer configWithOriginsTracer = new ConfigurationWithOriginsTracer(processor, recordKeeper);
+                    tracer = configWithOriginsTracer;
+
+                    if (isConditionalConfigurationRun) {
+                        if (conditionalConfigPartialRun) {
+                            tracingResultWriter = new ConditionalConfigurationPartialRunWriter(configWithOriginsTracer);
+                        } else {
+                            ComplexFilter userCodeFilter = new ComplexFilter(HierarchyFilterNode.createRoot());
+                            if (!parseFilterFiles(userCodeFilter, conditionalConfigUserPackageFilterFiles)) {
+                                return 2;
+                            }
+                            ComplexFilter classNameFilter;
+                            if (!conditionalConfigClassNameFilterFiles.isEmpty()) {
+                                classNameFilter = new ComplexFilter(HierarchyFilterNode.createRoot());
+                                if (!parseFilterFiles(classNameFilter, conditionalConfigClassNameFilterFiles)) {
+                                    return 3;
+                                }
+                            } else {
+                                classNameFilter = new ComplexFilter(HierarchyFilterNode.createInclusiveRoot());
+                            }
+
+                            ConditionalConfigurationPredicate predicate = new ConditionalConfigurationPredicate(classNameFilter);
+                            tracingResultWriter = new ConditionalConfigurationWriter(configWithOriginsTracer, userCodeFilter, predicate);
+                        }
+                    } else {
+                        tracingResultWriter = new ConfigurationWithOriginsWriter(configWithOriginsTracer);
+                    }
+                } else {
+                    Path[] predefinedClassDestDirs = {Files.createDirectories(configOutputDirPath.resolve(ConfigurationFile.PREDEFINED_CLASSES_AGENT_EXTRACTED_SUBDIR))};
+                    Function<IOException, Exception> handler = e -> {
+                        if (e instanceof NoSuchFileException) {
+                            warn("file " + ((NoSuchFileException) e).getFile() + " for merging could not be found, skipping");
+                            return null;
+                        } else if (e instanceof FileNotFoundException) {
+                            warn("could not open configuration file: " + e);
+                            return null;
+                        }
+                        return e; // rethrow
+                    };
+
+                    ConfigurationSet configuration = mergeConfigs.loadConfigurationSet(handler, predefinedClassDestDirs, shouldExcludeClassesWithHash);
+                    ConfigurationResultWriter writer = new ConfigurationResultWriter(processor, configuration, omittedConfiguration);
+                    tracer = writer;
+                    tracingResultWriter = writer;
+                }
+                expectedConfigModifiedBefore = getMostRecentlyModified(configOutputDirPath, getMostRecentlyModified(configOutputLockFilePath, null));
+            } catch (Throwable t) {
+                return error(2, t.toString());
+            }
+        } else if (traceOutputFile != null) {
+            try {
+                Path path = Paths.get(transformPath(traceOutputFile));
+                TraceFileWriter writer = new TraceFileWriter(path);
+                tracer = writer;
+                tracingResultWriter = writer;
+            } catch (Throwable t) {
+                return error(2, t.toString());
+            }
+        }
+
+        if (build) {
+            int status = buildImage(jvmti);
+            if (status == 0) {
+                System.exit(status);
+            }
+            return status;
+        }
+
+        try {
+            BreakpointInterceptor.onLoad(jvmti, callbacks, tracer, this, interceptedStateSupplier,
+                            experimentalClassLoaderSupport, experimentalClassDefineSupport, experimentalUnsafeAllocationSupport, trackReflectionMetadata);
+        } catch (Throwable t) {
+            return error(3, t.toString());
+        }
+        try {
+            JniCallInterceptor.onLoad(tracer, this, interceptedStateSupplier);
