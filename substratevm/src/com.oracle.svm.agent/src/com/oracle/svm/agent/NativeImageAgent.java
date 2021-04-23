@@ -699,4 +699,59 @@ public final class NativeImageAgent extends JvmtiAgentBase<NativeImageAgentJNIHa
     protected int onUnloadCallback(JNIJavaVM vm) {
         if (periodicConfigWriterExecutor != null) {
             periodicConfigWriterExecutor.shutdown();
-            tr
+            try {
+                periodicConfigWriterExecutor.awaitTermination(300, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException ex) {
+                periodicConfigWriterExecutor.shutdownNow();
+            }
+        }
+
+        if (tracer != null) {
+            tracer.tracePhaseChange("unload");
+        }
+
+        if (tracingResultWriter != null) {
+            tracingResultWriter.close();
+            if (tracingResultWriter.supportsOnUnloadTraceWriting()) {
+                if (configOutputDirPath != null) {
+                    writeConfigurationFiles();
+                    compulsoryDelete(configOutputLockFilePath);
+                    configOutputLockFilePath = null;
+                    configOutputDirPath = null;
+                }
+            }
+        }
+
+        /*
+         * Agent shutdown is tricky: apparently we can still have events at the same time as this
+         * function executes, so we would need to synchronize. We could do this with a combined
+         * shared+exclusive lock, but that adds some cost to all events. We choose to leak a few
+         * handles and some memory for now -- this agent isn't supposed to be attached only
+         * temporarily anyway, and the impending process exit should free any resources we take
+         * (unless another JVM is launched in this process).
+         */
+        // cleanupOnUnload(vm);
+
+        /*
+         * The epilogue of this method does not tear down our VM: we don't seem to observe all
+         * threads that end and therefore can't detach them, so we would wait forever for them.
+         */
+        return 0;
+    }
+
+    @SuppressWarnings("unused")
+    private static void cleanupOnUnload(JNIJavaVM vm) {
+        JniCallInterceptor.onUnload();
+        BreakpointInterceptor.onUnload();
+    }
+
+    @SuppressWarnings("unused")
+    public static class RegistrationFeature implements Feature {
+
+        @Override
+        public void afterRegistration(AfterRegistrationAccess access) {
+            JvmtiAgentBase.registerAgent(new NativeImageAgent());
+        }
+
+    }
+}
