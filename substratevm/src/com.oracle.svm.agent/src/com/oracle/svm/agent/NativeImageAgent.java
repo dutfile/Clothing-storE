@@ -549,4 +549,154 @@ public final class NativeImageAgent extends JvmtiAgentBase<NativeImageAgentJNIHa
         }
         if (result.contains("{datetime}")) {
             DateFormat fmt = new SimpleDateFormat("yyyyMMdd'T'HHmmss'Z'");
-            
+            fmt.setTimeZone(UTC_TIMEZONE);
+            result = result.replace("{datetime}", fmt.format(new Date()));
+        }
+        return result;
+    }
+
+    @Override
+    protected void onVMInitCallback(JvmtiEnv jvmti, JNIEnvironment jni, JNIObjectHandle thread) {
+        BreakpointInterceptor.onVMInit(jvmti, jni);
+        if (tracer != null) {
+            tracer.tracePhaseChange("live");
+        }
+    }
+
+    @Override
+    protected void onVMStartCallback(JvmtiEnv jvmti, JNIEnvironment jni) {
+        JniCallInterceptor.onVMStart(jvmti);
+        if (tracer != null) {
+            tracer.tracePhaseChange("start");
+        }
+    }
+
+    @Override
+    protected void onVMDeathCallback(JvmtiEnv jvmti, JNIEnvironment jni) {
+        if (tracer != null) {
+            tracer.tracePhaseChange("dead");
+        }
+    }
+
+    private static final int MAX_WARNINGS_FOR_WRITING_CONFIGS_FAILURES = 5;
+    private static int currentFailuresWritingConfigs = 0;
+    private static int currentFailuresModifiedTargetDirectory = 0;
+
+    private void writeConfigurationFiles() {
+        Path tempDirectory = null;
+        try {
+            FileTime mostRecent = getMostRecentlyModified(configOutputDirPath, expectedConfigModifiedBefore);
+
+            // Write files first before failing any modification checks
+            tempDirectory = Files.createTempDirectory(configOutputDirPath, transformPath("agent-pid{pid}-{datetime}.tmp"));
+            List<Path> tempFilePaths = tracingResultWriter.writeToDirectory(tempDirectory);
+
+            if (!Files.exists(configOutputLockFilePath)) {
+                throw unexpectedlyModified(configOutputLockFilePath);
+            }
+            expectUnmodified(configOutputLockFilePath);
+            if (!mostRecent.equals(expectedConfigModifiedBefore)) {
+                throw unexpectedlyModified(configOutputDirPath);
+            }
+
+            Path[] targetFilePaths = new Path[tempFilePaths.size()];
+            for (int i = 0; i < tempFilePaths.size(); i++) {
+                Path fileName = tempDirectory.relativize(tempFilePaths.get(i));
+                targetFilePaths[i] = configOutputDirPath.resolve(fileName);
+                expectUnmodified(targetFilePaths[i]);
+            }
+
+            for (int i = 0; i < tempFilePaths.size(); i++) {
+                tryAtomicMove(tempFilePaths.get(i), targetFilePaths[i]);
+                mostRecent = getMostRecentlyModified(targetFilePaths[i], mostRecent);
+            }
+            mostRecent = getMostRecentlyModified(configOutputDirPath, mostRecent);
+            expectedConfigModifiedBefore = mostRecent;
+
+            /*
+             * Note that sidecar files may be written directly to the final output directory, such
+             * as the class files from predefined class tracking. However, such files generally
+             * don't change once they have been written.
+             */
+
+            compulsoryDelete(tempDirectory);
+        } catch (IOException e) {
+            warnUpToLimit(currentFailuresWritingConfigs++, MAX_WARNINGS_FOR_WRITING_CONFIGS_FAILURES, "Error when writing configuration files: " + e);
+        } catch (ConcurrentModificationException e) {
+            warnUpToLimit(currentFailuresModifiedTargetDirectory++, MAX_WARNINGS_FOR_WRITING_CONFIGS_FAILURES,
+                            "file or directory '" + e.getMessage() + "' has been modified by another process. " +
+                                            "All output files remain in the temporary directory '" + configOutputDirPath.resolve("..").relativize(tempDirectory) + "'. " +
+                                            "Ensure that only one agent instance and no other processes are writing to the output directory '" + configOutputDirPath + "' at the same time. " +
+                                            "For running multiple processes with agents at the same time to create a single configuration, read AutomaticMetadataCollection.md " +
+                                            "or https://www.graalvm.org/dev/reference-manual/native-image/metadata/AutomaticMetadataCollection/ on how to use the native-image-configure tool.");
+        }
+    }
+
+    private void expectUnmodified(Path path) {
+        try {
+            if (Files.getLastModifiedTime(path).compareTo(expectedConfigModifiedBefore) > 0) {
+                throw unexpectedlyModified(path);
+            }
+        } catch (IOException ignored) {
+            // best effort
+        }
+    }
+
+    private static ConcurrentModificationException unexpectedlyModified(Path path) {
+        throw new ConcurrentModificationException(path.getFileName().toString());
+    }
+
+    private static FileTime getMostRecentlyModified(Path path, FileTime other) {
+        FileTime modified;
+        try {
+            modified = Files.getLastModifiedTime(path);
+        } catch (IOException ignored) {
+            return other; // best effort
+        }
+        return (other == null || other.compareTo(modified) < 0) ? modified : other;
+    }
+
+    @SuppressWarnings("BusyWait")
+    private static void compulsoryDelete(Path pathToDelete) {
+        final int maxRetries = 3;
+        int retries = 0;
+        while (pathToDelete.toFile().exists() && !pathToDelete.toFile().delete() && retries < maxRetries) {
+            try {
+                Thread.sleep((long) (100 + Math.random() * 500));
+            } catch (InterruptedException e) {
+            }
+            retries++;
+        }
+    }
+
+    private static void warnUpToLimit(int currentCount, int limit, String message) {
+        if (currentCount < limit) {
+            warn(message);
+            return;
+        }
+
+        if (currentCount == limit) {
+            warn(message);
+            warn("The above warning will no longer be reported.");
+        }
+    }
+
+    private static final int MAX_FAILURES_ATOMIC_MOVE = 20;
+    private static int currentFailuresAtomicMove = 0;
+
+    private static void tryAtomicMove(final Path source, final Path target) throws IOException {
+        try {
+            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException e) {
+            warnUpToLimit(currentFailuresAtomicMove++, MAX_FAILURES_ATOMIC_MOVE,
+                            String.format("Could not move temporary configuration profile from '%s' to '%s' atomically. " +
+                                            "This might result in inconsistencies.", source.toAbsolutePath(), target.toAbsolutePath()));
+            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
+    @Override
+    protected int onUnloadCallback(JNIJavaVM vm) {
+        if (periodicConfigWriterExecutor != null) {
+            periodicConfigWriterExecutor.shutdown();
+            tr
