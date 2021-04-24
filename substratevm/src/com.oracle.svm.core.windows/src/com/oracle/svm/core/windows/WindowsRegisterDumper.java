@@ -51,4 +51,48 @@ class WindowsRegisterDumper implements RegisterDumper {
         dumpRegisters(log, (CONTEXT) context, printLocationInfo, allowJavaHeapAccess, allowUnsafeOperations);
     }
 
-    private static void dumpRegisters(Log log, CONTEXT con
+    private static void dumpRegisters(Log log, CONTEXT context, boolean printLocationInfo, boolean allowJavaHeapAccess, boolean allowUnsafeOperations) {
+        dumpReg(log, "RAX ", context.Rax(), printLocationInfo, allowJavaHeapAccess, allowUnsafeOperations);
+        dumpReg(log, "RBX ", context.Rbx(), printLocationInfo, allowJavaHeapAccess, allowUnsafeOperations);
+        dumpReg(log, "RCX ", context.Rcx(), printLocationInfo, allowJavaHeapAccess, allowUnsafeOperations);
+        dumpReg(log, "RDX ", context.Rdx(), printLocationInfo, allowJavaHeapAccess, allowUnsafeOperations);
+        dumpReg(log, "RBP ", context.Rbp(), printLocationInfo, allowJavaHeapAccess, allowUnsafeOperations);
+        dumpReg(log, "RSI ", context.Rsi(), printLocationInfo, allowJavaHeapAccess, allowUnsafeOperations);
+        dumpReg(log, "RDI ", context.Rdi(), printLocationInfo, allowJavaHeapAccess, allowUnsafeOperations);
+        dumpReg(log, "RSP ", context.Rsp(), printLocationInfo, allowJavaHeapAccess, allowUnsafeOperations);
+        dumpReg(log, "R8  ", context.R8(), printLocationInfo, allowJavaHeapAccess, allowUnsafeOperations);
+        dumpReg(log, "R9  ", context.R9(), printLocationInfo, allowJavaHeapAccess, allowUnsafeOperations);
+        dumpReg(log, "R10 ", context.R10(), printLocationInfo, allowJavaHeapAccess, allowUnsafeOperations);
+        dumpReg(log, "R11 ", context.R11(), printLocationInfo, allowJavaHeapAccess, allowUnsafeOperations);
+        dumpReg(log, "R12 ", context.R12(), printLocationInfo, allowJavaHeapAccess, allowUnsafeOperations);
+        dumpReg(log, "R13 ", context.R13(), printLocationInfo, allowJavaHeapAccess, allowUnsafeOperations);
+        dumpReg(log, "R14 ", context.R14(), printLocationInfo, allowJavaHeapAccess, allowUnsafeOperations);
+        dumpReg(log, "R15 ", context.R15(), printLocationInfo, allowJavaHeapAccess, allowUnsafeOperations);
+        dumpReg(log, "EFL ", context.EFlags(), printLocationInfo, allowJavaHeapAccess, allowUnsafeOperations);
+        dumpReg(log, "RIP ", context.Rip(), printLocationInfo, allowJavaHeapAccess, allowUnsafeOperations);
+    }
+
+    @Override
+    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+    public PointerBase getHeapBase(Context context) {
+        return WordFactory.pointer(((CONTEXT) context).R14());
+    }
+
+    @Override
+    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+    public PointerBase getThreadPointer(Context context) {
+        return WordFactory.pointer(((CONTEXT) context).R15());
+    }
+
+    @Override
+    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+    public PointerBase getSP(Context context) {
+        return WordFactory.pointer(((CONTEXT) context).Rsp());
+    }
+
+    @Override
+    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+    public PointerBase getIP(Context context) {
+        return WordFactory.pointer(((CONTEXT) context).Rip());
+    }
+}
