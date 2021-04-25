@@ -33,4 +33,38 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES O
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+package org.graalvm.nativeimage.hosted;
+
+import java.util.Objects;
+
+import org.graalvm.nativeimage.ImageSingletons;
+import org.graalvm.nativeimage.impl.RuntimeSystemPropertiesSupport;
+
+/**
+ * This class provides methods that can be called during native image generation to define system
+ * property setting for image runtime.
+ *
+ * @since 23.0
+ */
+public final class RuntimeSystemProperties {
+
+    /**
+     * Define a system property setting for image runtime. This ensures a given key has the given
+     * value at runtime even if no system property is set via command line of the image execution.
+     *
+     * @since 23.0
+     */
+    public static void register(String key, String value) {
+        Objects.requireNonNull(key);
+        Objects.requireNonNull(value);
+        ImageSingletons.lookup(RuntimeSystemPropertiesSupport.class).initializeProperty(key, value);
+    }
+
+    private RuntimeSystemProperties() {
+    }
+}
