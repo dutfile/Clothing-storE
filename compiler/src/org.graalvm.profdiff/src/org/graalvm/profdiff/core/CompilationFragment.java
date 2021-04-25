@@ -85,4 +85,35 @@ public class CompilationFragment extends CompilationUnit {
         super(rootFragmentMethod, parentCompilationUnit.getCompilationId(), parentCompilationUnit.getPeriod(), null);
         this.parentCompilationUnit = parentCompilationUnit;
         this.index = rootNode.getIndex();
-        this.pathFromRoot = Inlin
+        this.pathFromRoot = InliningPath.fromRootToNode(rootNode);
+        this.fragmentId = ++nextFragmentId;
+        setHot(parentCompilationUnit.isHot());
+    }
+
+    /**
+     * Gets the compilation ID of this compilation fragment. Includes the compilation ID of the
+     * parent compilation unit, followed by {@code "#"}, and the fragment ID, e.g. {@code "123#42"}.
+     *
+     * @return the compilation ID
+     */
+    @Override
+    public String getCompilationId() {
+        return super.getCompilationId() + "#" + fragmentId;
+    }
+
+    /**
+     * Gets the path from root to the root of this fragment in the inlining tree of the parent's
+     * compilation unit.
+     */
+    public InliningPath getPathFromRoot() {
+        return pathFromRoot;
+    }
+
+    @Override
+    public TreePair loadTrees() throws ExperimentParserError {
+        TreePair treePair = parentCompilationUnit.loadTrees();
+        InliningTree inliningTree = treePair.getInliningTree().cloneSubtreeAt(index);
+        OptimizationTree optimizationTree = new OptimizationTree(treePair.getOptimizationTree().getRoot().cloneMatchingPath(pathFromRoot));
+        return new TreePair(optimizationTree, inliningTree);
+    }
+}
