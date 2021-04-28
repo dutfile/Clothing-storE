@@ -548,4 +548,199 @@ public final class JNI {
         JObject call(JNIEnv env, JClass clazz, JMethodID methodID, JValue args);
 
         @InvokeCFunctionPointer(transition = Transition.NO_TRANSITION)
-        JObject callNoTransition(JNIEnv env, JClass clazz, JMethodID methodID, JVa
+        JObject callNoTransition(JNIEnv env, JClass clazz, JMethodID methodID, JValue args);
+    }
+
+    public interface CallStaticLongMethodA extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        long call(JNIEnv env, JClass clazz, JMethodID methodID, JValue args);
+    }
+
+    public interface CallObjectMethodA extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        JObject call(JNIEnv env, JObject object, JMethodID methodID, JValue args);
+    }
+
+    public interface CallVoidMethodA extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env, JObject o, JMethodID methodID, JValue args);
+    }
+
+    public interface CallBooleanMethodA extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        boolean call(JNIEnv env, JObject o, JMethodID methodID, JValue args);
+    }
+
+    public interface CallShortMethodA extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        short call(JNIEnv env, JObject o, JMethodID methodID, JValue args);
+    }
+
+    public interface CallIntMethodA extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        int call(JNIEnv env, JObject o, JMethodID methodID, JValue args);
+    }
+
+    public interface CallLongMethodA extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        long call(JNIEnv env, JObject o, JMethodID methodID, JValue args);
+    }
+
+    public interface CallDoubleMethodA extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        double call(JNIEnv env, JObject o, JMethodID methodID, JValue args);
+    }
+
+    public interface CallFloatMethodA extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        float call(JNIEnv env, JObject o, JMethodID methodID, JValue args);
+    }
+
+    public interface CallByteMethodA extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        byte call(JNIEnv env, JObject o, JMethodID methodID, JValue args);
+    }
+
+    public interface CallCharMethodA extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        char call(JNIEnv env, JObject o, JMethodID methodID, JValue args);
+    }
+
+    public interface DeleteGlobalRef extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env, JObject gref);
+    }
+
+    public interface DeleteWeakGlobalRef extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env, JWeak wref);
+    }
+
+    public interface DeleteLocalRef extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env, JObject lref);
+    }
+
+    public interface PushLocalFrame extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        int call(JNIEnv env, int capacity);
+    }
+
+    public interface PopLocalFrame extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        JObject call(JNIEnv env, JObject result);
+    }
+
+    public interface ExceptionCheck extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        boolean call(JNIEnv env);
+
+        @InvokeCFunctionPointer(transition = Transition.NO_TRANSITION)
+        boolean callNoTransition(JNIEnv env);
+    }
+
+    public interface ExceptionClear extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env);
+    }
+
+    public interface ExceptionDescribe extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env);
+
+        @InvokeCFunctionPointer(transition = Transition.NO_TRANSITION)
+        void callNoTransition(JNIEnv env);
+    }
+
+    public interface ExceptionOccurred extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        JThrowable call(JNIEnv env);
+    }
+
+    public interface FindClass extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        JClass call(JNIEnv env, CCharPointer name);
+
+        @InvokeCFunctionPointer(transition = Transition.NO_TRANSITION)
+        JClass callNoTransition(JNIEnv env, CCharPointer name);
+    }
+
+    public interface DefineClass extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        JClass call(JNIEnv env, CCharPointer name, JObject loader, CCharPointer buf, long bufLen);
+    }
+
+    public interface GetArrayLength extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        int call(JNIEnv env, JArray array);
+    }
+
+    public interface GetBooleanArrayElements extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        CCharPointer call(JNIEnv env, JBooleanArray array, JValue isCopy);
+    }
+
+    public interface GetByteArrayElements extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        CCharPointer call(JNIEnv env, JByteArray array, JValue isCopy);
+    }
+
+    public interface GetCharArrayElements extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        CShortPointer call(JNIEnv env, JCharArray array, JValue isCopy);
+    }
+
+    public interface GetShortArrayElements extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        CShortPointer call(JNIEnv env, JShortArray array, JValue isCopy);
+    }
+
+    public interface GetIntArrayElements extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        CIntPointer call(JNIEnv env, JIntArray array, JValue isCopy);
+    }
+
+    public interface GetLongArrayElements extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        CLongPointer call(JNIEnv env, JLongArray array, JValue isCopy);
+    }
+
+    public interface GetFloatArrayElements extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        CFloatPointer call(JNIEnv env, JFloatArray array, JValue isCopy);
+    }
+
+    public interface GetDoubleArrayElements extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        CDoublePointer call(JNIEnv env, JDoubleArray array, JValue isCopy);
+    }
+
+    public interface GetMethodID extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        JMethodID call(JNIEnv env, JClass clazz, CCharPointer name, CCharPointer sig);
+
+        @InvokeCFunctionPointer(transition = Transition.NO_TRANSITION)
+        JMethodID callNoTransition(JNIEnv env, JClass clazz, CCharPointer name, CCharPointer sig);
+    }
+
+    public interface GetObjectArrayElement extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        JObject call(JNIEnv env, JObjectArray array, int index);
+    }
+
+    public interface GetObjectClass extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        JClass call(JNIEnv env, JObject object);
+    }
+
+    public interface GetObjectRefType extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        int call(JNIEnv env, JObject obj);
+    }
+
+    public interface GetStaticMethodID extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        JMethodID call(JNIEnv env, JClass clazz, CCharPointer name, CCharPointer sig);
+
+        @InvokeCFunctionPointer(transition = Transition.NO_TRANSITION)
+        JMethodID callNoTransition(JNIEnv env, JClass 
