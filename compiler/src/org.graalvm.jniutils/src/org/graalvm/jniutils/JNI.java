@@ -317,4 +317,235 @@ public final class JNI {
         GetFloatArrayRegion getGetFloatArrayRegion();
 
         @CField("GetDoubleArrayRegion")
-        
+        GetDoubleArrayRegion getGetDoubleArrayRegion();
+
+        @CField("SetBooleanArrayRegion")
+        SetBooleanArrayRegion getSetBooleanArrayRegion();
+
+        @CField("SetByteArrayRegion")
+        SetByteArrayRegion getSetByteArrayRegion();
+
+        @CField("SetCharArrayRegion")
+        SetCharArrayRegion getSetCharArrayRegion();
+
+        @CField("SetShortArrayRegion")
+        SetShortArrayRegion getSetShortArrayRegion();
+
+        @CField("SetIntArrayRegion")
+        SetIntArrayRegion getSetIntArrayRegion();
+
+        @CField("SetLongArrayRegion")
+        SetLongArrayRegion getSetLongArrayRegion();
+
+        @CField("SetFloatArrayRegion")
+        SetFloatArrayRegion getSetFloatArrayRegion();
+
+        @CField("SetDoubleArrayRegion")
+        SetDoubleArrayRegion getSetDoubleArrayRegion();
+
+        @CField("FindClass")
+        FindClass getFindClass();
+
+        @CField("DefineClass")
+        DefineClass getDefineClass();
+
+        @CField("IsSameObject")
+        IsSameObject getIsSameObject();
+
+        @CField("GetObjectClass")
+        GetObjectClass getGetObjectClass();
+
+        @CField("NewGlobalRef")
+        NewGlobalRef getNewGlobalRef();
+
+        @CField("DeleteGlobalRef")
+        DeleteGlobalRef getDeleteGlobalRef();
+
+        @CField("NewWeakGlobalRef")
+        NewWeakGlobalRef getNewWeakGlobalRef();
+
+        @CField("DeleteWeakGlobalRef")
+        DeleteWeakGlobalRef getDeleteWeakGlobalRef();
+
+        @CField("DeleteLocalRef")
+        DeleteLocalRef getDeleteLocalRef();
+
+        @CField("PushLocalFrame")
+        PushLocalFrame getPushLocalFrame();
+
+        @CField("PopLocalFrame")
+        PopLocalFrame getPopLocalFrame();
+
+        @CField("NewObjectA")
+        NewObjectA getNewObjectA();
+
+        @CField("GetStaticMethodID")
+        GetStaticMethodID getGetStaticMethodID();
+
+        @CField("GetMethodID")
+        GetMethodID getGetMethodID();
+
+        @CField("GetStaticFieldID")
+        GetStaticFieldID getGetStaticFieldID();
+
+        @CField("GetFieldID")
+        GetFieldID getGetFieldID();
+
+        @CField("CallStaticBooleanMethodA")
+        CallStaticBooleanMethodA getCallStaticBooleanMethodA();
+
+        @CField("CallStaticIntMethodA")
+        CallStaticIntMethodA getCallStaticIntMethodA();
+
+        @CField("CallStaticVoidMethodA")
+        CallStaticVoidMethodA getCallStaticVoidMethodA();
+
+        @CField("CallStaticObjectMethodA")
+        CallStaticObjectMethodA getCallStaticObjectMethodA();
+
+        @CField("CallStaticLongMethodA")
+        CallStaticLongMethodA getCallStaticLongMethodA();
+
+        @CField("CallObjectMethodA")
+        CallObjectMethodA getCallObjectMethodA();
+
+        @CField("CallVoidMethodA")
+        CallVoidMethodA getCallVoidMethodA();
+
+        @CField("CallBooleanMethodA")
+        CallBooleanMethodA getCallBooleanMethodA();
+
+        @CField("CallShortMethodA")
+        CallShortMethodA getCallShortMethodA();
+
+        @CField("CallIntMethodA")
+        CallIntMethodA getCallIntMethodA();
+
+        @CField("CallLongMethodA")
+        CallLongMethodA getCallLongMethodA();
+
+        @CField("CallDoubleMethodA")
+        CallDoubleMethodA getCallDoubleMethodA();
+
+        @CField("CallFloatMethodA")
+        CallFloatMethodA getCallFloatMethodA();
+
+        @CField("CallByteMethodA")
+        CallByteMethodA getCallByteMethodA();
+
+        @CField("CallCharMethodA")
+        CallCharMethodA getCallCharMethodA();
+
+        @CField("GetStaticObjectField")
+        GetStaticObjectField getGetStaticObjectField();
+
+        @CField("GetIntField")
+        GetIntField getGetIntField();
+
+        @CField("GetStaticBooleanField")
+        GetStaticBooleanField getGetStaticBooleanField();
+
+        @CField("SetStaticBooleanField")
+        SetStaticBooleanField getSetStaticBooleanField();
+
+        @CField("ExceptionCheck")
+        ExceptionCheck getExceptionCheck();
+
+        @CField("ExceptionOccurred")
+        ExceptionOccurred getExceptionOccurred();
+
+        @CField("ExceptionClear")
+        ExceptionClear getExceptionClear();
+
+        @CField("ExceptionDescribe")
+        ExceptionDescribe getExceptionDescribe();
+
+        @CField("Throw")
+        Throw getThrow();
+
+        @CField("GetObjectRefType")
+        GetObjectRefType getGetObjectRefType();
+
+        @CField("GetDirectBufferAddress")
+        GetDirectBufferAddress getGetDirectBufferAddress();
+
+        @CField("IsInstanceOf")
+        IsInstanceOf getIsInstanceOf();
+
+        @CField("GetJavaVM")
+        GetJavaVM getGetJavaVM();
+    }
+
+    @CContext(JNIHeaderDirectives.class)
+    @CStruct(value = "JavaVM_", addStructKeyword = true)
+    public interface JavaVM extends PointerBase {
+        @CField("functions")
+        JNIInvokeInterface getFunctions();
+    }
+
+    @CPointerTo(JavaVM.class)
+    public interface JavaVMPointer extends PointerBase {
+        JavaVM readJavaVM();
+
+        void writeJavaVM(JavaVM javaVM);
+    }
+
+    @CContext(JNIHeaderDirectives.class)
+    @CStruct(value = "JavaVMAttachArgs", addStructKeyword = true)
+    public interface JavaVMAttachArgs extends PointerBase {
+        @CField("version")
+        int getVersion();
+
+        @CField("version")
+        void setVersion(int version);
+
+        @CField("name")
+        CCharPointer getName();
+
+        @CField("name")
+        void setName(CCharPointer name);
+
+        @CField("group")
+        JObject getGroup();
+
+        @CField("group")
+        void setGroup(JObject group);
+    }
+
+    @CContext(JNIHeaderDirectives.class)
+    @CStruct(value = "JNIInvokeInterface_", addStructKeyword = true)
+    public interface JNIInvokeInterface extends PointerBase {
+        @CField("AttachCurrentThread")
+        AttachCurrentThread getAttachCurrentThread();
+
+        @CField("AttachCurrentThreadAsDaemon")
+        AttachCurrentThreadAsDaemon getAttachCurrentThreadAsDaemon();
+
+        @CField("DetachCurrentThread")
+        DetachCurrentThread getDetachCurrentThread();
+
+        @CField("GetEnv")
+        GetEnv getGetEnv();
+    }
+
+    public interface CallStaticIntMethodA extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        int call(JNIEnv env, JClass clazz, JMethodID methodID, JValue args);
+    }
+
+    public interface CallStaticBooleanMethodA extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        boolean call(JNIEnv env, JClass clazz, JMethodID methodID, JValue args);
+    }
+
+    public interface CallStaticVoidMethodA extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env, JClass clazz, JMethodID methodID, JValue args);
+    }
+
+    public interface CallStaticObjectMethodA extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        JObject call(JNIEnv env, JClass clazz, JMethodID methodID, JValue args);
+
+        @InvokeCFunctionPointer(transition = Transition.NO_TRANSITION)
+        JObject callNoTransition(JNIEnv env, JClass clazz, JMethodID methodID, JVa
