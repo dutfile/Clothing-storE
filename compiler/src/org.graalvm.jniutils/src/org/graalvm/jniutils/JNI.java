@@ -743,4 +743,193 @@ public final class JNI {
         JMethodID call(JNIEnv env, JClass clazz, CCharPointer name, CCharPointer sig);
 
         @InvokeCFunctionPointer(transition = Transition.NO_TRANSITION)
-        JMethodID callNoTransition(JNIEnv env, JClass 
+        JMethodID callNoTransition(JNIEnv env, JClass clazz, CCharPointer name, CCharPointer sig);
+    }
+
+    public interface GetStringChars extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        CShortPointer call(JNIEnv env, JString string, JValue isCopy);
+    }
+
+    public interface GetStringLength extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        int call(JNIEnv env, JString string);
+    }
+
+    public interface GetStringUTFChars extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        CCharPointer call(JNIEnv env, JString string, JValue isCopy);
+    }
+
+    public interface GetStringUTFLength extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        int call(JNIEnv env, JString str);
+    }
+
+    public interface IsSameObject extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        boolean call(JNIEnv env, JObject ref1, JObject ref2);
+    }
+
+    public interface NewBooleanArray extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        JBooleanArray call(JNIEnv env, int len);
+    }
+
+    public interface NewByteArray extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        JByteArray call(JNIEnv env, int len);
+    }
+
+    public interface NewCharArray extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        JCharArray call(JNIEnv env, int len);
+    }
+
+    public interface NewShortArray extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        JShortArray call(JNIEnv env, int len);
+    }
+
+    public interface NewIntArray extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        JIntArray call(JNIEnv env, int len);
+    }
+
+    public interface NewLongArray extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        JLongArray call(JNIEnv env, int len);
+    }
+
+    public interface NewFloatArray extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        JFloatArray call(JNIEnv env, int len);
+    }
+
+    public interface NewDoubleArray extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        JDoubleArray call(JNIEnv env, int len);
+    }
+
+    public interface NewGlobalRef extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        JObject call(JNIEnv env, JObject lobj);
+    }
+
+    public interface NewWeakGlobalRef extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        JWeak call(JNIEnv env, JObject lobj);
+    }
+
+    public interface NewObjectA extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        JObject call(JNIEnv env, JClass clazz, JMethodID methodID, JValue args);
+
+        @InvokeCFunctionPointer(transition = Transition.NO_TRANSITION)
+        JObject callNoTransition(JNIEnv env, JClass clazz, JMethodID methodID, JValue args);
+    }
+
+    public interface NewObjectArray extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        JObjectArray call(JNIEnv env, int len, JClass clazz, JObject init);
+    }
+
+    public interface NewString extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        JString call(JNIEnv env, CShortPointer unicode, int len);
+    }
+
+    public interface NewStringUTF8 extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        JString call(JNIEnv env, CCharPointer bytes);
+
+        @InvokeCFunctionPointer(transition = Transition.NO_TRANSITION)
+        JString callNoTransition(JNIEnv env, CCharPointer bytes);
+    }
+
+    public interface ReleaseBooleanArrayElements extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env, JBooleanArray array, CCharPointer elems, int mode);
+    }
+
+    public interface ReleaseByteArrayElements extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env, JByteArray array, CCharPointer elems, int mode);
+    }
+
+    public interface ReleaseCharArrayElements extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env, JCharArray array, CShortPointer elems, int mode);
+    }
+
+    public interface ReleaseShortArrayElements extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env, JShortArray array, CShortPointer elems, int mode);
+    }
+
+    public interface ReleaseIntArrayElements extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env, JIntArray array, CIntPointer elems, int mode);
+    }
+
+    public interface ReleaseLongArrayElements extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env, JLongArray array, CLongPointer elems, int mode);
+    }
+
+    public interface ReleaseFloatArrayElements extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env, JFloatArray array, CFloatPointer elems, int mode);
+    }
+
+    public interface ReleaseDoubleArrayElements extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env, JDoubleArray array, CDoublePointer elems, int mode);
+    }
+
+    public interface GetBooleanArrayRegion extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env, JBooleanArray array, int start, int len, CCharPointer buf);
+    }
+
+    public interface GetByteArrayRegion extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env, JByteArray array, int start, int len, CCharPointer buf);
+    }
+
+    public interface GetCharArrayRegion extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env, JCharArray array, int start, int len, CShortPointer buf);
+    }
+
+    public interface GetShortArrayRegion extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env, JShortArray array, int start, int len, CShortPointer buf);
+    }
+
+    public interface GetIntArrayRegion extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env, JIntArray array, int start, int len, CIntPointer buf);
+    }
+
+    public interface GetLongArrayRegion extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env, JLongArray array, int start, int len, CLongPointer buf);
+    }
+
+    public interface GetFloatArrayRegion extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env, JFloatArray array, int start, int len, CFloatPointer buf);
+    }
+
+    public interface GetDoubleArrayRegion extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env, JDoubleArray array, int start, int len, CDoublePointer buf);
+    }
+
+    public interface SetBooleanArrayRegion extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env, JBooleanArray array, int start, int len, CCharPointer buf);
+    }
+
+    public interface SetByteArray
