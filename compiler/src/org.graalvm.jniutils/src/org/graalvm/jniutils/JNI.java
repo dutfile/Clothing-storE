@@ -932,4 +932,174 @@ public final class JNI {
         void call(JNIEnv env, JBooleanArray array, int start, int len, CCharPointer buf);
     }
 
-    public interface SetByteArray
+    public interface SetByteArrayRegion extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env, JByteArray array, int start, int len, CCharPointer buf);
+    }
+
+    public interface SetCharArrayRegion extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env, JCharArray array, int start, int len, CShortPointer buf);
+    }
+
+    public interface SetShortArrayRegion extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env, JShortArray array, int start, int len, CShortPointer buf);
+    }
+
+    public interface SetIntArrayRegion extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env, JIntArray array, int start, int len, CIntPointer buf);
+    }
+
+    public interface SetLongArrayRegion extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env, JLongArray array, int start, int len, CLongPointer buf);
+    }
+
+    public interface SetFloatArrayRegion extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env, JFloatArray array, int start, int len, CFloatPointer buf);
+    }
+
+    public interface SetDoubleArrayRegion extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env, JDoubleArray array, int start, int len, CDoublePointer buf);
+    }
+
+    public interface ReleaseStringChars extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env, JString string, CShortPointer chars);
+    }
+
+    public interface ReleaseStringUTFChars extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env, JString string, CCharPointer chars);
+    }
+
+    public interface SetObjectArrayElement extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env, JObjectArray array, int index, JObject val);
+    }
+
+    public interface Throw extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        int call(JNIEnv env, JThrowable throwable);
+
+        @InvokeCFunctionPointer(transition = Transition.NO_TRANSITION)
+        int callNoTransition(JNIEnv env, JThrowable throwable);
+    }
+
+    public interface GetDirectBufferAddress extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        VoidPointer call(JNIEnv env, JObject buf);
+    }
+
+    public interface IsInstanceOf extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        boolean call(JNIEnv env, JObject o, JClass c);
+    }
+
+    public interface GetStaticFieldID extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        JFieldID call(JNIEnv env, JClass clazz, CCharPointer name, CCharPointer sig);
+    }
+
+    public interface GetFieldID extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        JFieldID call(JNIEnv env, JClass c, CCharPointer name, CCharPointer sig);
+    }
+
+    public interface GetStaticObjectField extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        JObject call(JNIEnv env, JClass clazz, JFieldID fieldID);
+    }
+
+    public interface GetIntField extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        int call(JNIEnv env, JObject o, JFieldID fieldId);
+    }
+
+    public interface GetStaticBooleanField extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        boolean call(JNIEnv env, JClass clazz, JFieldID fieldID);
+    }
+
+    public interface SetStaticBooleanField extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        void call(JNIEnv env, JClass clazz, JFieldID fieldID, boolean value);
+    }
+
+    public interface GetJavaVM extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        int call(JNIEnv env, JavaVMPointer javaVMOut);
+    }
+
+    public interface AttachCurrentThread extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        int call(JavaVM vm, JNIEnvPointer envOut, JavaVMAttachArgs args);
+    }
+
+    public interface AttachCurrentThreadAsDaemon extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        int call(JavaVM vm, JNIEnvPointer envOut, JavaVMAttachArgs args);
+    }
+
+    public interface DetachCurrentThread extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        int call(JavaVM vm);
+    }
+
+    public interface GetEnv extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        int call(JavaVM vm, JNIEnvPointer envOut, int version);
+    }
+
+    static class JNIHeaderDirectives implements CContext.Directives {
+        private static final String[] INCLUDES = {"jni.h", "jni_md.h"};
+
+        @Override
+        public boolean isInConfiguration() {
+            return ImageSingletons.contains(NativeBridgeSupport.class);
+        }
+
+        @Override
+        public List<String> getOptions() {
+            return Arrays.stream(findJNIHeaders()).map((p) -> "-I" + p.getParent()).collect(Collectors.toList());
+        }
+
+        @Override
+        public List<String> getHeaderFiles() {
+            return Arrays.stream(findJNIHeaders()).map((p) -> '<' + p.toString() + '>').collect(Collectors.toList());
+        }
+
+        private static Path[] findJNIHeaders() {
+            Path javaHome = Paths.get(Services.getSavedProperties().get("java.home"));
+            Path includeFolder = javaHome.resolve("include");
+            if (!Files.exists(includeFolder)) {
+                Path parent = javaHome.getParent();
+                if (parent != null) {
+                    javaHome = parent;
+                }
+            }
+            includeFolder = javaHome.resolve("include");
+            if (!Files.exists(includeFolder)) {
+                throw new IllegalStateException("Cannot find 'include' folder in JDK.");
+            }
+            Path[] res = new Path[INCLUDES.length];
+            try {
+                for (int i = 0; i < INCLUDES.length; i++) {
+                    String include = INCLUDES[i];
+                    Optional<Path> includeFile = Files.find(includeFolder, 2, (p, attrs) -> include.equals(p.getFileName().toString())).findFirst();
+                    if (!includeFile.isPresent()) {
+                        throw new IllegalStateException("Include: " + res[i] + " does not exist.");
+                    }
+                    res[i] = includeFile.get();
+                }
+                return res;
+            } catch (IOException ioe) {
+                throw new RuntimeException(ioe);
+            }
+        }
+    }
+}
