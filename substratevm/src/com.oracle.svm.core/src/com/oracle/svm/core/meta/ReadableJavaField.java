@@ -40,4 +40,33 @@ public interface ReadableJavaField extends ResolvedJavaField {
             assert readableField.isValueAvailable() : "Field " + readableField.format("%H.%n") + " value not available for reading.";
             return readableField.readValue(metaAccess, javaConstant);
         } else {
-            return originalConstantReflection.readFieldValue(jav
+            return originalConstantReflection.readFieldValue(javaField, javaConstant);
+        }
+    }
+
+    JavaConstant readValue(MetaAccessProvider metaAccess, JavaConstant receiver);
+
+    /**
+     * When this method returns true, image heap snapshotting can access the value before analysis.
+     * If the field is final, then the value can also be constant folded before analysis.
+     *
+     * The introduction of this method pre-dates {@link ValueAvailability}, i.e., we could combine
+     * this method and {@link #isValueAvailable} into a single method that returns the
+     * {@link ValueAvailability} of the field.
+     */
+    boolean isValueAvailableBeforeAnalysis();
+
+    default boolean isValueAvailable() {
+        return isValueAvailableBeforeAnalysis() || BuildPhaseProvider.isAnalysisFinished();
+    }
+
+    boolean injectFinalForRuntimeCompilation();
+
+    static boolean injectFinalForRuntimeCompilation(ResolvedJavaField original) {
+        if (original instanceof ReadableJavaField) {
+            return ((ReadableJavaField) original).injectFinalForRuntimeCompilation();
+        } else {
+            return false;
+        }
+    }
+}
