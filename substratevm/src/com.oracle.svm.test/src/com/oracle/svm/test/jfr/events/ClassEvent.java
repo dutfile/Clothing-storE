@@ -1,5 +1,7 @@
+
 /*
- * Copyright (c) 2014, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2021, 2021, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2021, 2021, Red Hat Inc. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,35 +24,18 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package org.graalvm.compiler.graph.test.matchers;
 
-import org.hamcrest.Description;
-import org.hamcrest.Matcher;
-import org.hamcrest.TypeSafeDiagnosingMatcher;
-import org.hamcrest.core.IsNot;
+package com.oracle.svm.test.jfr.events;
 
-import org.graalvm.compiler.graph.iterators.NodeIterable;
+import jdk.jfr.Description;
+import jdk.jfr.Event;
+import jdk.jfr.Label;
+import jdk.jfr.StackTrace;
 
-public class NodeIterableIsEmpty extends TypeSafeDiagnosingMatcher<NodeIterable<?>> {
+@Label("Class Event")
+@Description("An event with a class payload")
+@StackTrace(false)
+public class ClassEvent extends Event {
 
-    private static final NodeIterableIsEmpty INSTANCE = new NodeIterableIsEmpty();
-
-    @Override
-    public boolean matchesSafely(NodeIterable<?> iterable, Description mismatchDescription) {
-        mismatchDescription.appendText("is a non-empty NodeIterable");
-        return iterable.isEmpty();
-    }
-
-    @Override
-    public void describeTo(Description description) {
-        description.appendText("is an empty NodeIterable");
-    }
-
-    public static Matcher<NodeIterable<?>> isEmpty() {
-        return INSTANCE;
-    }
-
-    public static Matcher<NodeIterable<?>> isNotEmpty() {
-        return IsNot.not(INSTANCE);
-    }
+    @Label("Class") public Class<?> clazz;
 }
