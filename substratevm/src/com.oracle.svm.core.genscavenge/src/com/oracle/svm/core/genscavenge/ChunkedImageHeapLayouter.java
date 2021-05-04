@@ -92,4 +92,67 @@ public class ChunkedImageHeapLayouter extends AbstractImageHeapLayouter<ChunkedI
         for (UnalignedChunk chunk : allocator.getUnalignedChunks()) {
             if (chunk.isWritable()) {
                 offsetOfFirstWritableUnalignedChunk = chunk.getBegin();
-         
+            }
+            break;
+        }
+
+        initializeHeapInfo(dynamicHubCount, offsetOfFirstWritableAlignedChunk, offsetOfFirstWritableUnalignedChunk);
+        return createLayoutInfo(startOffset, offsetOfFirstWritableAlignedChunk);
+    }
+
+    private void initializeHeapInfo(int dynamicHubCount, long offsetOfFirstWritableAlignedChunk, long offsetOfFirstWritableUnalignedChunk) {
+        long writableAligned = offsetOfFirstWritableAlignedChunk;
+        long writableUnaligned = offsetOfFirstWritableUnalignedChunk;
+
+        if (startOffset == 0) {
+            // Adjust all offsets by the offset of the image heap in the address space.
+            int imageHeapOffsetInAddressSpace = Heap.getHeap().getImageHeapOffsetInAddressSpace();
+            writableAligned += imageHeapOffsetInAddressSpace;
+            if (writableUnaligned >= 0) {
+                writableUnaligned += imageHeapOffsetInAddressSpace;
+            }
+        }
+
+        heapInfo.initialize(getReadOnlyPrimitive().firstObject, getReadOnlyPrimitive().lastObject, getReadOnlyReference().firstObject, getReadOnlyReference().lastObject,
+                        getReadOnlyRelocatable().firstObject, getReadOnlyRelocatable().lastObject, getWritablePrimitive().firstObject, getWritablePrimitive().lastObject,
+                        getWritableReference().firstObject, getWritableReference().lastObject, getWritableHuge().firstObject, getWritableHuge().lastObject,
+                        getReadOnlyHuge().firstObject, getReadOnlyHuge().lastObject, writableAligned, writableUnaligned, dynamicHubCount);
+    }
+
+    @Override
+    public void writeMetadata(ByteBuffer imageHeapBytes, long imageHeapOffsetInBuffer) {
+        long layoutToBufferOffsetAddend = imageHeapOffsetInBuffer - startOffset;
+        ImageHeapChunkWriter writer = SubstrateUtil.HOSTED ? new HostedImageHeapChunkWriter(imageHeapBytes, layoutToBufferOffsetAddend)
+                        : new RuntimeImageHeapChunkWriter(imageHeapBytes, layoutToBufferOffsetAddend);
+        writeHeaders(writer, allocator.getAlignedChunks());
+        writeHeaders(writer, allocator.getUnalignedChunks());
+    }
+
+    private static void writeHeaders(ImageHeapChunkWriter writer, List<? extends Chunk> chunks) {
+        Chunk previous = null;
+        Chunk current = null;
+        for (Chunk next : chunks) {
+            writeHeader(writer, previous, current, next);
+            previous = current;
+            current = next;
+        }
+        writeHeader(writer, previous, current, null);
+    }
+
+    private static void writeHeader(ImageHeapChunkWriter writer, Chunk previous, Chunk current, Chunk next) {
+        if (current != null) {
+            long offsetToPrevious = (previous != null) ? (previous.getBegin() - current.getBegin()) : 0;
+            long offsetToNext = (next != null) ? (next.getBegin() - current.getBegin()) : 0;
+            int chunkPosition = NumUtil.safeToInt(current.getBegin());
+            if (current instanceof AlignedChunk) {
+                AlignedChunk aligned = (AlignedChunk) current;
+                writer.initializeAlignedChunk(chunkPosition, current.getTopOffset(), current.getEndOffset(), offsetToPrevious, offsetToNext);
+                writer.enableRememberedSetForAlignedChunk(chunkPosition, aligned.getObjects());
+            } else {
+                assert current instanceof UnalignedChunk;
+                writer.initializeUnalignedChunk(chunkPosition, current.getTopOffset(), current.getEndOffset(), offsetToPrevious, offsetToNext);
+                writer.enableRememberedSetForUnalignedChunk(chunkPosition);
+            }
+        }
+    }
+}
