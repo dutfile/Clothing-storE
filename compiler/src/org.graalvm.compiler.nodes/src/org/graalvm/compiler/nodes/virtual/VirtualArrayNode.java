@@ -113,4 +113,58 @@ public class VirtualArrayNode extends VirtualObjectNode implements ArrayLengthPr
         }
         long index = offset - baseOffset;
         if (index % indexScale != 0) {
-            retur
+            return -1;
+        }
+        long elementIndex = index / indexScale;
+        if (elementIndex < 0 || elementIndex >= length) {
+            return -1;
+        }
+        return (int) elementIndex;
+    }
+
+    @Override
+    public JavaKind entryKind(MetaAccessExtensionProvider metaAccessExtensionProvider, int index) {
+        assert index >= 0 && index < length;
+        return metaAccessExtensionProvider.getStorageKind(componentType);
+    }
+
+    @Override
+    public VirtualArrayNode duplicate() {
+        VirtualArrayNode node = new VirtualArrayNode(componentType, length);
+        node.setNodeSourcePosition(this.getNodeSourcePosition());
+        return node;
+    }
+
+    @Override
+    public ValueNode getMaterializedRepresentation(FixedNode fixed, ValueNode[] entries, LockState locks) {
+        AllocatedObjectNode node = new AllocatedObjectNode(this);
+        node.setNodeSourcePosition(this.getNodeSourcePosition());
+        return node;
+    }
+
+    @Override
+    public ValueNode findLength(FindLengthMode mode, ConstantReflectionProvider constantReflection) {
+        return ConstantNode.forInt(length);
+    }
+
+    /**
+     * Returns the number of bytes that the entry at a given index actually occupies.
+     */
+    public int byteArrayEntryByteCount(int index, VirtualizerTool tool) {
+        int i = index + 1;
+        while (i < entryCount() && tool.getEntry(this, i).isIllegalConstant()) {
+            i++;
+        }
+        return (i - index);
+    }
+
+    /**
+     * Performs some sanity checks.
+     */
+    public static ValueNode virtualizeByteArrayRead(ValueNode entry, JavaKind accessKind, Stamp targetStamp) {
+        assert !entry.isIllegalConstant();
+        assert targetStamp.getStackKind().isPrimitive();
+        assert accessKind.getBitCount() <= PrimitiveStamp.getBits(targetStamp);
+        return entry;
+    }
+}
