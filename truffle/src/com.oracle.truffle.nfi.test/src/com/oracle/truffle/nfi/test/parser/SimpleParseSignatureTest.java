@@ -95,4 +95,52 @@ public class SimpleParseSignatureTest extends ParseSignatureTest {
     @Test
     public void testOneArg(@Inject(ParseOneArg.class) CallTarget parse) {
         TestSignature signature = getSignature(parse, 1);
-   
+        Assert.assertEquals("return type", signature.retType, NativeSimpleType.VOID);
+        Assert.assertEquals("argument count", 1, signature.argTypes.size());
+        Assert.assertThat("argument types", signature.argTypes, Every.everyItem(is(type)));
+    }
+
+    public class ParseTwoArgs extends ParseSignatureNode {
+
+        public ParseTwoArgs() {
+            super("(%s, %s):void", type, type);
+        }
+    }
+
+    @Test
+    public void testTwoArgs(@Inject(ParseTwoArgs.class) CallTarget parse) {
+        TestSignature signature = getSignature(parse, 2);
+        Assert.assertEquals("return type", signature.retType, NativeSimpleType.VOID);
+        Assert.assertEquals("argument count", 2, signature.argTypes.size());
+        Assert.assertThat("argument types", signature.argTypes, Every.everyItem(is(type)));
+    }
+
+    public class ParseArrayArg extends ParseSignatureNode {
+
+        public ParseArrayArg() {
+            super("([%s]):void", type);
+        }
+    }
+
+    @Test
+    public void testArrayArg(@Inject(ParseArrayArg.class) CallTarget parse) {
+        TestSignature signature = getSignature(parse, 1);
+        Assert.assertThat("return type", signature.retType, is(NativeSimpleType.VOID));
+        Assert.assertEquals("argument count", 1, signature.argTypes.size());
+        Assert.assertThat("argument types", signature.argTypes, Every.everyItem(isArrayType(type)));
+    }
+
+    public class ParseArrayRet extends ParseSignatureNode {
+
+        public ParseArrayRet() {
+            super("():[%s]", type);
+        }
+    }
+
+    @Test
+    public void testArrayRet(@Inject(ParseArrayRet.class) CallTarget parse) {
+        TestSignature signature = getSignature(parse, 0);
+        Assert.assertEquals("argument count", 0, signature.argTypes.size());
+        Assert.assertThat("return type", signature.retType, isArrayType(type));
+    }
+}
