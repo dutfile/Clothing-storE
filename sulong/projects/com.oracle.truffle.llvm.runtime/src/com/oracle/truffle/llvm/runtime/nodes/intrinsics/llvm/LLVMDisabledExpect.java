@@ -30,4 +30,35 @@
 package com.oracle.truffle.llvm.runtime.nodes.intrinsics.llvm;
 
 import com.oracle.truffle.api.dsl.NodeChild;
-import com.oracle.truffle.api.dsl.Specializat
+import com.oracle.truffle.api.dsl.Specialization;
+import com.oracle.truffle.llvm.runtime.nodes.api.LLVMExpressionNode;
+
+public abstract class LLVMDisabledExpect {
+
+    @NodeChild(type = LLVMExpressionNode.class, value = "val")
+    public abstract static class LLVMDisabledExpectI1 extends LLVMExpressionNode {
+
+        @Specialization
+        protected boolean doI1(boolean val) {
+            return val;
+        }
+    }
+
+    @NodeChild(type = LLVMExpressionNode.class, value = "val")
+    public abstract static class LLVMDisabledExpectI32 extends LLVMExpressionNode {
+
+        @Specialization
+        protected int doI32(int val) {
+            return val;
+        }
+    }
+
+    @NodeChild(type = LLVMExpressionNode.class, value = "val")
+    public abstract static class LLVMDisabledExpectI64 extends LLVMExpressionNode {
+
+        @Specialization
+        protected long doI64(long val) {
+            return val;
+        }
+    }
+}
