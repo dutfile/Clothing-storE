@@ -1,6 +1,5 @@
 /*
- * Copyright (c) 2022, 2022, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2022, 2022, Alibaba Group Holding Limited. All rights reserved.
+ * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -24,21 +23,15 @@
  * questions.
  */
 
-package com.oracle.graal.pointsto.standalone.test;
+/*
+ @ApiInfo(
+ group="Tools"
+ )
+ */
 
-public class ClassEqualityCase {
-    static class C {
-        public static void foo() {
-        }
-    }
-
-    public static void main(String[] args) {
-        equals(C.class);
-    }
-
-    private static void equals(Class<?> clazz) {
-        if (clazz == C.class) {
-            C.foo();
-        }
-    }
-}
+/**
+ * Package containing classes implementing the Truffle Profiler.
+ *
+ * @since 0.30 or older
+ */
+package com.oracle.truffle.tools.profiler;

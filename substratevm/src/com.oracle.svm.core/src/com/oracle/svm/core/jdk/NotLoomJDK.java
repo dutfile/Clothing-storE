@@ -1,6 +1,5 @@
 /*
- * Copyright (c) 2022, 2022, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2022, 2022, Alibaba Group Holding Limited. All rights reserved.
+ * Copyright (c) 2020, 2020, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -23,22 +22,15 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
+package com.oracle.svm.core.jdk;
 
-package com.oracle.graal.pointsto.standalone.test;
+import java.util.function.BooleanSupplier;
 
-public class ClassEqualityCase {
-    static class C {
-        public static void foo() {
-        }
-    }
+import com.oracle.svm.core.thread.LoomSupport;
 
-    public static void main(String[] args) {
-        equals(C.class);
-    }
-
-    private static void equals(Class<?> clazz) {
-        if (clazz == C.class) {
-            C.foo();
-        }
+public class NotLoomJDK implements BooleanSupplier {
+    @Override
+    public boolean getAsBoolean() {
+        return !LoomSupport.isEnabled();
     }
 }
