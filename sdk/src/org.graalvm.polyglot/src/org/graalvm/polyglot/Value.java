@@ -103,4 +103,121 @@ import org.graalvm.polyglot.proxy.Proxy;
  * </ul>
  * In addition any value may have one or more of the following traits:
  * <ul>
- * <li>{@link #hasArrayElements() Array Elements}: This value may contain array elements.
+ * <li>{@link #hasArrayElements() Array Elements}: This value may contain array elements. The array
+ * indices always start with <code>0</code>, also if the language uses a different style.
+ * <li>{@link #hasMembers() Members}: This value may contain members. Members are structural
+ * elements of an object. For example, the members of a Java object are all public methods and
+ * fields. Members are accessible using {@link #getMember(String)}.
+ * <li>{@link #canExecute() Executable}: This value can be {@link #execute(Object...) executed}.
+ * This indicates that the value represents an element that can be executed. Guest language examples
+ * for executable elements are functions, methods, closures or promises.
+ * <li>{@link #canInstantiate() Instantiable}: This value can be {@link #newInstance(Object...)
+ * instantiated}. For example, Java classes are instantiable.
+ * <li>{@link #hasBufferElements() Buffer Elements}: This value may contain buffer elements. The
+ * buffer indices always start with <code>0</code>, also if the language uses a different style.
+ * <li>{@link #hasIterator() Iterable}: This value {@link #getIterator() provides} an
+ * {@link #isIterator() iterator} which can be used to {@link #getIteratorNextElement() iterate}
+ * value elements. For example, Guest language arrays are iterable.
+ * <li>{@link #hasHashEntries()} Hash Entries}: This value represents a map.
+ * <li>{@link #hasMetaParents()} Meta Parents}: This value represents Array Elements of Meta
+ * Objects.
+ * </ul>
+ * <p>
+ * In addition to the language agnostic types, the language specific type can be accessed using
+ * {@link #getMetaObject()}. The identity of value objects is unspecified and should not be relied
+ * upon. For example, multiple calls to {@link #getArrayElement(long)} with the same index might
+ * return the same or different instances of {@link Value}. The {@link #equals(Object) equality} of
+ * values is based on the identity of the value instance. All values return a human-readable
+ * {@link #toString() string} for debugging, formatted by the original language.
+ * <p>
+ * Polyglot values may be converted to host objects using {@link #as(Class)}. In addition values may
+ * be created from Java values using {@link Context#asValue(Object)}.
+ *
+ * <h3>Naive and aware dates and times</h3>
+ * <p>
+ * If a date or time value has a {@link #isTimeZone() timezone} then it is called <i>aware</i>,
+ * otherwise <i>naive</i>.
+ * <p>
+ * An aware time and date has sufficient knowledge of applicable algorithmic and political time
+ * adjustments, such as time zone and daylight saving time information, to locate itself relative to
+ * other aware objects. An aware object is used to represent a specific moment in time that is not
+ * open to interpretation.
+ * <p>
+ * A naive time and date does not contain enough information to unambiguously locate itself relative
+ * to other date/time objects. Whether a naive object represents Coordinated Universal Time (UTC),
+ * local time, or time in some other timezone is purely up to the program, just like it is up to the
+ * program whether a particular number represents metres, miles, or mass. Naive objects are easy to
+ * understand and to work with, at the cost of ignoring some aspects of reality.
+ *
+ * <h3>Scoped Values</h3>
+ *
+ * In the case of a guest-to-host callback, a value may be passed as a parameter. These values may
+ * represent objects that are only valid during the invocation of the callback function, i.e. they
+ * are scoped, with the scope being the callback function. If enabled via the corresponding settings
+ * in {@link HostAccess}, such values are released when the function returns, with all future
+ * invocations of value operations throwing an exception.
+ *
+ * If an embedder wishes to extend the scope of the value beyond the callback's return, the value
+ * can be {@linkplain Value#pin() pinned}, such that it is not released automatically.
+ *
+ * @see Context
+ * @see Engine
+ * @see PolyglotException
+ * @since 19.0
+ */
+public final class Value extends AbstractValue {
+
+    Value(AbstractValueDispatch dispatch, Object context, Object receiver) {
+        super(dispatch, context, receiver);
+    }
+
+    /**
+     * Returns the metaobject that is associated with this value or <code>null</code> if no
+     * metaobject is available. The metaobject represents a description of the object, reveals it's
+     * kind and it's features. Some information that a metaobject might define includes the base
+     * object's type, interface, class, methods, attributes, etc.
+     * <p>
+     * The returned value returns <code>true</code> for {@link #isMetaObject()} and provides
+     * implementations for {@link #getMetaSimpleName()}, {@link #getMetaQualifiedName()}, and
+     * {@link #isMetaInstance(Object)}.
+     * <p>
+     * This method does not cause any observable side-effects.
+     *
+     * @throws IllegalStateException if the context is already closed.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @see #isMetaObject()
+     * @since 19.0 revised in 20.1
+     */
+    public Value getMetaObject() {
+        return dispatch.getMetaObject(this.context, receiver);
+    }
+
+    /**
+     * Returns <code>true</code> if the value represents a metaobject. Metaobjects may be values
+     * that naturally occur in a language or they may be returned by {@link #getMetaObject()}. A
+     * metaobject represents a description of the object, reveals its kind and its features. Returns
+     * <code>false</code> by default. Metaobjects are often also {@link #canInstantiate()
+     * instantiable}, but not necessarily.
+     * <p>
+     * <b>Sample interpretations:</b> In Java an instance of the type {@link Class} is a metaobject.
+     * In JavaScript any function instance is a metaobject. For example, the metaobject of a
+     * JavaScript class is the associated constructor function.
+     * <p>
+     * This method does not cause any observable side-effects. If this method is implemented then
+     * also {@link #getMetaQualifiedName()}, {@link #getMetaSimpleName()} and
+     * {@link #isMetaInstance(Object)} must be implemented as well.
+     *
+     * @throws IllegalStateException if the context is already closed.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @see #getMetaQualifiedName()
+     * @see #getMetaSimpleName()
+     * @see #isMetaInstance(Object)
+     * @see #getMetaObject()
+     * @since 20.1
+     */
+    public boolean isMetaObject() {
+        return dispatch.isMetaObject(this.context, receiver);
+    }
+
+    /**
+     * Returns the qualified name of a metaobject as {@link #isStri
