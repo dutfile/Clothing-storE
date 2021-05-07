@@ -220,4 +220,149 @@ public final class Value extends AbstractValue {
     }
 
     /**
-     * Returns the qualified name of a metaobject as {@link #isStri
+     * Returns the qualified name of a metaobject as {@link #isString() String}.
+     * <p>
+     * <b>Sample interpretations:</b> The qualified name of a Java class includes the package name
+     * and its class name. JavaScript does not have the notion of qualified name and therefore
+     * returns the {@link #getMetaSimpleName() simple name} instead.
+     *
+     * @throws UnsupportedOperationException if and only if {@link #isMetaObject()} returns
+     *             <code>false</code> for the same value.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @since 20.1
+     */
+    public String getMetaQualifiedName() {
+        return dispatch.getMetaQualifiedName(this.context, receiver);
+    }
+
+    /**
+     * Returns the simple name of a metaobject as {@link #isString() string}.
+     * <p>
+     * <b>Sample interpretations:</b> The simple name of a Java class is the class name.
+     *
+     * @throws UnsupportedOperationException if and only if {@link #isMetaObject()} returns
+     *             <code>false</code> for the same value.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @since 20.1
+     */
+    public String getMetaSimpleName() {
+        return dispatch.getMetaSimpleName(this.context, receiver);
+    }
+
+    /**
+     * Returns <code>true</code> if the given instance is an instance of this value, else
+     * <code>false</code>. The instance value is subject to polyglot value mapping rules as
+     * described in {@link Context#asValue(Object)}.
+     * <p>
+     * <b>Sample interpretations:</b> A Java object is an instance of its returned
+     * {@link Object#getClass() class}.
+     * <p>
+     *
+     * @param instance the instance object to check.
+     * @throws UnsupportedOperationException if and only if {@link #isMetaObject()} returns
+     *             <code>false</code> for the same value.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @since 20.1
+     */
+    public boolean isMetaInstance(Object instance) {
+        return dispatch.isMetaInstance(this.context, receiver, instance);
+    }
+
+    /**
+     * Returns <code>true</code> if the value represents a metaobject and the metaobject has meta
+     * parents. Returns <code>false</code> by default.
+     * <p>
+     * <b>Sample interpretations:</b> In Java an instance of the type {@link Class} is a metaobject.
+     * Further, the superclass and the implemented interfaces types of that type constitute the meta
+     * parents. In JavaScript any function instance is a metaobject. For example, the metaobject of
+     * a JavaScript class is the associated constructor function.
+     * <p>
+     * This method does not cause any observable side-effects. If this method is implemented then
+     * also {@link #getMetaParents()} must be implemented as well.
+     *
+     * @throws IllegalStateException if the context is already closed.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @see #getMetaParents()
+     * @since 22.2
+     */
+    public boolean hasMetaParents() {
+        return dispatch.hasMetaParents(this.context, receiver);
+    }
+
+    /**
+     * Returns the meta parents of a meta object as an array object {@link #hasArrayElements()}.
+     * This method does not cause any observable side-effects. If this method is implemented then
+     * also {@link #hasMetaParents()} must be implemented as well.
+     *
+     * @throws IllegalStateException if the context is already closed.
+     * @throws UnsupportedOperationException if the value does not have any
+     *             {@link #hasMetaParents()} meta parents.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @see #hasMetaParents()
+     * @since 22.2
+     */
+    public Value getMetaParents() {
+        return dispatch.getMetaParents(this.context, receiver);
+    }
+
+    /**
+     * Returns <code>true</code> if this polyglot value has array elements. In this case array
+     * elements can be accessed using {@link #getArrayElement(long)},
+     * {@link #setArrayElement(long, Object)}, {@link #removeArrayElement(long)} and the array size
+     * can be queried using {@link #getArraySize()}.
+     *
+     * @throws IllegalStateException if the context is already closed.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @since 19.0
+     */
+    public boolean hasArrayElements() {
+        return dispatch.hasArrayElements(this.context, receiver);
+    }
+
+    /**
+     * Returns the array element of a given index. Polyglot arrays start with index <code>0</code>,
+     * independent of the guest language. The given array index must be greater or equal to 0.
+     *
+     * @throws ArrayIndexOutOfBoundsException if the array index does not exist.
+     * @throws UnsupportedOperationException if the value does not have any
+     *             {@link #hasArrayElements() array elements} or if the index exists but is not
+     *             readable.
+     * @throws IllegalStateException if the context is already closed.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @since 19.0
+     */
+    public Value getArrayElement(long index) {
+        return dispatch.getArrayElement(this.context, receiver, index);
+    }
+
+    /**
+     * Sets the value at a given index. Polyglot arrays start with index <code>0</code>, independent
+     * of the guest language. The array element value is subject to polyglot value mapping rules as
+     * described in {@link Context#asValue(Object)}.
+     *
+     * @throws ArrayIndexOutOfBoundsException if the array index does not exist.
+     * @throws ClassCastException if the provided value type is not allowed to be written.
+     * @throws UnsupportedOperationException if the value does not have any
+     *             {@link #hasArrayElements() array elements} or if the index exists but is not
+     *             modifiable.
+     * @throws IllegalStateException if the context is already closed.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @since 19.0
+     */
+    public void setArrayElement(long index, Object value) {
+        dispatch.setArrayElement(this.context, receiver, index, value);
+    }
+
+    /**
+     * Removes an array element at a given index. Returns <code>true</code> if the underlying array
+     * element could be removed, otherwise <code>false</code>.
+     *
+     * @throws ArrayIndexOutOfBoundsException if the array index does not exist.
+     * @throws UnsupportedOperationException if the value does not have any
+     *             {@link #hasArrayElements() array elements} or if the index exists but is not
+     *             removable.
+     * @throws IllegalStateException if the context is already closed.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @since 19.0
+     */
+   
