@@ -365,4 +365,143 @@ public final class Value extends AbstractValue {
      * @throws PolyglotException if a guest language error occurred during execution.
      * @since 19.0
      */
-   
+    public boolean removeArrayElement(long index) {
+        return dispatch.removeArrayElement(this.context, receiver, index);
+    }
+
+    /**
+     * Returns the array size for values with array elements.
+     *
+     * @throws UnsupportedOperationException if the value does not have any
+     *             {@link #hasArrayElements() array elements}.
+     * @throws IllegalStateException if the context is already closed.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @since 19.0
+     */
+    public long getArraySize() {
+        return dispatch.getArraySize(this.context, receiver);
+    }
+
+    // region Buffer Methods
+
+    /**
+     * Returns {@code true} if the receiver may have buffer elements. In this case, the buffer size
+     * can be queried using {@link #getBufferSize()} and elements can be read using
+     * {@link #readBufferByte(long)}, {@link #readBufferShort(ByteOrder, long)},
+     * {@link #readBufferInt(ByteOrder, long)}, {@link #readBufferLong(ByteOrder, long)},
+     * {@link #readBufferFloat(ByteOrder, long)} and {@link #readBufferDouble(ByteOrder, long)}. If
+     * {@link #isBufferWritable()} returns {@code true}, then buffer elements can also be written
+     * using {@link #writeBufferByte(long, byte)},
+     * {@link #writeBufferShort(ByteOrder, long, short)},
+     * {@link #writeBufferInt(ByteOrder, long, int)},
+     * {@link #writeBufferLong(ByteOrder, long, long)},
+     * {@link #writeBufferFloat(ByteOrder, long, float)} and
+     * {@link #writeBufferDouble(ByteOrder, long, double)}.
+     * <p>
+     * Invoking this method does not cause any observable side-effects.
+     *
+     * @throws IllegalStateException if the context is already closed.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @see #hasBufferElements()
+     * @since 21.1
+     */
+    public boolean hasBufferElements() {
+        return dispatch.hasBufferElements(this.context, receiver);
+    }
+
+    /**
+     * Returns true if the receiver object is a modifiable buffer. In this case, elements can be
+     * written using {@link #writeBufferByte(long, byte)},
+     * {@link #writeBufferShort(ByteOrder, long, short)},
+     * {@link #writeBufferInt(ByteOrder, long, int)},
+     * {@link #writeBufferLong(ByteOrder, long, long)},
+     * {@link #writeBufferFloat(ByteOrder, long, float)} and
+     * {@link #writeBufferDouble(ByteOrder, long, double)}.
+     * <p>
+     * Invoking this method does not cause any observable side-effects.
+     *
+     * @throws UnsupportedOperationException if the value does not have {@link #hasBufferElements
+     *             buffer elements}.
+     * @since 21.1
+     */
+    public boolean isBufferWritable() throws UnsupportedOperationException {
+        return dispatch.isBufferWritable(this.context, receiver);
+    }
+
+    /**
+     * Returns the buffer size in bytes for values with buffer elements.
+     * <p>
+     * Invoking this method does not cause any observable side-effects.
+     *
+     * @throws UnsupportedOperationException if the value does not have {@link #hasBufferElements
+     *             buffer elements}.
+     * @since 21.1
+     */
+    public long getBufferSize() throws UnsupportedOperationException {
+        return dispatch.getBufferSize(this.context, receiver);
+    }
+
+    /**
+     * Reads the byte at the given byte offset from the start of the buffer.
+     * <p>
+     * The access is <em>not</em> guaranteed to be atomic. Therefore, this method is <em>not</em>
+     * thread-safe.
+     * <p>
+     * Invoking this method does not cause any observable side-effects.
+     *
+     * @param byteOffset the offset, in bytes, from the start of the buffer at which the byte will
+     *            be read.
+     * @return the byte at the given byte offset from the start of the buffer.
+     * @throws IndexOutOfBoundsException if and only if
+     *             <code>byteOffset < 0 || byteOffset >= </code>{@link #getBufferSize()}.
+     * @throws UnsupportedOperationException if the value does not have {@link #hasBufferElements
+     *             buffer elements}.
+     * @throws IllegalStateException if the context is already closed.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @since 21.1
+     */
+    public byte readBufferByte(long byteOffset) throws UnsupportedOperationException, IndexOutOfBoundsException {
+        return dispatch.readBufferByte(this.context, receiver, byteOffset);
+    }
+
+    /**
+     * Writes the given byte at the given byte offset from the start of the buffer.
+     * <p>
+     * The access is <em>not</em> guaranteed to be atomic. Therefore, this method is <em>not</em>
+     * thread-safe.
+     *
+     * @param byteOffset the offset, in bytes, from the start of the buffer at which the byte will
+     *            be written.
+     * @param value the byte value to be written.
+     * @throws IndexOutOfBoundsException if and only if
+     *             <code>byteOffset < 0 || byteOffset >= </code>{@link #getBufferSize()}.
+     * @throws UnsupportedOperationException if the value does not have {@link #hasBufferElements
+     *             buffer elements} or is not {@link #isBufferWritable() modifiable}.
+     * @throws IllegalStateException if the context is already closed.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @since 21.1
+     */
+    public void writeBufferByte(long byteOffset, byte value) throws UnsupportedOperationException, IndexOutOfBoundsException {
+        dispatch.writeBufferByte(this.context, receiver, byteOffset, value);
+    }
+
+    /**
+     * Reads the short at the given byte offset from the start of the buffer in the given byte
+     * order.
+     * <p>
+     * Unaligned accesses are supported.
+     * <p>
+     * The access is <em>not</em> guaranteed to be atomic. Therefore, this method is <em>not</em>
+     * thread-safe.
+     * <p>
+     * Invoking this method does not cause any observable side-effects.
+     *
+     * @param order the order in which to read the individual bytes of the short.
+     * @param byteOffset the offset, in bytes, from the start of the buffer from which the short
+     *            will be read.
+     * @return the short at the given byte offset from the start of the buffer.
+     * @throws IndexOutOfBoundsException if and only if
+     *             <code>byteOffset < 0 || byteOffset >= {@link #getBufferSize()} - 1</code>.
+     * @throws UnsupportedOperationException if the value does not have {@link #hasBufferElements
+     *             buffer elements}.
+     * @throws IllegalStateException if the context is already clo
