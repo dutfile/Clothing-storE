@@ -630,4 +630,132 @@ public final class Value extends AbstractValue {
      * @throws IndexOutOfBoundsException if and only if
      *             <code>byteOffset < 0 || byteOffset >= {@link #getBufferSize()} - 7</code>.
      * @throws UnsupportedOperationException if the value does not have {@link #hasBufferElements
-     *   
+     *             buffer elements} or is not {@link #isBufferWritable() modifiable}.
+     * @throws IllegalStateException if the context is already closed.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @since 21.1
+     */
+    public void writeBufferLong(ByteOrder order, long byteOffset, long value) throws UnsupportedOperationException, IndexOutOfBoundsException {
+        dispatch.writeBufferLong(this.context, receiver, order, byteOffset, value);
+    }
+
+    /**
+     * Reads the float at the given byte offset from the start of the buffer in the given byte
+     * order.
+     * <p>
+     * Unaligned accesses are supported.
+     * <p>
+     * The access is <em>not</em> guaranteed to be atomic. Therefore, this method is <em>not</em>
+     * thread-safe.
+     * <p>
+     * Invoking this method does not cause any observable side-effects.
+     *
+     * @param order the order in which to read the individual bytes of the float.
+     * @param byteOffset the offset, in bytes, from the start of the buffer from which the float
+     *            will be read.
+     * @return the float at the given byte offset from the start of the buffer.
+     * @throws IndexOutOfBoundsException if and only if
+     *             <code>byteOffset < 0 || byteOffset >= {@link #getBufferSize()} - 3</code>.
+     * @throws UnsupportedOperationException if the value does not have {@link #hasBufferElements
+     *             buffer elements}.
+     * @throws IllegalStateException if the context is already closed.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @since 21.1
+     */
+    public float readBufferFloat(ByteOrder order, long byteOffset) throws UnsupportedOperationException, IndexOutOfBoundsException {
+        return dispatch.readBufferFloat(this.context, receiver, order, byteOffset);
+    }
+
+    /**
+     * Writes the given float in the given byte order at the given byte offset from the start of the
+     * buffer.
+     * <p>
+     * Unaligned accesses are supported.
+     * <p>
+     * The access is <em>not</em> guaranteed to be atomic. Therefore, this method is <em>not</em>
+     * thread-safe.
+     *
+     * @param order the order in which to read the individual bytes of the float.
+     * @param byteOffset the offset, in bytes, from the start of the buffer from which the float
+     *            will be written.
+     * @param value the float value to be written.
+     * @throws IndexOutOfBoundsException if and only if
+     *             <code>byteOffset < 0 || byteOffset >= {@link #getBufferSize()} - 3</code>.
+     * @throws UnsupportedOperationException if the value does not have {@link #hasBufferElements
+     *             buffer elements} or is not {@link #isBufferWritable() modifiable}.
+     * @throws IllegalStateException if the context is already closed.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @since 21.1
+     */
+    public void writeBufferFloat(ByteOrder order, long byteOffset, float value) throws UnsupportedOperationException, IndexOutOfBoundsException {
+        dispatch.writeBufferFloat(this.context, receiver, order, byteOffset, value);
+    }
+
+    /**
+     * Reads the double at the given byte offset from the start of the buffer in the given byte
+     * order.
+     * <p>
+     * Unaligned accesses are supported.
+     * <p>
+     * The access is <em>not</em> guaranteed to be atomic. Therefore, this method is <em>not</em>
+     * thread-safe.
+     * <p>
+     * Invoking this method does not cause any observable side-effects.
+     *
+     * @param order the order in which to write the individual bytes of the double.
+     * @param byteOffset the offset, in bytes, from the start of the buffer from which the double
+     *            will be read.
+     * @return the double at the given byte offset from the start of the buffer.
+     * @throws IndexOutOfBoundsException if and only if
+     *             <code>byteOffset < 0 || byteOffset >= {@link #getBufferSize()} - 7</code>.
+     * @throws UnsupportedOperationException if the value does not have {@link #hasBufferElements
+     *             buffer elements}.
+     * @throws IllegalStateException if the context is already closed.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @since 21.1
+     */
+    public double readBufferDouble(ByteOrder order, long byteOffset) throws UnsupportedOperationException, IndexOutOfBoundsException {
+        return dispatch.readBufferDouble(this.context, receiver, order, byteOffset);
+    }
+
+    /**
+     * Writes the given double in the given byte order at the given byte offset from the start of
+     * the buffer.
+     * <p>
+     * Unaligned accesses are supported.
+     * <p>
+     * The access is <em>not</em> guaranteed to be atomic. Therefore, this method is <em>not</em>
+     * thread-safe.
+     *
+     * @param order the order in which to write the individual bytes of the double.
+     * @param byteOffset the offset, in bytes, from the start of the buffer from which the double
+     *            will be written.
+     * @param value the double value to be written.
+     * @throws IndexOutOfBoundsException if and only if
+     *             <code>byteOffset < 0 || byteOffset >= {@link #getBufferSize()} - 7</code>.
+     * @throws UnsupportedOperationException if the value does not have {@link #hasBufferElements
+     *             buffer elements} or is not {@link #isBufferWritable() modifiable}.
+     * @throws IllegalStateException if the context is already closed.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @since 21.1
+     */
+    public void writeBufferDouble(ByteOrder order, long byteOffset, double value) throws UnsupportedOperationException, IndexOutOfBoundsException {
+        dispatch.writeBufferDouble(this.context, receiver, order, byteOffset, value);
+    }
+
+    // endregion
+
+    /**
+     * Returns <code>true</code> if this value generally supports containing members. To check
+     * whether a value has <i>no</i> members use
+     * <code>{@link #getMemberKeys() getMemberKeys()}.{@link Set#isEmpty() isEmpty()}</code>
+     * instead. If polyglot value has members, it may also support {@link #getMember(String)},
+     * {@link #putMember(String, Object)} and {@link #removeMember(String)}.
+     *
+     * @see #hasMember(String) To check the existence of members.
+     * @see #getMember(String) To read members.
+     * @see #putMember(String, Object) To write members.
+     * @see #removeMember(String) To remove a member.
+     * @see #getMemberKeys() For a list of members.
+     * @throws IllegalStateException if the context is already closed.
+     * @throws PolyglotExcepti
