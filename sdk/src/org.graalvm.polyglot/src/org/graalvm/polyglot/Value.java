@@ -900,4 +900,159 @@ public final class Value extends AbstractValue {
             // specialized entry point for zero argument execute calls
             dispatch.executeVoid(this.context, receiver);
         } else {
-            dispatch.executeVoid(this.context, receiver, arg
+            dispatch.executeVoid(this.context, receiver, arguments);
+        }
+    }
+
+    /**
+     * Returns <code>true</code> if the value can be instantiated. This indicates that the
+     * {@link #newInstance(Object...)} can be used with this value. If a value is instantiable it is
+     * often also a {@link #isMetaObject()}, but this is not a requirement.
+     *
+     * @see #isMetaObject()
+     * @since 19.0
+     */
+    public boolean canInstantiate() {
+        return dispatch.canInstantiate(this.context, receiver);
+    }
+
+    /**
+     * Instantiates this value if it {@link #canInstantiate() can} be instantiated. All arguments
+     * are subject to polyglot value mapping rules as described in {@link Context#asValue(Object)}.
+     *
+     * @throws IllegalStateException if the underlying context was closed.
+     * @throws IllegalArgumentException if a wrong number of arguments was provided or one of the
+     *             arguments was not applicable.
+     * @throws UnsupportedOperationException if this value cannot be instantiated.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @throws NullPointerException if the arguments array is null.
+     * @since 19.0
+     */
+    public Value newInstance(Object... arguments) {
+        Objects.requireNonNull(arguments, "arguments");
+        return dispatch.newInstance(this.context, receiver, arguments);
+    }
+
+    /**
+     * Returns <code>true</code> if the given member exists and can be invoked. Returns
+     * <code>false</code> if the member does not exist ({@link #hasMember(String)} returns
+     * <code>false</code>), or is not invocable.
+     *
+     * @param identifier the member identifier
+     * @throws IllegalStateException if the context is already closed.
+     * @throws PolyglotException if a guest language error occurred.
+     * @see #getMemberKeys() For a list of members.
+     * @see #invokeMember(String, Object...)
+     * @since 19.0
+     */
+    public boolean canInvokeMember(String identifier) {
+        Objects.requireNonNull(identifier, "identifier");
+        return dispatch.canInvoke(this.context, identifier, receiver);
+    }
+
+    /**
+     * Invokes the given member of this value. Unlike {@link #execute(Object...)}, this is an object
+     * oriented execution of a member of an object. To test whether invocation is supported, call
+     * {@link #canInvokeMember(String)}. When object oriented semantics are not supported, use
+     * <code>{@link #getMember(String)}.{@link #execute(Object...) execute(Object...)}</code>
+     * instead.
+     *
+     * @param identifier the member identifier to invoke
+     * @param arguments the invocation arguments
+     * @throws UnsupportedOperationException if this member cannot be invoked.
+     * @throws PolyglotException if a guest language error occurred during invocation.
+     * @throws NullPointerException if the arguments array is null.
+     * @see #canInvokeMember(String)
+     * @since 19.0
+     */
+    public Value invokeMember(String identifier, Object... arguments) {
+        Objects.requireNonNull(identifier, "identifier");
+        if (arguments.length == 0) {
+            // specialized entry point for zero argument invoke calls
+            return dispatch.invoke(this.context, receiver, identifier);
+        } else {
+            return dispatch.invoke(this.context, receiver, identifier, arguments);
+        }
+    }
+
+    /**
+     * Returns <code>true</code> if this value represents a string.
+     *
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @throws IllegalStateException if the underlying context was closed.
+     * @since 19.0
+     */
+    public boolean isString() {
+        return dispatch.isString(this.context, receiver);
+    }
+
+    /**
+     * Returns the {@link String} value if this value {@link #isString() is} a string. This method
+     * returns <code>null</code> if this value represents a {@link #isNull() null} value.
+     *
+     * @throws ClassCastException if this value could not be converted to string.
+     * @throws UnsupportedOperationException if this value does not represent a string.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @since 19.0
+     */
+    public String asString() {
+        return dispatch.asString(this.context, receiver);
+    }
+
+    /**
+     * Returns <code>true</code> if this value represents a {@link #isNumber() number} and the value
+     * fits in <code>int</code>, else <code>false</code>.
+     *
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @throws IllegalStateException if the underlying context was closed.
+     * @see #asInt()
+     * @since 19.0
+     */
+    public boolean fitsInInt() {
+        return dispatch.fitsInInt(this.context, receiver);
+    }
+
+    /**
+     * Returns an <code>int</code> representation of this value if it is {@link #isNumber() number}
+     * and the value {@link #fitsInInt() fits}.
+     *
+     * @throws NullPointerException if this value represents {@link #isNull() null}.
+     * @throws ClassCastException if this value could not be converted.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @throws IllegalStateException if the underlying context was closed.
+     * @since 19.0
+     */
+    public int asInt() {
+        return dispatch.asInt(this.context, receiver);
+    }
+
+    /**
+     * Returns <code>true</code> if this value represents a boolean value.
+     *
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @throws IllegalStateException if the underlying context was closed.
+     * @see #asBoolean()
+     * @since 19.0
+     */
+    public boolean isBoolean() {
+        return dispatch.isBoolean(this.context, receiver);
+    }
+
+    /**
+     * Returns a <code>boolean</code> representation of this value if it is {@link #isBoolean()
+     * boolean}.
+     *
+     * @throws NullPointerException if this value represents {@link #isNull() null}
+     * @throws ClassCastException if this value could not be converted.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @throws IllegalStateException if the underlying context was closed.
+     * @since 19.0
+     */
+    public boolean asBoolean() {
+        return dispatch.asBoolean(this.context, receiver);
+    }
+
+    /**
+     * Returns <code>true</code> if this value represents a {@link #isNumber() number}, else
+     * <code>false</code>. The number value may be accessed as {@link #asByte() byte},
+     * {@link #asShort() short} {@link #asInt() int} {@link #asLong() long}, {@link #
