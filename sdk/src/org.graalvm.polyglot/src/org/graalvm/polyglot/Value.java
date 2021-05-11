@@ -758,4 +758,146 @@ public final class Value extends AbstractValue {
      * @see #removeMember(String) To remove a member.
      * @see #getMemberKeys() For a list of members.
      * @throws IllegalStateException if the context is already closed.
-     * @throws PolyglotExcepti
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @since 19.0
+     */
+    public boolean hasMembers() {
+        return dispatch.hasMembers(this.context, receiver);
+    }
+
+    /**
+     * Returns <code>true</code> if such a member exists for a given <code>identifier</code>. If the
+     * value has no {@link #hasMembers() members} then {@link #hasMember(String)} returns
+     * <code>false</code>.
+     *
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @throws NullPointerException if the identifier is null.
+     * @since 19.0
+     */
+    public boolean hasMember(String identifier) {
+        Objects.requireNonNull(identifier, "identifier");
+        return dispatch.hasMember(this.context, receiver, identifier);
+    }
+
+    /**
+     * Returns the member with a given <code>identifier</code> or <code>null</code> if the member
+     * does not exist.
+     *
+     * @throws UnsupportedOperationException if the value {@link #hasMembers() has no members} or
+     *             the given identifier exists but is not readable.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @throws NullPointerException if the identifier is null.
+     * @since 19.0
+     */
+    public Value getMember(String identifier) {
+        Objects.requireNonNull(identifier, "identifier");
+        return dispatch.getMember(this.context, receiver, identifier);
+    }
+
+    /**
+     * Returns a set of all member keys. Calling {@link Set#contains(Object)} with a string key is
+     * equivalent to calling {@link #hasMember(String)}. Removing an element from the returned set
+     * is equivalent to calling {@link #removeMember(String)}. Adding an element to the set is
+     * equivalent to calling {@linkplain #putMember(String, Object) putMember(key, null)}. If the
+     * value does not support {@link #hasMembers() members} then an empty unmodifiable set is
+     * returned. If the context gets closed while the returned set is still alive, then the set will
+     * throw an {@link IllegalStateException} if any methods except Object methods are invoked.
+     *
+     * @throws IllegalStateException if the context is already {@link Context#close() closed}.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @since 19.0
+     */
+    public Set<String> getMemberKeys() {
+        return dispatch.getMemberKeys(this.context, receiver);
+    }
+
+    /**
+     * Sets the value of a member using an identifier. The member value is subject to polyglot value
+     * mapping rules as described in {@link Context#asValue(Object)}.
+     *
+     * @throws IllegalStateException if the context is already {@link Context#close() closed}.
+     * @throws UnsupportedOperationException if the value does not have any {@link #hasMembers()
+     *             members}, the key does not exist and new members cannot be added, or the existing
+     *             member is not modifiable.
+     * @throws IllegalArgumentException if the provided value type is not allowed to be written.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @throws NullPointerException if the identifier is null.
+     * @since 19.0
+     */
+    public void putMember(String identifier, Object value) {
+        Objects.requireNonNull(identifier, "identifier");
+        dispatch.putMember(this.context, receiver, identifier, value);
+    }
+
+    /**
+     * Removes a single member from the object. Returns <code>true</code> if the member was
+     * successfully removed, <code>false</code> if such a member does not exist.
+     *
+     * @throws UnsupportedOperationException if the value does not have any {@link #hasMembers()
+     *             members} or if the key {@link #hasMember(String) exists} but cannot be removed.
+     * @throws IllegalStateException if the context is already {@link Context#close() closed}.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @throws NullPointerException if the identifier is null.
+     * @since 19.0
+     */
+    public boolean removeMember(String identifier) {
+        Objects.requireNonNull(identifier, "identifier");
+        return dispatch.removeMember(this.context, receiver, identifier);
+    }
+
+    // executable
+
+    /**
+     * Returns <code>true</code> if the value can be {@link #execute(Object...) executed}.
+     *
+     * @throws IllegalStateException if the underlying context was closed.
+     * @see #execute(Object...)
+     * @since 19.0
+     */
+    public boolean canExecute() {
+        return dispatch.canExecute(this.context, receiver);
+    }
+
+    /**
+     * Executes this value if it {@link #canExecute() can} be executed and returns its result. If no
+     * result value is expected or needed use {@link #executeVoid(Object...)} for better
+     * performance. All arguments are subject to polyglot value mapping rules as described in
+     * {@link Context#asValue(Object)}.
+     *
+     * @throws IllegalStateException if the underlying context was closed.
+     * @throws IllegalArgumentException if a wrong number of arguments was provided or one of the
+     *             arguments was not applicable.
+     * @throws UnsupportedOperationException if this value cannot be executed.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @throws NullPointerException if the arguments array is null.
+     * @see #executeVoid(Object...)
+     * @since 19.0
+     */
+    public Value execute(Object... arguments) {
+        if (arguments.length == 0) {
+            // specialized entry point for zero argument execute calls
+            return dispatch.execute(this.context, receiver);
+        } else {
+            return dispatch.execute(this.context, receiver, arguments);
+        }
+    }
+
+    /**
+     * Executes this value if it {@link #canExecute() can} be executed. All arguments are subject to
+     * polyglot value mapping rules as described in {@link Context#asValue(Object)}.
+     *
+     * @throws IllegalStateException if the underlying context was closed.
+     * @throws IllegalArgumentException if a wrong number of arguments was provided or one of the
+     *             arguments was not applicable.
+     * @throws UnsupportedOperationException if this value cannot be executed.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @throws NullPointerException if the arguments array is null.
+     * @see #execute(Object...)
+     * @since 19.0
+     */
+    public void executeVoid(Object... arguments) {
+        if (arguments.length == 0) {
+            // specialized entry point for zero argument execute calls
+            dispatch.executeVoid(this.context, receiver);
+        } else {
+            dispatch.executeVoid(this.context, receiver, arg
