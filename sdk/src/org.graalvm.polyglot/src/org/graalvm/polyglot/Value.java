@@ -1055,4 +1055,170 @@ public final class Value extends AbstractValue {
     /**
      * Returns <code>true</code> if this value represents a {@link #isNumber() number}, else
      * <code>false</code>. The number value may be accessed as {@link #asByte() byte},
-     * {@link #asShort() short} {@link #asInt() int} {@link #asLong() long}, {@link #
+     * {@link #asShort() short} {@link #asInt() int} {@link #asLong() long}, {@link #asFloat()
+     * float} or {@link #asDouble() double} value.
+     *
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @throws IllegalStateException if the underlying context was closed.
+     * @since 19.0
+     */
+    public boolean isNumber() {
+        return dispatch.isNumber(this.context, receiver);
+    }
+
+    /**
+     * Returns <code>true</code> if this value represents a {@link #isNumber() number} and the value
+     * fits in <code>long</code>, else <code>false</code>.
+     *
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @throws IllegalStateException if the underlying context was closed.
+     * @see #asLong()
+     * @since 19.0
+     */
+    public boolean fitsInLong() {
+        return dispatch.fitsInLong(this.context, receiver);
+    }
+
+    /**
+     * Returns a <code>long</code> representation of this value if it is {@link #isNumber() number}
+     * and the value {@link #fitsInLong() fits}.
+     *
+     * @throws NullPointerException if this value represents {@link #isNull() null}.
+     * @throws ClassCastException if this value could not be converted to long.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @throws IllegalStateException if the underlying context was closed.
+     * @since 19.0
+     */
+    public long asLong() {
+        return dispatch.asLong(this.context, receiver);
+    }
+
+    /**
+     * Returns <code>true</code> if this value represents a {@link #isNumber() number} and the value
+     * fits in <code>BigInteger</code>, else <code>false</code>.
+     *
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @throws IllegalStateException if the underlying context was closed.
+     * @see #asBigInteger()
+     * @since 23.0
+     */
+    public boolean fitsInBigInteger() {
+        return dispatch.fitsInBigInteger(this.context, receiver);
+    }
+
+    /**
+     * Returns a <code>BigInteger</code> representation of this value if it is {@link #isNumber()
+     * number} and the value {@link #fitsInBigInteger() fits}.
+     *
+     * @throws NullPointerException if this value represents {@link #isNull() null}.
+     * @throws ClassCastException if this value could not be converted to BigInteger.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @throws IllegalStateException if the underlying context was closed.
+     * @since 23.0
+     */
+    public BigInteger asBigInteger() {
+        return dispatch.asBigInteger(this.context, receiver);
+    }
+
+    /**
+     * Returns <code>true</code> if this value represents a {@link #isNumber() number} and the value
+     * fits in <code>double</code>, else <code>false</code>.
+     *
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @throws IllegalStateException if the underlying context was closed.
+     * @see #asDouble()
+     * @since 19.0
+     */
+    public boolean fitsInDouble() {
+        return dispatch.fitsInDouble(this.context, receiver);
+    }
+
+    /**
+     * Returns a <code>double</code> representation of this value if it is {@link #isNumber()
+     * number} and the value {@link #fitsInDouble() fits}.
+     *
+     * @throws NullPointerException if this value represents {@link #isNull() null}.
+     * @throws ClassCastException if this value could not be converted.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @throws IllegalStateException if the underlying context was closed.
+     * @since 19.0
+     */
+    public double asDouble() {
+        return dispatch.asDouble(this.context, receiver);
+    }
+
+    /**
+     * Returns <code>true</code> if this value represents a {@link #isNumber() number} and the value
+     * fits in <code>float</code>, else <code>false</code>.
+     *
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @throws IllegalStateException if the underlying context was closed.
+     * @see #asFloat()
+     * @since 19.0
+     */
+    public boolean fitsInFloat() {
+        return dispatch.fitsInFloat(this.context, receiver);
+    }
+
+    /**
+     * Returns a <code>float</code> representation of this value if it is {@link #isNumber() number}
+     * and the value {@link #fitsInFloat() fits}.
+     *
+     * @throws NullPointerException if this value represents {@link #isNull() null}.
+     * @throws ClassCastException if this value could not be converted.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @throws IllegalStateException if the underlying context was closed.
+     * @since 19.0
+     */
+    public float asFloat() {
+        return dispatch.asFloat(this.context, receiver);
+    }
+
+    /**
+     * Returns <code>true</code> if this value represents a {@link #isNumber() number} and the value
+     * fits in <code>byte</code>, else <code>false</code>.
+     *
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @throws IllegalStateException if the underlying context was closed.
+     * @see #asByte()
+     * @since 19.0
+     */
+    public boolean fitsInByte() {
+        return dispatch.fitsInByte(this.context, receiver);
+    }
+
+    /**
+     * Returns a <code>byte</code> representation of this value if it is {@link #isNumber() number}
+     * and the value {@link #fitsInByte() fits}.
+     *
+     * @throws NullPointerException if this value represents {@link #isNull() null}.
+     * @throws ClassCastException if this value could not be converted.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @throws IllegalStateException if the underlying context was closed.
+     * @since 19.0
+     */
+    public byte asByte() {
+        return dispatch.asByte(this.context, receiver);
+    }
+
+    /**
+     * Returns <code>true</code> if this value represents a {@link #isNumber() number} and the value
+     * fits in <code>short</code>, else <code>false</code>.
+     *
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @throws IllegalStateException if the underlying context was closed.
+     * @see #asShort()
+     * @since 19.0
+     */
+    public boolean fitsInShort() {
+        return dispatch.fitsInShort(this.context, receiver);
+    }
+
+    /**
+     * Returns a <code>short</code> representation of this value if it is {@link #isNumber() number}
+     * and the value {@link #fitsInShort() fits}.
+     *
+     * @throws NullPointerException if this value represents {@link #isNull() null}.
+     * @throws ClassCastException if this value could not be converted.
+     * @throws PolyglotException if a guest language error occurred during execution.
+ 
