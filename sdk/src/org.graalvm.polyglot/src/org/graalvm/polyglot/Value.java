@@ -1221,4 +1221,141 @@ public final class Value extends AbstractValue {
      * @throws NullPointerException if this value represents {@link #isNull() null}.
      * @throws ClassCastException if this value could not be converted.
      * @throws PolyglotException if a guest language error occurred during execution.
- 
+     * @throws IllegalStateException if the underlying context was closed.
+     * @since 19.0
+     */
+    public short asShort() {
+        return dispatch.asShort(this.context, receiver);
+    }
+
+    /**
+     * Returns <code>true</code> if this value is a <code>null</code> like.
+     *
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @throws IllegalStateException if the underlying context was closed.
+     * @since 19.0
+     */
+    public boolean isNull() {
+        return dispatch.isNull(this.context, receiver);
+    }
+
+    /**
+     * Returns <code>true</code> if this value is a native pointer. The value of the pointer can be
+     * accessed using {@link #asNativePointer()}.
+     *
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @throws IllegalStateException if the underlying context was closed.
+     * @since 19.0
+     */
+    public boolean isNativePointer() {
+        return dispatch.isNativePointer(this.context, receiver);
+    }
+
+    /**
+     * Returns the value of the pointer as <code>long</code> value.
+     *
+     * @throws UnsupportedOperationException if the value is not a pointer.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @throws IllegalStateException if the underlying context was closed.
+     * @since 19.0
+     */
+    public long asNativePointer() {
+        return dispatch.asNativePointer(this.context, receiver);
+    }
+
+    /**
+     * Returns <code>true</code> if the value originated form the host language Java. In such a case
+     * the value can be accessed using {@link #asHostObject()}.
+     *
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @throws IllegalStateException if the underlying context was closed.
+     * @since 19.0
+     */
+    public boolean isHostObject() {
+        return dispatch.isHostObject(this.context, receiver);
+    }
+
+    /**
+     * Returns the original Java host language object.
+     *
+     * @throws UnsupportedOperationException if {@link #isHostObject()} is <code>false</code>.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @throws IllegalStateException if the underlying context was closed.
+     * @since 19.0
+     */
+    @SuppressWarnings("unchecked")
+    public <T> T asHostObject() {
+        return (T) dispatch.asHostObject(this.context, receiver);
+    }
+
+    /**
+     * Returns <code>true</code> if this value represents a {@link Proxy}. The proxy instance can be
+     * unboxed using {@link #asProxyObject()}.
+     *
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @throws IllegalStateException if the underlying context was closed.
+     * @since 19.0
+     */
+    public boolean isProxyObject() {
+        return dispatch.isProxyObject(this.context, receiver);
+    }
+
+    /**
+     * Returns the unboxed instance of the {@link Proxy}. Proxies are not automatically boxed to
+     * {@link #isHostObject() host objects} on host language call boundaries (Java methods).
+     *
+     * @throws UnsupportedOperationException if a value is not a proxy object.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @throws IllegalStateException if the underlying context was closed.
+     * @since 19.0
+     */
+    @SuppressWarnings("unchecked")
+    public <T extends Proxy> T asProxyObject() {
+        return (T) dispatch.asProxyObject(this.context, receiver);
+    }
+
+    /**
+     * Maps a polyglot value to a value with a given Java target type.
+     *
+     * <h3>Target type mapping</h3>
+     * <p>
+     * The following target types are supported and interpreted in the following order:
+     * <ul>
+     * <li>Custom
+     * {@link HostAccess.Builder#targetTypeMapping(Class, Class, java.util.function.Predicate, Function)
+     * target type mappings} specified in the {@link HostAccess} configuration with precedence
+     * {@link TargetMappingPrecedence#HIGHEST} or {@link TargetMappingPrecedence#HIGH}. These custom
+     * target type mappings may override all the type mappings below. This allows for customization
+     * if one of the below type mappings is not suitable.
+     * <li><code>{@link Value}.class</code> is always supported and returns this instance.
+     * <li>If the value represents a {@link #isHostObject() host object} then all classes
+     * implemented or extended by the host object can be used as target type.
+     * <li><code>{@link String}.class</code> is supported if the value is a {@link #isString()
+     * string}.
+     * <li><code>{@link Character}.class</code> is supported if the value is a {@link #isString()
+     * string} of length one or if a number can be safely be converted to a character.
+     * <li><code>{@link Number}.class</code> is supported if the value is a {@link #isNumber()
+     * number}. {@link Byte}, {@link Short}, {@link Integer}, {@link Long}, {@link Float} and
+     * {@link Double} are allowed if they fit without conversion. If a conversion is necessary then
+     * a {@link ClassCastException} is thrown. Primitive class literals throw a
+     * {@link NullPointerException} if the value represents {@link #isNull() null}.
+     * <li><code>{@link Boolean}.class</code> is supported if the value is a {@link #isBoolean()
+     * boolean}. Primitive {@link Boolean boolean.class} literal is also supported. The primitive
+     * class literal throws a {@link NullPointerException} if the value represents {@link #isNull()
+     * null}.
+     * <li><code>{@link LocalDate}.class</code> is supported if the value is a {@link #isDate()
+     * date}</li>
+     * <li><code>{@link LocalTime}.class</code> is supported if the value is a {@link #isTime()
+     * time}</li>
+     * <li><code>{@link LocalDateTime}.class</code> is supported if the value is a {@link #isDate()
+     * date} and {@link #isTime() time}.</li>
+     * <li><code>{@link Instant}.class</code> is supported if the value is an {@link #isInstant()
+     * instant}.</li>
+     * <li><code>{@link ZonedDateTime}.class</code> is supported if the value is a {@link #isDate()
+     * date}, {@link #isTime() time} and {@link #isTimeZone() timezone}.</li>
+     * <li><code>{@link ZoneId}.class</code> is supported if the value is a {@link #isTimeZone()
+     * timezone}.</li>
+     * <li><code>{@link Duration}.class</code> is supported if the value is a {@link #isDuration()
+     * duration}.</li>
+     * <li><code>{@link PolyglotException}.class</code> is supported if the value is an
+     * {@link
