@@ -1437,4 +1437,103 @@ public final class Value extends AbstractValue {
      * exist otherwise an {@link UnsupportedOperationException} is thrown when the method is
      * executed. If one of the parameters or the return value cannot be mapped to the target type a
      * {@link ClassCastException} or a {@link NullPointerException} is thrown.
-     * <li>JVM only: Any abstract class with an ac
+     * <li>JVM only: Any abstract class with an accessible default constructor if the value
+     * {@link #hasMembers() has members} and the class is {@link HostAccess.Implementable
+     * implementable}. Each interface method maps to one {@link #getMember(String) member} of the
+     * value. Whenever an abstract method of the class is executed a member with the method or field
+     * name must exist otherwise an {@link UnsupportedOperationException} is thrown when the method
+     * is executed. If one of the parameters or the return value cannot be mapped to the target type
+     * a {@link ClassCastException} or a {@link NullPointerException} is thrown.
+     * <li>Custom
+     * {@link HostAccess.Builder#targetTypeMapping(Class, Class, java.util.function.Predicate, Function)
+     * target type mappings} specified in the {@link HostAccess} configuration with precedence
+     * {@link TargetMappingPrecedence#LOWEST}.
+     * </ul>
+     * A {@link ClassCastException} is thrown for other unsupported target types.
+     * <p>
+     * <b>JavaScript Usage Examples:</b>
+     *
+     * <pre>
+     * Context context = Context.newBuilder().allowHostAccess(HostAccess.ALL).build();
+     * assert context.eval("js", "undefined").as(Object.class) == null;
+     * assert context.eval("js", "'foobar'").as(String.class).equals("foobar");
+     * assert context.eval("js", "42").as(Integer.class) == 42;
+     * assert context.eval("js", "({foo:'bar'})").as(Map.class).get("foo").equals("bar");
+     * assert context.eval("js", "[42]").as(List.class).get(0).equals(42);
+     * assert ((Map&lt;String, Object>) context.eval("js", "[{foo:'bar'}]").as(List.class).get(0)).get("foo").equals("bar");
+     *
+     * &#64;FunctionalInterface
+     * interface IntFunction {
+     *     int foo(int value);
+     * }
+     * assert context.eval("js", "(function(a){return a})").as(IntFunction.class).foo(42).asInt() == 42;
+     *
+     * &#64;FunctionalInterface
+     * interface StringListFunction {
+     *     int foo(List&lt;String&gt; value);
+     * }
+     * assert context.eval("js", "(function(a){return a.length})").as(StringListFunction.class).foo(new String[]{"42"}).asInt() == 1;
+     *
+     * public abstract class AbstractClass {
+     *     public AbstractClass() {
+     *     }
+     *
+     *     int foo(int value);
+     * }
+     * assert context.eval("js", "({foo: function(a){return a}})").as(AbstractClass.class).foo(42).asInt() == 42;
+     * </pre>
+     *
+     * <h3>Object target type mapping</h3>
+     * <p>
+     * Object target mapping is useful to map polyglot values to its closest corresponding standard
+     * JDK type.
+     *
+     * The following rules apply when <code>Object</code> is used as a target type:
+     * <ol>
+     * <li>If the value represents {@link #isNull() null} then <code>null</code> is returned.
+     * <li>If the value is a {@link #isHostObject() host object} then the value is coerced to
+     * {@link #asHostObject() host object value}.
+     * <li>If the value is a {@link #isString() string} then the value is coerced to {@link String}
+     * or {@link Character}.
+     * <li>If the value is a {@link #isBoolean() boolean} then the value is coerced to
+     * {@link Boolean}.
+     * <li>If the value is a {@link #isNumber() number} then the value is coerced to {@link Number}.
+     * The specific sub type of the {@link Number} is not specified. Users need to be prepared for
+     * any Number subclass including {@link BigInteger} or {@link BigDecimal}. It is recommended to
+     * cast to {@link Number} and then convert to a Java primitive like with
+     * {@link Number#longValue()}.
+     * <li>If the value has {@link #hasArrayElements() array elements} and it has an
+     * {@link Value#getArraySize() array size} that is smaller or equal than
+     * {@link Integer#MAX_VALUE} then the result value will implement {@link List}. Every array
+     * element of the value maps to one list element. The size of the returned list maps to the
+     * array size of the value. The returned value may also implement {@link Function} if the value
+     * can be {@link #canExecute() executed} or {@link #canInstantiate() instantiated}.
+     * <li>If the value has {@link #hasHashEntries() hash entries} then the result value will
+     * implement {@link Map}. The {@link Map#size() size} of the returned {@link Map} is equal to
+     * the {@link #getHashSize() hash entries count}. The returned value may also implement
+     * {@link Function} if the value can be {@link #canExecute() executed} or
+     * {@link #canInstantiate() instantiated}.
+     * <li>If the value {@link #hasMembers() has members} then the result value will implement
+     * {@link Map}. If this value {@link #hasMembers() has members} then all members are accessible
+     * using {@link String} keys. The {@link Map#size() size} of the returned {@link Map} is equal
+     * to the count of all members. The returned value may also implement {@link Function} if the
+     * value can be {@link #canExecute() executed} or {@link #canInstantiate() instantiated}.
+     * <li>If the value has an {@link #hasIterator()} iterator} then the result value will implement
+     * {@link Iterable}. The returned value may also implement {@link Function} if the value can be
+     * {@link #canExecute() executed} or {@link #canInstantiate() instantiated}.
+     * <li>If the value is an {@link #isIterator()} iterator} then the result value will implement
+     * {@link Iterator}. The returned value may also implement {@link Function} if the value can be
+     * {@link #canExecute() executed} or {@link #canInstantiate() instantiated}.
+     * <li>If the value can be {@link #canExecute() executed} or {@link #canInstantiate()
+     * instantiated} then the result value implements {@link Function Function}. By default the
+     * argument of the function will be used as single argument to the function when executed. If a
+     * value of type {@link Object Object[]} is provided then the function will be executed with
+     * those arguments. The returned function may also implement {@link List} or {@link Map} if the
+     * value has {@link #hasArrayElements() array elements} or {@link #hasMembers() members},
+     * respectively.
+     * <li>Mappings to mutable target types such as {@link List}, {@link Map}, {@link Iterator} and
+     * {@link Iterable} are only available if the corresponding mappings are enabled (see
+     * {@link org.graalvm.polyglot.HostAccess.Builder#allowMutableTargetMappings(org.graalvm.polyglot.HostAccess.MutableTargetMapping...)}).
+     * <li>If none of the above rules apply then this {@link Value} instance is returned.
+     * </ol>
+     * Returned {@link #isHostObject() host objects}, {@link String
