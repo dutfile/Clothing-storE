@@ -1536,4 +1536,156 @@ public final class Value extends AbstractValue {
      * {@link org.graalvm.polyglot.HostAccess.Builder#allowMutableTargetMappings(org.graalvm.polyglot.HostAccess.MutableTargetMapping...)}).
      * <li>If none of the above rules apply then this {@link Value} instance is returned.
      * </ol>
-     * Returned {@link #isHostObject() host objects}, {@link String
+     * Returned {@link #isHostObject() host objects}, {@link String}, {@link Number},
+     * {@link Boolean} and <code>null</code> values have unlimited lifetime. Other values will throw
+     * an {@link IllegalStateException} for any operation if their originating {@link Context
+     * context} was closed.
+     * <p>
+     * If a {@link Map} element is modified, a {@link List} element is modified or a
+     * {@link Function} argument is provided then these values are interpreted according to the
+     * {@link Context#asValue(Object) host to polyglot value mapping rules}.
+     * <p>
+     * <b>JavaScript Usage Examples:</b>
+     *
+     * <pre>
+     * Context context = Context.create();
+     * assert context.eval("js", "undefined").as(Object.class) == null;
+     * assert context.eval("js", "'foobar'").as(Object.class) instanceof String;
+     * assert context.eval("js", "42").as(Object.class) instanceof Number;
+     * assert context.eval("js", "[]").as(Object.class) instanceof Map;
+     * assert context.eval("js", "{}").as(Object.class) instanceof Map;
+     * assert ((Map&lt;Object, Object>) context.eval("js", "[{}]").as(Object.class)).get(0) instanceof Map;
+     * assert context.eval("js", "(function(){})").as(Object.class) instanceof Function;
+     * </pre>
+     *
+     * <h3>Object Identity</h3>
+     * <p>
+     * If polyglot values are mapped as Java primitives such as {@link Boolean}, <code>null</code>,
+     * {@link String}, {@link Character} or {@link Number}, then the identity of the polyglot value
+     * is not preserved. All other results can be converted back to a {@link Value polyglot value}
+     * using {@link Context#asValue(Object)}.
+     *
+     * <b>Mapping Example using JavaScript:</b> This example first creates a new JavaScript object
+     * and maps it to a {@link Map}. Using the {@link Context#asValue(Object)} it is possible to
+     * recreate the {@link Value polyglot value} from the Java map. The JavaScript object identity
+     * is preserved in the process.
+     *
+     * <pre>
+     * Context context = Context.create();
+     * Map&lt;Object, Object> javaMap = context.eval("js", "{}").as(Map.class);
+     * Value polyglotValue = context.asValue(javaMap);
+     * </pre>
+     *
+     * @see #as(TypeLiteral) to map to generic type signatures.
+     * @param targetType the target Java type to map
+     * @throws ClassCastException if polyglot value could not be mapped to the target type.
+     * @throws PolyglotException if the conversion triggered a guest language error.
+     * @throws IllegalStateException if the underlying context is already closed.
+     * @throws NullPointerException if the target type is null.
+     * @since 19.0
+     */
+    @SuppressWarnings("unchecked")
+    public <T> T as(Class<T> targetType) throws ClassCastException, IllegalStateException, PolyglotException {
+        Objects.requireNonNull(targetType, "targetType");
+        if (targetType == Value.class) {
+            return (T) this;
+        }
+        return dispatch.as(this.context, receiver, targetType);
+    }
+
+    /**
+     * Maps a polyglot value to a given Java target type literal. For usage instructions see
+     * {@link TypeLiteral}.
+     * <p>
+     * Usage example:
+     *
+     * <pre>
+     * static final TypeLiteral&lt;List&lt;String>> STRING_LIST = new TypeLiteral&lt;List&lt;String>>() {
+     * };
+     *
+     * public static void main(String[] args) {
+     *     Context context = Context.create();
+     *     List&lt;String> javaList = context.eval("js", "['foo', 'bar', 'bazz']").as(STRING_LIST);
+     *     assert javaList.get(0).equals("foo");
+     * }
+     * </pre>
+     *
+     * @throws NullPointerException if the target type is null.
+     * @see #as(Class)
+     * @since 19.0
+     */
+    public <T> T as(TypeLiteral<T> targetType) {
+        Objects.requireNonNull(targetType, "targetType");
+        return dispatch.as(this.context, receiver, targetType);
+    }
+
+    /**
+     * Converts this value to a human readable string. Each language may have special formating
+     * conventions - even primitive values may not follow the traditional Java formating rules. The
+     * format of the returned string is intended to be interpreted by humans not machines and should
+     * therefore not be relied upon by machines. By default this value class name and its
+     * {@link System#identityHashCode(Object) identity hash code} is used as string representation.
+     *
+     * @since 19.0
+     */
+    @Override
+    public String toString() {
+        return super.toString();
+    }
+
+    /**
+     * Returns the declared source location of the value.
+     *
+     * @return the {@link SourceSection} or null if unknown
+     * @since 19.0
+     */
+    public SourceSection getSourceLocation() {
+        return dispatch.getSourceLocation(this.context, receiver);
+    }
+
+    /**
+     * Returns <code>true</code> if this object represents a date, else <code>false</code>. If this
+     * value is also a {@link #isTimeZone() timezone} then the date is aware, otherwise it is naive.
+     *
+     * @throws ClassCastException if polyglot value could not be mapped to the target type.
+     * @throws NullPointerException if the target type is null.
+     * @throws PolyglotException if the conversion triggered a guest language error.
+     * @throws IllegalStateException if the underlying context is already closed.
+     * @see #asDate()
+     * @since 19.2.0
+     */
+    public boolean isDate() {
+        return dispatch.isDate(this.context, receiver);
+    }
+
+    /**
+     * Returns this value as date if this object represents a {@link #isDate() date}. The returned
+     * date is either aware if the value has a {@link #isTimeZone() timezone} otherwise it is naive.
+     *
+     * @throws ClassCastException if polyglot value could not be mapped to the target type.
+     * @throws NullPointerException if the target type is null.
+     * @throws PolyglotException if the conversion triggered a guest language error.
+     * @throws IllegalStateException if the underlying context is already closed.
+     * @see #isDate()
+     * @since 19.2.0
+     */
+    public LocalDate asDate() {
+        return dispatch.asDate(this.context, receiver);
+    }
+
+    /**
+     * Returns <code>true</code> if this object represents a time, else <code>false</code>. If the
+     * value is also a {@link #isTimeZone() timezone} then the time is aware, otherwise it is naive.
+     *
+     * @throws IllegalStateException if the underlying context is already closed.
+     * @see #asTime()
+     * @since 19.2.0
+     */
+    public boolean isTime() {
+        return dispatch.isTime(this.context, receiver);
+    }
+
+    /**
+     * Returns this value as time if this object represents a {@link #isTime() time}. The returned
+     * time is either aware if the value has a {@link #isTimeZone() timezone} otherwise it is naive.
+    
