@@ -1688,4 +1688,166 @@ public final class Value extends AbstractValue {
     /**
      * Returns this value as time if this object represents a {@link #isTime() time}. The returned
      * time is either aware if the value has a {@link #isTimeZone() timezone} otherwise it is naive.
-    
+     *
+     * @throws ClassCastException if polyglot value could not be mapped to the target type.
+     * @throws NullPointerException if the target type is null.
+     * @throws PolyglotException if the conversion triggered a guest language error.
+     * @throws IllegalStateException if the underlying context is already closed.
+     * @see #isTime()
+     * @since 19.2.0
+     */
+    public LocalTime asTime() {
+        return dispatch.asTime(this.context, receiver);
+    }
+
+    /**
+     * Returns <code>true</code> if this value represents an instant. If a value is an instant then
+     * it is also a {@link #isDate() date}, {@link #isTime() time} and {@link #isTimeZone()
+     * timezone}.
+     *
+     * This method is short-hand for:
+     *
+     * <pre>
+     * v.{@linkplain #isDate() isDate}() && v.{@link #isTime() isTime}() && v.{@link #isTimeZone() isTimeZone}()
+     * </pre>
+     *
+     * @throws IllegalStateException if the underlying context is already closed.
+     * @see #isDate()
+     * @see #isTime()
+     * @see #isInstant()
+     * @see #asInstant()
+     * @since 19.2.0
+     */
+    public boolean isInstant() {
+        return isDate() && isTime() && isTimeZone();
+    }
+
+    /**
+     * Returns this value as instant if this object represents an {@link #isInstant() instant}. If a
+     * value is an instant then it is also a {@link #isDate() date}, {@link #isTime() time} and
+     * {@link #isTimeZone() timezone}. Using this method may be more efficient than reconstructing
+     * the timestamp from the date, time and timezone data.
+     * <p>
+     * The following assertion always holds if {@link #isInstant()} returns <code>true</code>:
+     *
+     * <pre>
+     * ZoneId zone = getTimeZone(receiver);
+     * LocalDate date = getDate(receiver);
+     * LocalTime time = getTime(receiver);
+     * assert ZonedDateTime.of(date, time, zone).toInstant().equals(getInstant(receiver));
+     * </pre>
+     *
+     * @throws ClassCastException if polyglot value could not be mapped to the target type.
+     * @throws NullPointerException if the target type is null.
+     * @throws PolyglotException if the conversion triggered a guest language error.
+     * @throws IllegalStateException if the underlying context is already closed.
+     * @see #isDate()
+     * @see #isTime()
+     * @see #isTimeZone()
+     * @since 19.2.0
+     */
+    public Instant asInstant() {
+        return dispatch.asInstant(this.context, receiver);
+    }
+
+    /**
+     * Returns <code>true</code> if this object represents a timezone, else <code>false</code>. The
+     * interpretation of timezone objects may vary:
+     * <ul>
+     * <li>If {@link #isDate()} and {@link #isTime()} return <code>true</code>, then the returned
+     * date or time information is aware of this timezone.
+     * <li>If {@link #isDate()} and {@link #isTime()} returns <code>false</code>, then it represents
+     * just timezone information.
+     * </ul>
+     * Objects with only date information must not have timezone information attached and objects
+     * with only time information must have either none, or {@link ZoneRules#isFixedOffset() fixed
+     * zone} only. If this rule is violated then an {@link AssertionError} is thrown if assertions
+     * are enabled.
+     * <p>
+     * If this method is implemented then also {@link #asTimeZone()} must be implemented.
+     *
+     * @throws IllegalStateException if the underlying context is already closed.
+     * @see #asTimeZone()
+     * @see #asInstant()
+     * @since 19.2.0
+     */
+    public boolean isTimeZone() {
+        return dispatch.isTimeZone(this.context, receiver);
+    }
+
+    /**
+     * Returns this value as timestamp if this object represents a {@link #isTimeZone() timezone}.
+     *
+     * @throws ClassCastException if polyglot value could not be mapped to the target type.
+     * @throws PolyglotException if the conversion triggered a guest language error.
+     * @throws IllegalStateException if the underlying context is already closed.
+     * @throws NullPointerException if the target type is null.
+     * @see #isTimeZone()
+     * @since 19.2.0
+     */
+    public ZoneId asTimeZone() {
+        return dispatch.asTimeZone(this.context, receiver);
+    }
+
+    /**
+     * Returns <code>true</code> if this object represents a duration, else <code>false</code>.
+     *
+     * @throws IllegalStateException if the underlying context is already closed.
+     * @see Duration
+     * @see #asDuration()
+     * @since 19.2.0
+     */
+    public boolean isDuration() {
+        return dispatch.isDuration(this.context, receiver);
+    }
+
+    /**
+     * Returns this value as duration if this object represents a {@link #isDuration() duration}.
+     *
+     * @throws ClassCastException if polyglot value could not be mapped to the target type.
+     * @throws PolyglotException if the conversion triggered a guest language error.
+     * @throws IllegalStateException if the underlying context is already closed.
+     * @throws NullPointerException if the target type is null.
+     * @see #isDuration()
+     * @since 19.2.0
+     */
+    public Duration asDuration() {
+        return dispatch.asDuration(this.context, receiver);
+    }
+
+    /**
+     * Returns <code>true</code> if this object represents an exception, else <code>false</code>.
+     *
+     * @throws IllegalStateException if the underlying context is already closed.
+     * @see #throwException()
+     * @since 19.3
+     */
+    public boolean isException() {
+        return dispatch.isException(this.context, receiver);
+    }
+
+    /**
+     * Throws this value if this object represents an {@link #isException() exception}.
+     *
+     * @throws UnsupportedOperationException if the value is not an exception.
+     * @throws IllegalStateException if the underlying context is already closed.
+     * @see #isException()
+     * @since 19.3
+     */
+    public RuntimeException throwException() {
+        return dispatch.throwException(this.context, receiver);
+    }
+
+    /**
+     * Returns the context this value was created with. The returned context may be
+     * <code>null</code> if the value was created using {@link Value#asValue(Object)} and no current
+     * context was {@link Context#enter() entered} at the time.
+     * <p>
+     * The returned context can <b>not</b> be used to {@link Context#enter() enter} ,
+     * {@link Context#leave() leave} or {@link Context#close() close} the context or
+     * {@link Context#getEngine() engine}. Invoking such methods will cause an
+     * {@link IllegalStateException} to be thrown. This ensures that only the
+     * {@link Context#create(String...) creator} of a context is allowed to enter, leave or close a
+     * context and that a context is not closed while it is still active.
+     *
+     * @since 19
