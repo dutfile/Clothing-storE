@@ -2018,4 +2018,137 @@ public final class Value extends AbstractValue {
      * {@link Context#asValue(Object)}.
      *
      * @throws UnsupportedOperationException if the value has no {@link #hasHashEntries() hash
-     *             entries} or the mappi
+     *             entries} or the mapping for given key exists but is not readable.
+     * @throws IllegalStateException if the context is already {@link Context#close() closed}.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @since 21.1
+     */
+    public Value getHashValue(Object key) throws UnsupportedOperationException {
+        return dispatch.getHashValue(this.context, receiver, key);
+    }
+
+    /**
+     * Returns the value for the specified key or the default value if the mapping for the specified
+     * key does not exist or is not readable. The key and the default value are subject to polyglot
+     * value mapping rules as described in {@link Context#asValue(Object)}.
+     *
+     * @throws UnsupportedOperationException if the value has no {@link #hasHashEntries() hash
+     *             entries} at all.
+     * @throws IllegalStateException if the context is already {@link Context#close() closed}.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @since 21.1
+     */
+    public Value getHashValueOrDefault(Object key, Object defaultValue) throws UnsupportedOperationException {
+        return dispatch.getHashValueOrDefault(this.context, receiver, key, defaultValue);
+    }
+
+    /**
+     * Associates the specified value with the specified key. Both key and value are subject to
+     * polyglot value mapping rules as described in {@link Context#asValue(Object)}.
+     *
+     * @throws UnsupportedOperationException if the value does not have any {@link #hasHashEntries()
+     *             hash entries}, the mapping for specified key does not exist and new members
+     *             cannot be added, or the existing mapping for specified key is not modifiable.
+     * @throws IllegalArgumentException if the provided key type or value type is not allowed to be
+     *             written.
+     * @throws IllegalStateException if the context is already {@link Context#close() closed}.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @since 21.1
+     */
+    public void putHashEntry(Object key, Object value) throws IllegalArgumentException, UnsupportedOperationException {
+        dispatch.putHashEntry(this.context, receiver, key, value);
+    }
+
+    /**
+     * Removes the mapping for a given key. Returns {@code true} if the mapping was successfully
+     * removed, {@code false} if mapping for a given key does not exist. The key is subject to
+     * polyglot value mapping rules as described in {@link Context#asValue(Object)}.
+     *
+     * @throws UnsupportedOperationException if the value does not have any {@link #hasHashEntries()
+     *             hash entries} or if mapping for specified key {@link #hasHashEntry(Object)
+     *             exists} but cannot be removed.
+     * @throws IllegalStateException if the context is already {@link Context#close() closed}.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @since 21.1
+     */
+    public boolean removeHashEntry(Object key) throws UnsupportedOperationException {
+        return dispatch.removeHashEntry(this.context, receiver, key);
+    }
+
+    /**
+     * Creates a new hash entries iterator that allows read each map entry. The return value is
+     * always an {@link #isIterator() iterator} of {@link #hasArrayElements() array elements}. The
+     * first array element is a key, the second array element is an associated value. Even if the
+     * value array element is {@link #setArrayElement(long, Object) modifiable} writing to array may
+     * not update the mapping, always use {@link #putHashEntry(Object, Object)} to update the
+     * mapping.
+     *
+     * @throws UnsupportedOperationException if the value does not have any {@link #hasHashEntries()
+     *             hash entries}.
+     * @throws IllegalStateException if the context is already closed.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     *
+     * @since 21.1
+     */
+    public Value getHashEntriesIterator() throws UnsupportedOperationException {
+        return dispatch.getHashEntriesIterator(this.context, receiver);
+    }
+
+    /**
+     * Creates a new hash keys iterator that allows read each map key. The return value is always an
+     * {@link #isIterator() iterator}.
+     *
+     * @throws UnsupportedOperationException if the value does not have any {@link #hasHashEntries()
+     *             hash entries}.
+     * @throws IllegalStateException if the context is already closed.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     *
+     * @since 21.1
+     */
+    public Value getHashKeysIterator() throws UnsupportedOperationException {
+        return dispatch.getHashKeysIterator(this.context, receiver);
+    }
+
+    /**
+     * Creates a new hash values iterator that allows read each map value. The return value is
+     * always an {@link #isIterator() iterator}.
+     *
+     * @throws UnsupportedOperationException if the value does not have any {@link #hasHashEntries()
+     *             hash entries}.
+     * @throws IllegalStateException if the context is already closed.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     *
+     * @since 21.1
+     */
+    public Value getHashValuesIterator() throws UnsupportedOperationException {
+        return dispatch.getHashValuesIterator(this.context, receiver);
+    }
+
+    /**
+     * Converts a Java host value to a polyglot value. Returns a value for any host or guest value.
+     * If there is a context available use {@link Context#asValue(Object)} for efficiency instead.
+     * The value is bound the {@link Context#getCurrent() current} context when created. If there is
+     * no context available when the value was constructed then Values constructed with this method
+     * may return <code>null</code> for {@link #getContext()}.
+     *
+     * @param o the object to convert
+     * @throws IllegalStateException if no context is currently entered.
+     * @see Context#asValue(Object) Conversion rules.
+     * @since 19.0
+     */
+    public static Value asValue(Object o) {
+        if (o instanceof Value) {
+            return (Value) o;
+        }
+        return Engine.getImpl().asValue(o);
+    }
+
+    /**
+     * Pins a scoped value such that it can be used beyond the scope of a scoped host method call.
+     * Pinning is an idempotent operation, i.e. pinning an already pinned value just results in a
+     * pinned value again.
+     *
+     * Trying to pin a value that is not scoped will not cause an effect. Trying to pin a scoped
+     * value that has already been released will raise a {@link IllegalStateException}.
+     *
+     * @throws IllegalStateException if the method scope of
