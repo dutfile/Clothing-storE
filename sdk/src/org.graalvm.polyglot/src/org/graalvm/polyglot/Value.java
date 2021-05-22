@@ -1850,4 +1850,172 @@ public final class Value extends AbstractValue {
      * {@link Context#create(String...) creator} of a context is allowed to enter, leave or close a
      * context and that a context is not closed while it is still active.
      *
-     * @since 19
+     * @since 19.3.0
+     */
+    public Context getContext() {
+        Context c = dispatch.getContext(this.context);
+        if (c != null && c.currentAPI != null) {
+            return c.currentAPI;
+        } else {
+            return c;
+        }
+    }
+
+    /**
+     * Compares the identity of the underlying polyglot objects. This method does not do any
+     * structural comparisons.
+     *
+     * {@inheritDoc}
+     *
+     * @since 20.1
+     */
+    @Override
+    public boolean equals(Object obj) {
+        return super.equals(obj);
+    }
+
+    /**
+     * Returns the identity hash code of the underlying object. This method does not compute the
+     * hash code depending on the contents of the value.
+     *
+     * {@inheritDoc}
+     *
+     * @since 20.1
+     */
+    @Override
+    public int hashCode() {
+        return super.hashCode();
+    }
+
+    /**
+     * Returns <code>true</code> if this polyglot value provides an iterator. In this case the
+     * iterator can be obtained using {@link #getIterator()}.
+     *
+     * @throws IllegalStateException if the context is already closed.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     *
+     * @see #getIterator()
+     * @since 21.1
+     */
+    public boolean hasIterator() {
+        return dispatch.hasIterator(this.context, receiver);
+    }
+
+    /**
+     * Creates a new iterator that allows read each element of a sequence.
+     *
+     * @throws UnsupportedOperationException if the value does not provide {@link #hasIterator()
+     *             iterator}.
+     * @throws IllegalStateException if the context is already closed.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     *
+     * @see #hasIterator()
+     * @since 21.1
+     */
+    public Value getIterator() {
+        return dispatch.getIterator(this.context, receiver);
+    }
+
+    /**
+     * Returns <code>true</code> if the value represents an iterator object. In this case the
+     * iterator elements can be accessed using {@link #getIteratorNextElement()}.
+     *
+     * @throws IllegalStateException if the context is already closed.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     *
+     * @see #hasIteratorNextElement()
+     * @see #getIteratorNextElement()
+     * @since 21.1
+     */
+    public boolean isIterator() {
+        return dispatch.isIterator(this.context, receiver);
+    }
+
+    /**
+     * Returns <code>true</code> if the value represents an iterator which has more elements, else
+     * {@code false}. Multiple calls to the {@link #hasIteratorNextElement()} might lead to
+     * different results if the underlying data structure is modified.
+     *
+     * @throws UnsupportedOperationException if the value is not an {@link #isIterator() iterator}.
+     * @throws IllegalStateException if the context is already closed.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     *
+     * @see #isIterator()
+     * @see #getIteratorNextElement()
+     * @since 21.1
+     */
+    public boolean hasIteratorNextElement() {
+        return dispatch.hasIteratorNextElement(this.context, receiver);
+    }
+
+    /**
+     * Returns the next element in the iteration. When the underlying data structure is modified the
+     * {@link #getIteratorNextElement()} may throw the {@link NoSuchElementException} despite the
+     * {@link #hasIteratorNextElement()} returned {@code true}, or it may throw a language error.
+     *
+     * @throws UnsupportedOperationException if the value is not an {@link #isIterator() iterator}
+     *             or when the underlying iterable element exists but is not readable.
+     * @throws NoSuchElementException if the iteration has no more elements. Even if the
+     *             {@link NoSuchElementException} was thrown it might not be thrown again by a next
+     *             call of the {@link #getIteratorNextElement()} due to a modification of an
+     *             underlying iterable.
+     * @throws IllegalStateException if the context is already closed.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     *
+     * @see #isIterator()
+     * @see #hasIteratorNextElement()
+     * @since 21.1
+     */
+    public Value getIteratorNextElement() {
+        return dispatch.getIteratorNextElement(this.context, receiver);
+    }
+
+    /**
+     * Returns <code>true</code> if this polyglot value represents a map. In this case map entries
+     * can be accessed using {@link #getHashValue(Object)},
+     * {@link #getHashValueOrDefault(Object, Object)}, {@link #putHashEntry(Object, Object)},
+     * {@link #removeHashEntry(Object)}, {@link #getHashEntriesIterator()} and the map size can be
+     * queried using {@link #getHashSize()}.
+     *
+     * @throws IllegalStateException if the context is already closed.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @since 21.1
+     */
+    public boolean hasHashEntries() {
+        return dispatch.hasHashEntries(this.context, receiver);
+    }
+
+    /**
+     * Returns the number of map entries for values with hash entries.
+     *
+     * @throws UnsupportedOperationException if the value does not have any
+     *             {@link #hasHashEntries()} hash entries}.
+     * @throws IllegalStateException if the context is already closed.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @since 21.1
+     */
+    public long getHashSize() throws UnsupportedOperationException {
+        return dispatch.getHashSize(this.context, receiver);
+    }
+
+    /**
+     * Returns {@code true} if mapping for the specified key exists. If the value has no
+     * {@link #hasHashEntries() hash entries} then {@link #hasHashEntry(Object)} returns
+     * {@code false}. The key is subject to polyglot value mapping rules as described in
+     * {@link Context#asValue(Object)}.
+     *
+     * @throws IllegalStateException if the context is already {@link Context#close() closed}.
+     * @throws PolyglotException if a guest language error occurred during execution.
+     * @since 21.1
+     */
+    public boolean hasHashEntry(Object key) {
+        return dispatch.hasHashEntry(this.context, receiver, key);
+    }
+
+    /**
+     * Returns the value for the specified key or {@code null} if the mapping for the specified key
+     * does not exist. The key is subject to polyglot value mapping rules as described in
+     * {@link Context#asValue(Object)}.
+     *
+     * @throws UnsupportedOperationException if the value has no {@link #hasHashEntries() hash
+     *             entries} or the mappi
