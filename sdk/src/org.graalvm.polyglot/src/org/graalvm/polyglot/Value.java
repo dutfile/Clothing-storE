@@ -2151,4 +2151,42 @@ public final class Value extends AbstractValue {
      * Trying to pin a value that is not scoped will not cause an effect. Trying to pin a scoped
      * value that has already been released will raise a {@link IllegalStateException}.
      *
-     * @throws IllegalStateException if the method scope of
+     * @throws IllegalStateException if the method scope of the value was finished
+     * @see HostAccess#SCOPED
+     * @since 21.3
+     */
+    public void pin() {
+        dispatch.pin(this.context, receiver);
+    }
+}
+
+abstract class AbstractValue {
+
+    final Object receiver;
+    final Object context;
+    final AbstractValueDispatch dispatch;
+
+    AbstractValue(AbstractValueDispatch dispatch, Object context, Object receiver) {
+        this.context = context;
+        this.dispatch = dispatch;
+        this.receiver = receiver;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (!(obj instanceof AbstractValue)) {
+            return false;
+        }
+        return dispatch.equalsImpl(this.context, receiver, ((AbstractValue) obj).receiver);
+    }
+
+    @Override
+    public int hashCode() {
+        return dispatch.hashCodeImpl(this.context, receiver);
+    }
+
+    @Override
+    public String toString() {
+        return dispatch.toString(this.context, receiver);
+    }
+}

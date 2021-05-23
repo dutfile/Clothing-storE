@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="platform" default="download" basedir="..">
+    <property environment="env" /> 
+    <available file="unzip"  
+             filepath="${env.PATH}"  
+             property="unzip.exec.present"/>
+  
+  
+    <target name="-init-platform-properties">
+        <resources id="-platform.res">
+            <url url="${ide.dist.url}"/>
+        </resources>
+        <pathconvert property="platform.file.name" refid="-platform.res">
+            <mapper>
+                <regexpmapper from="https?://.*?([^/]+.zip)$" to="\1"/>
+                <regexpmapper from="file:.*?([^/]+.zip)$" to="\1"/>
+            </mapper>
+        </pathconvert>
+        <pathconvert property="platform.build.number" refid="-platform.res">
+            <mapper>
+                <regexpmapper from="${platform.dist.number.regexp}" to="\1"/>
+            </mapper>
+        </pathconvert>
+        <echo message="Platform filename: ${platform.file.name}, build number=${platform.build.number}"/>
+        <property name="cache.ide.zip" location="${platform.cache}/${platform.file.name}"/>
+        
+        <condition property="managed.platform">
+            <and>
+                <available file="${harness.dir}/suite.xml"/>
+                <resourcecontains resource="${harness.dir}/../nb/build_info" substring="${platform.dist.number.required.prefix}"/>
+            </and>
+        </condition>
+
+        <condition property="download.required">
+            <or>
+                <isset property="platform.force.download"/>
+                <not>
+                    <available file="${harness.dir}/suite.xml"/>
+                </not>
+                <!-- It is the required platform (i.e. not locally customized one), but not the correct version -->
+                <and>
+                    <resourcecontains resource="${harness.dir}/../nb/build_info" substring="${platform.dist.number.required.prefix}"/>
+                    <not>
+                        <resourcecontains resource="${harness.dir}/../nb/build_info" substring="Number:   ${platform.build.number}"/>
+                    </not>
+                </and>
+            </or>
+        </condition>
+    </target>
+    
+    <target name="set-permissions">
+        <property name="dist.root.dir" value="${nbplatform.default.netbeans.dest.dir}"/>
+        <!-- 
+            Workaround for ANT not being able to restore original permissions from the ZIP.
+            Standard launcher paths are chmod-ed in the harness, but not the extra executable files
+            provided with Maven library embedded in java cluster
+        -->
+        <chmod perm="755">
+            <fileset dir="${dist.root.dir}/bin">
+                <include name="netbeans"/>
+            </fileset>
+            <fileset dir="${dist.root.dir}/java/maven/bin">
+                <include name="mvn"/>
+                <include name="mvnDebug"/>
+                <include name="mvnyjp"/>
+            </fileset>
+            <fileset dir="${dist.root.dir}/extide/ant/bin">
+                <include name="antRun"/>
+                <include name="antRun.pl"/>
+                <includ
