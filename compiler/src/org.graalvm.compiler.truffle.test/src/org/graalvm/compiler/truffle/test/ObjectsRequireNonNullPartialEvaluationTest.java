@@ -76,4 +76,83 @@ public class ObjectsRequireNonNullPartialEvaluationTest extends PartialEvaluatio
 
     private void testCommon(AbstractTestNode testNode, String testName, Object arg) {
         FrameDescriptor fd = new FrameDescriptor();
-        RootCallTar
+        RootCallTarget callTarget = new RootTestNode(fd, testName, testNode).getCallTarget();
+        Assert.assertEquals(42, callTarget.call(arg));
+        assertPartialEvalNoInvokes(callTarget, new Object[]{arg});
+    }
+
+    static class RequireNonNullNode extends AbstractTestNode {
+
+        @Override
+        public int execute(VirtualFrame frame) {
+            Objects.requireNonNull(frame.getArguments()[0]);
+            return 42;
+        }
+    }
+
+    static class RequireNonNullWithMessageNode extends AbstractTestNode {
+
+        @Override
+        public int execute(VirtualFrame frame) {
+            Objects.requireNonNull(frame.getArguments()[0], "arg");
+            return 42;
+        }
+    }
+
+    static class RequireNonNullWithMessageSupplierNode extends AbstractTestNode {
+
+        @Override
+        public int execute(VirtualFrame frame) {
+            Objects.requireNonNull(frame.getArguments()[0], () -> "arg");
+            return 42;
+        }
+    }
+
+    static class InnerClassNode extends AbstractTestNode {
+
+        @Override
+        public int execute(VirtualFrame frame) {
+            TestClass test = (TestClass) frame.getArguments()[0];
+            // javac produces an implicit Objects.requireNonNull(test) for the next line
+            InnerClass inner = test.new InnerClass(2);
+            return inner.get();
+        }
+    }
+
+    static class TestClass {
+
+        int foo;
+
+        TestClass(int foo) {
+            this.foo = foo;
+        }
+
+        class InnerClass {
+
+            int bar;
+
+            InnerClass(int bar) {
+                this.bar = bar;
+            }
+
+            int get() {
+                return foo * bar;
+            }
+        }
+    }
+
+    static class FinalFieldNode extends AbstractTestNode {
+
+        @Override
+        public int execute(VirtualFrame frame) {
+            FinalField f = (FinalField) frame.getArguments()[0];
+            // javac folds the field read to constant 42, and inserts Objects.requireNonNull(f)
+            return f.foo;
+        }
+    }
+
+    static class FinalField {
+
+        final int foo = 42;
+    }
+}
