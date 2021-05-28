@@ -63,4 +63,167 @@ public class SourceRepositoryNodeTest extends SourceRepositoryTestBase {
         assertEquals(0, repoNode.getChildren().getNodes().length);
     }
     
-    private boolean edtSynced = fal
+    private boolean edtSynced = false;
+    
+    private void waitForEDT() {
+        waitForEDT(false);
+    }
+    
+    private void waitForEDT(boolean force) {
+        if (force || !edtSynced) {
+            Children.MUTEX.writeAccess(() -> { edtSynced = true; });
+        }
+    }
+    
+    private void assertFileRootNode(Node n, FileRoot r) {
+        waitForEDT();
+        assertSame(r, n.getLookup().lookup(FileRoot.class));
+        assertEquals(r.getDisplayName(), n.getDisplayName());
+        assertSame(URLMapper.findFileObject(r.getLocation()), n.getLookup().lookup(FileObject.class));
+    }
+    
+    private void assertGroupNode(Node n, FileGroup g) {
+        waitForEDT();
+        assertSame(g, n.getLookup().lookup(FileGroup.class));
+        assertEquals(g.getDisplayName(), n.getDisplayName());
+        SourcesRoot sr = n.getLookup().lookup(SourcesRoot.class);
+        assertNotNull(sr);
+        assertEquals(g.getURI(), sr.getURI());
+        assertEquals(g.getSourcePath(), sr.getSourcePath());
+    }
+    
+    public void testDirectShowDefaultContents() throws Exception {
+        FileRoot r = repo.addLocation(fsrc1, getName(), null);
+        repoNode = new SourceRepositoryNode(repo, false);
+        waitForEDT();
+        assertEquals(1, repoNode.getChildren().getNodes().length);
+        Node n = repoNode.getChildren().getNodes()[0];
+        assertFileRootNode(n, r);
+    }
+    
+    public void testAddRemoveRootDisplayedInRoot() throws Exception {
+        repoNode = new SourceRepositoryNode(repo, false);
+        // repository is empty, no nodes should be shown
+        assertEquals(0, repoNode.getChildren().getNodes().length);
+        FileRoot r = repo.addLocation(fsrc1, getName() + "1", null);
+        
+        Children.MUTEX.writeAccess(() -> {
+            assertEquals(1, repoNode.getChildren().getNodes().length);
+            Node n = repoNode.getChildren().getNodes()[0];
+            assertFileRootNode(n, r);
+        });
+        FileRoot r2 = repo.addLocation(fsrc2, getName() + "2", null);
+        Children.MUTEX.writeAccess(() -> {
+            Node[] ch = repoNode.getChildren().getNodes();
+            assertEquals(2, ch.length);
+            assertFileRootNode(ch[0], r);
+            assertFileRootNode(ch[1], r2);
+        });
+        r.discard();
+        Children.MUTEX.writeAccess(() -> {
+            Node[] ch = repoNode.getChildren().getNodes();
+            assertEquals(1, ch.length);
+            assertFileRootNode(ch[0], r2);
+        });
+    }
+    
+    public void testFileRootDisplayChange() throws Exception {
+        FileRoot r = repo.addLocation(fsrc1, getName(), null);
+        repoNode = new SourceRepositoryNode(repo, false);
+        
+        waitForEDT();
+        assertEquals(1, repoNode.getChildren().getNodes().length);
+        Node n = repoNode.getChildren().getNodes()[0];
+        
+        assertEquals(r.getDisplayName(), n.getDisplayName());
+        r.setDisplayName(getName() + "Changed");
+        assertEquals(r.getDisplayName(), n.getDisplayName());
+    }
+    
+    public void testGroupsShown() throws Exception {
+        FileGroup g = repo.createGroup(getName());
+        repoNode = new SourceRepositoryNode(repo, false);
+        waitForEDT();
+        assertEquals(1, repoNode.getChildren().getNodes().length);
+        assertGroupNode(repoNode.getChildren().getNodes()[0], g);
+    }
+    
+    public void testAddRemoveGroupsVisible() throws Exception {
+        repoNode = new SourceRepositoryNode(repo, false);
+
+        FileGroup g = repo.createGroup(getName() + "-1");
+        waitForEDT(true);
+        assertEquals(1, repoNode.getChildren().getNodes().length);
+        assertGroupNode(repoNode.getChildren().getNodes()[0], g);
+
+        FileGroup g2 = repo.createGroup(getName() + "-2");
+        waitForEDT(true);
+        assertEquals(2, repoNode.getChildren().getNodes().length);
+        assertGroupNode(repoNode.getChildren().getNodes()[0], g);
+        assertGroupNode(repoNode.getChildren().getNodes()[1], g2);
+        
+        repo.deleteGroup(g);
+        waitForEDT(true);
+
+        assertEquals(1, repoNode.getChildren().getNodes().length);
+        assertGroupNode(repoNode.getChildren().getNodes()[0], g2);
+    }
+    
+    public void testGroupDisplayNameChanges() throws Exception {
+        FileGroup g = repo.createGroup(getName() + "-1");
+        FileGroup g2 = repo.createGroup(getName() + "-2");
+        repoNode = new SourceRepositoryNode(repo, false);
+
+        waitForEDT(true);
+        assertEquals(2, repoNode.getChildren().getNodes().length);
+        assertGroupNode(repoNode.getChildren().getNodes()[0], g);
+        assertGroupNode(repoNode.getChildren().getNodes()[1], g2);
+        
+        g2.setDisplayName(getName() + "_First");
+        waitForEDT(true);
+        assertEquals(2, repoNode.getChildren().getNodes().length);
+        assertGroupNode(repoNode.getChildren().getNodes()[0], g);
+        assertGroupNode(repoNode.getChildren().getNodes()[1], g2);
+    }
+    
+    public void testNodeRenamesFileRoot() throws Exception {
+        FileRoot r = repo.addLocation(fsrc1, getName(), null);
+        repoNode = new SourceRepositoryNode(repo, false);
+        waitForEDT();
+
+        Node n = repoNode.getChildren().getNodes()[0];
+        n.setName(getName() + "Bubak");
+        assertEquals(n.getDisplayName(), r.getDisplayName());
+    }
+    
+    public void testNodeRenamesGroup() throws Exception {
+        repoNode = new SourceRepositoryNode(repo, false);
+        FileGroup g = repo.createGroup(getName());
+        waitForEDT();
+        
+        Node n = repoNode.getChildren().getNodes()[0];
+        n.setName(getName() + "Bubak");
+        
+        assertEquals(n.getDisplayName(), g.getDisplayName());
+    }
+    
+    public void testDestroyNodeRemovesFile() throws Exception {
+        FileRoot r = repo.addLocation(fsrc1, getName() + "-1", null);
+        FileRoot r2 = repo.addLocation(fsrc2, getName() + "-2", null);
+        assertTrue(GlobalPathRegistry.getDefault().getSourceRoots().contains(fsrc1));
+        
+        repoNode = new SourceRepositoryNode(repo, false);
+        waitForEDT();
+        Node[] nodes = repoNode.getChildren().getNodes();
+        nodes[0].destroy();
+        assertFalse(GlobalPathRegistry.getDefault().getSourceRoots().contains(fsrc1));
+        assertTrue(GlobalPathRegistry.getDefault().getSourceRoots().contains(fsrc2));
+    }
+    
+    public void testDestroyNodeRemovesGroup() throws Exception {
+        FileGroup g = repo.createGroup(getName() + "-1");
+        FileGroup g2 = repo.createGroup(getName() + "-2");
+        FileRoot r = repo.addLocation(fsrc1, getName() + "-Loc", g);
+        
+        repoNode = new SourceRepositoryNode(repo, false);
+      
