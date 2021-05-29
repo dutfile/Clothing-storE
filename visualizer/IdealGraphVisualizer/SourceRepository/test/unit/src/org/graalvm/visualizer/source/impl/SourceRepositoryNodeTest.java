@@ -226,4 +226,66 @@ public class SourceRepositoryNodeTest extends SourceRepositoryTestBase {
         FileRoot r = repo.addLocation(fsrc1, getName() + "-Loc", g);
         
         repoNode = new SourceRepositoryNode(repo, false);
-      
+        assertTrue(g.getSourcePath().contains(fsrc1));
+        assertTrue(GlobalPathRegistry.getDefault().getSourceRoots().contains(fsrc1));
+        
+        waitForEDT();
+        Node[] nodes = repoNode.getChildren().getNodes();
+        nodes[0].destroy();
+        
+        assertFalse(repo.getGroups().contains(g));
+        assertFalse(GlobalPathRegistry.getDefault().getSourceRoots().contains(fsrc1));
+    }
+    
+    public void testAddRemoveVisibleInGroup() throws Exception {
+        FileGroup g = repo.createGroup(getName());
+
+        repoNode = new SourceRepositoryNode(repo, false);
+
+        waitForEDT();
+        Node gNode = repoNode.getChildren().getNodes()[0];
+        assertGroupNode(gNode, g);
+        // repository is empty, no nodes should be shown
+        assertEquals(0, gNode.getChildren().getNodes().length);
+        FileRoot r = repo.addLocation(fsrc1, getName() + "-Source1", g);
+        
+        Children.MUTEX.writeAccess(() -> {
+            assertEquals(1, gNode.getChildren().getNodes().length);
+            Node n = gNode.getChildren().getNodes()[0];
+            assertFileRootNode(n, r);
+        });
+        FileRoot r2 = repo.addLocation(fsrc2, getName() + "-Source2", g);
+        Children.MUTEX.writeAccess(() -> {
+            Node[] ch = gNode.getChildren().getNodes();
+            assertEquals(2, ch.length);
+            assertFileRootNode(ch[0], r);
+            assertFileRootNode(ch[1], r2);
+        });
+        r.discard();
+        Children.MUTEX.writeAccess(() -> {
+            Node[] ch = gNode.getChildren().getNodes();
+            assertEquals(1, ch.length);
+            assertFileRootNode(ch[0], r2);
+        });
+    }
+
+    public void testGroupChildrenGCed() throws Exception {
+        FileGroup g = repo.createGroup(getName());
+
+        repoNode = new SourceRepositoryNode(repo, false);
+
+        waitForEDT();
+        Node gNode = repoNode.getChildren().getNodes()[0];
+        assertGroupNode(gNode, g);
+        FileRoot r = repo.addLocation(fsrc1, getName() + "-Source1", g);
+        Children ch = gNode.getChildren();
+        assertEquals(1, ch.getNodes().length);
+        
+        Reference<Children> wCh = new WeakReference<>(ch);
+        Reference<Node> fn = new WeakReference<>(ch.getNodes()[0]);
+        gNode = null;
+        ch = null;
+        assertGC("Children must be freed if unused", wCh, Collections.singleton(repoNode));
+        assertGC("File node must be freed", fn, Collections.singleton(repoNode));
+    }
+}
