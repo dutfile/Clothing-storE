@@ -239,4 +239,18 @@ public final class NFIIsolatedNativeAccess extends NFINativeAccess {
     }
 
     @Collect(NativeAccess.class)
-    public static final class Provider implements Native
+    public static final class Provider implements NativeAccess.Provider {
+
+        public static final String ID = "nfi-dlmopen";
+
+        @Override
+        public String id() {
+            return ID;
+        }
+
+        @Override
+        public NativeAccess create(TruffleLanguage.Env env) {
+            return new NFIIsolatedNativeAccess(env);
+        }
+    }
+}
