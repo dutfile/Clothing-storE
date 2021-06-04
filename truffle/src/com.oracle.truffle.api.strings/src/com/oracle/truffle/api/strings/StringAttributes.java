@@ -27,4 +27,30 @@
  * This license is subject to the following condition:
  *
  * The above copyright notice and either this complete permission notice or at a
- * minimum a reference to the UPL must be included in
+ * minimum a reference to the UPL must be included in all copies or substantial
+ * portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+package com.oracle.truffle.api.strings;
+
+final class StringAttributes {
+
+    static long create(int codePointLength, int codeRange) {
+        return (long) codePointLength << 32 | codeRange;
+    }
+
+    static int getCodePointLength(long stringAttributes) {
+        return (int) (stringAttributes >>> 32);
+    }
+
+    static int getCodeRange(long stringAttributes) {
+        return (int) stringAttributes;
+    }
+}
