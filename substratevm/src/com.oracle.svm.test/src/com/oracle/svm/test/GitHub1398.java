@@ -1,5 +1,6 @@
+
 /*
- * Copyright (c) 2010, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2019, 2019, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,34 +23,32 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package org.graalvm.compiler.jtt.optimize;
+package com.oracle.svm.test;
 
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.MulticastSocket;
+
+import org.junit.Assert;
 import org.junit.Test;
 
-import org.graalvm.compiler.jtt.JTTTest;
-
-/*
+/**
+ * Test to ensure that the fix for #1398 works.
  */
-public class Cmov01 extends JTTTest {
+public class GitHub1398 {
+    public static final int PORT = 6789;
 
-    public static boolean test(int a, int b) {
-        boolean result = a < b || a == b;
-        return result;
-    }
-
+    @SuppressWarnings("deprecation") // joinGroup is deprecated after JDK 11
     @Test
-    public void run0() throws Throwable {
-        runTest("test", -1, -1);
+    public void testMulticast() {
+        try {
+            InetAddress group = InetAddress.getByName("239.5.5.5");
+            try (MulticastSocket sock = new MulticastSocket(new InetSocketAddress(PORT))) {
+                sock.joinGroup(group);
+            }
+        } catch (IOException e) {
+            Assert.fail("Unexpected exception: " + e);
+        }
     }
-
-    @Test
-    public void run1() throws Throwable {
-        runTest("test", 1, 10);
-    }
-
-    @Test
-    public void run2() throws Throwable {
-        runTest("test", 1, 0);
-    }
-
 }
