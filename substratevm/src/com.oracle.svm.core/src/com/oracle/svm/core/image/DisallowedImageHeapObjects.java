@@ -94,4 +94,91 @@ public final class DisallowedImageHeapObjects {
                 isStarted = false;
             }
             if (isStarted) {
-                throw reporter.raise("Detected a s
+                throw reporter.raise("Detected a started Continuation in the image heap. " +
+                                "Continuation state from the image generator cannot be used at image runtime.",
+                                obj, "Prevent continuations from starting during image generation, or started continuations from being included in the image.");
+            }
+        }
+
+        if (obj instanceof FileDescriptor) {
+            final FileDescriptor asFileDescriptor = (FileDescriptor) obj;
+            /* Exemptions for well-known FileDescriptors. */
+            if (!((asFileDescriptor == FileDescriptor.in) || (asFileDescriptor == FileDescriptor.out) || (asFileDescriptor == FileDescriptor.err) || (!asFileDescriptor.valid()))) {
+                throw reporter.raise("Detected a FileDescriptor in the image heap. " +
+                                "File descriptors opened during image generation are no longer open at image runtime, and the files might not even be present anymore at image runtime.",
+                                asFileDescriptor, "Try avoiding to initialize the class that caused initialization of the FileDescriptor.");
+            }
+        }
+
+        if (obj instanceof MappedByteBuffer) {
+            MappedByteBuffer buffer = (MappedByteBuffer) obj;
+            /*
+             * We allow 0-length non-file-based direct buffers, see comment on
+             * Target_java_nio_DirectByteBuffer.
+             */
+            if (buffer.capacity() != 0 || getFileDescriptor(buffer) != null) {
+                throw reporter.raise("Detected a direct/mapped ByteBuffer in the image heap. " +
+                                "A direct ByteBuffer has a pointer to unmanaged C memory, and C memory from the image generator is not available at image runtime. " +
+                                "A mapped ByteBuffer references a file descriptor, which is no longer open and mapped at run time.",
+                                buffer, "Try avoiding to initialize the class that caused initialization of the MappedByteBuffer.");
+            }
+        } else if (obj instanceof Buffer && ((Buffer) obj).isDirect()) {
+            throw reporter.raise("Detected a direct Buffer in the image heap. " +
+                            "A direct Buffer has a pointer to unmanaged C memory, and C memory from the image generator is not available at image runtime.",
+                            obj, "Try avoiding to initialize the class that caused initialization of the direct Buffer.");
+        }
+
+        if (obj instanceof Cleaner.Cleanable || LEGACY_CLEANER_CLASS.isInstance(obj)) {
+            /*
+             * Cleanable and jdk.internal.ref.Cleaner are used to release various resources such as
+             * native memory, file descriptors, or timers, which are not available at image runtime.
+             * By disallowing these objects, we detect when such resources are reachable.
+             *
+             * If a Cleanable is a nulled (Phantom)Reference, its problematic resource is already
+             * unreachable, so we tolerate it.
+             *
+             * A CleanerCleanable serves only to keep a cleaner thread alive (without referencing
+             * the Thread) and does nothing, so we also tolerate it. We should encounter at least
+             * one such object for jdk.internal.ref.CleanerFactory.commonCleaner.
+             *
+             * Legacy jdk.internal.ref.Cleaner objects (formerly in sun.misc) should be used only by
+             * DirectByteBuffer, which we already cover above, but other code could also use them.
+             * If they have been nulled, we tolerate them, too.
+             */
+            if (!(obj instanceof Reference<?> && ((Reference<?>) obj).refersTo(null)) && !CLEANER_CLEANABLE_CLASS.isInstance(obj)) {
+                throw reporter.raise("Detected an active instance of Cleanable or jdk.internal.ref.Cleaner in the image heap. This usually means that a resource " +
+                                "such as a Timer, native memory, a file descriptor or another resource is reachable which is not available at image runtime.",
+                                obj, "Prevent such objects being used during image generation, including by class initializers.");
+            }
+        }
+
+        if (obj instanceof Cleaner && obj != CleanerFactory.cleaner()) {
+            /* We handle the "common cleaner", CleanerFactory.cleaner(), in reference handling. */
+            throw reporter.raise("Detected a java.lang.ref.Cleaner object in the image heap which uses a daemon thread that invokes " +
+                            "cleaning actions, but threads running in the image generator are no longer running at image runtime.",
+                            obj, "Prevent such objects being used during image generation, including by class initializers.");
+        }
+
+        if (obj instanceof java.util.zip.ZipFile) {
+            throw reporter.raise("Detected a ZipFile object in the image heap. " +
+                            "A ZipFile object contains pointers to unmanaged C memory and file descriptors, and these resources are no longer available at image runtime.",
+                            obj, "Try avoiding to initialize the class that caused initialization of the ZipFile.");
+        }
+
+        if (CANCELLABLE_CLASS.isInstance(obj)) {
+            throw reporter.raise("Detected an instance of a class that extends " + CANCELLABLE_CLASS.getTypeName() + ": " + obj.getClass().getTypeName() + ". " +
+                            "It contains a pointer to unmanaged C memory, which is no longer available at image runtime.", obj,
+                            "Try avoiding to initialize the class that caused initialization of the object.");
+        }
+    }
+
+    private static final Field FILE_DESCRIPTOR_FIELD = ReflectionUtil.lookupField(MappedByteBuffer.class, "fd");
+
+    private static FileDescriptor getFileDescriptor(MappedByteBuffer buffer) {
+        try {
+            return (FileDescriptor) FILE_DESCRIPTOR_FIELD.get(buffer);
+        } catch (ReflectiveOperationException ex) {
+            throw VMError.shouldNotReachHere(ex);
+        }
+    }
+}
