@@ -27,3 +27,60 @@ package org.graalvm.compiler.core.common.util;
 import jdk.vm.ci.meta.ResolvedJavaMethod;
 
 /**
+ * Key type for a map when {@link ResolvedJavaMethod} cannot be used due to the
+ * {@link ResolvedJavaMethod} keys potentially becoming invalid while the map is still in use. For
+ * example, a JVMCI implementation can scope the validity of a {@link ResolvedJavaMethod} to a
+ * single compilation such that VM resources held by the {@link ResolvedJavaMethod} object can be
+ * released once compilation ends.
+ */
+public final class MethodKey {
+
+    private final String declaringClass;
+    private final String name;
+    private final String descriptor;
+    private final int hashCode;
+
+    /**
+     * Creates a key representing {@code method}.
+     */
+    public MethodKey(ResolvedJavaMethod method) {
+        this.declaringClass = method.getDeclaringClass().getName();
+        this.name = method.getName();
+        this.descriptor = method.getSignature().toMethodDescriptor();
+        this.hashCode = method.hashCode();
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public String getDeclaringClass() {
+        return declaringClass;
+    }
+
+    public String getDescriptor() {
+        return descriptor;
+    }
+
+    @Override
+    public int hashCode() {
+        return hashCode;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof MethodKey) {
+            MethodKey that = (MethodKey) obj;
+            return this.hashCode == that.hashCode &&
+                            this.name.equals(that.name) &&
+                            this.declaringClass.equals(that.declaringClass) &&
+                            this.descriptor.equals(that.descriptor);
+        }
+        return false;
+    }
+
+    @Override
+    public String toString() {
+        return declaringClass + "." + name + descriptor;
+    }
+}
