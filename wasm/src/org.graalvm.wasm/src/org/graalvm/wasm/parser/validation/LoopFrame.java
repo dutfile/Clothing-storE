@@ -20,4 +20,68 @@
  *
  * without restriction, including without limitation the rights to copy, create
  * derivative works of, display, perform, and distribute the Software and make,
- * 
+ * use, sell, offer for sale, import, export, have made, and have sold the
+ * Software and the Larger Work(s), and to sublicense the foregoing rights on
+ * either these or other terms.
+ *
+ * This license is subject to the following condition:
+ *
+ * The above copyright notice and either this complete permission notice or at a
+ * minimum a reference to the UPL must be included in all copies or substantial
+ * portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+package org.graalvm.wasm.parser.validation;
+
+import org.graalvm.wasm.exception.Failure;
+import org.graalvm.wasm.exception.WasmException;
+import org.graalvm.wasm.parser.bytecode.BytecodeGen;
+
+/**
+ * Representation of a wasm loop during module validation.
+ */
+class LoopFrame extends ControlFrame {
+    private final int labelLocation;
+
+    LoopFrame(byte[] paramTypes, byte[] resultTypes, int initialStackSize, boolean unreachable, int labelLocation) {
+        super(paramTypes, resultTypes, initialStackSize, unreachable);
+        this.labelLocation = labelLocation;
+    }
+
+    @Override
+    byte[] labelTypes() {
+        return paramTypes();
+    }
+
+    @Override
+    void enterElse(ParserState state, BytecodeGen bytecode) {
+        throw WasmException.create(Failure.TYPE_MISMATCH, "Expected then branch. Else branch requires preceding then branch.");
+    }
+
+    @Override
+    void exit(BytecodeGen bytecode) {
+    }
+
+    @Override
+    void addBranch(BytecodeGen bytecode) {
+        bytecode.addBranch(labelLocation);
+    }
+
+    @Override
+    void addBranchIf(BytecodeGen bytecode) {
+        bytecode.addBranchIf(labelLocation);
+    }
+
+    @Override
+    void addBranchTableItem(BytecodeGen bytecode) {
+        bytecode.patchLocation(bytecode.addBranchTableItemLocation(), labelLocation);
+    }
+}
