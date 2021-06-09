@@ -263,4 +263,124 @@ public final class TRegexDFAExecutorNode extends TRegexExecutorNode {
         CompilerDirectives.ensureVirtualized(locals);
         CompilerAsserts.partialEvaluationConstant(states);
         CompilerAsserts.partialEvaluationConstant(states.length);
-        CompilerAsserts.pa
+        CompilerAsserts.partialEvaluationConstant(codeRange);
+        if (injectBranchProbability(SLOWPATH_PROBABILITY, !validArgs(locals))) {
+            CompilerDirectives.transferToInterpreterAndInvalidate();
+            throw new IllegalArgumentException(String.format("Got illegal args! (fromIndex %d, initialIndex %d, maxIndex %d)",
+                            locals.getFromIndex(), locals.getIndex(), locals.getMaxIndex()));
+        }
+        if (isGenericCG() || isSimpleCG()) {
+            CompilerDirectives.ensureVirtualized(locals.getCGData());
+        }
+        // check if input is long enough for a match
+        if (injectBranchProbability(UNLIKELY_PROBABILITY, props.getMinResultLength() > 0 &&
+                        (isForward() ? locals.getMaxIndex() - locals.getIndex() : locals.getIndex() - Math.max(0, locals.getFromIndex() - getPrefixLength())) < props.getMinResultLength())) {
+            // no match possible, break immediately
+            return isGenericCG() || isSimpleCG() ? null : TRegexDFAExecutorNode.NO_MATCH;
+        }
+        if (recordExecution()) {
+            debugRecorder.startRecording(locals);
+        }
+        if (isBackward()) {
+            locals.setCurMinIndex(locals.getFromIndex());
+        }
+        int ip = 0;
+        outer: while (true) {
+            if (CompilerDirectives.inInterpreter()) {
+                RegexRootNode.checkThreadInterrupted();
+            }
+            CompilerAsserts.partialEvaluationConstant(ip);
+            if (ip < 0) {
+                break;
+            }
+            final DFAAbstractStateNode curState = states[ip & 0x7fff];
+            CompilerAsserts.partialEvaluationConstant(curState);
+            final short[] successors = curState.getSuccessors();
+            CompilerAsserts.partialEvaluationConstant(successors);
+            CompilerAsserts.partialEvaluationConstant(successors.length);
+            if (curState instanceof DFAInitialStateNode) {
+                /*
+                 * initial state selection
+                 */
+                final boolean atBegin;
+                if (isSearching()) {
+                    assert isForward();
+                    /*
+                     * We are in search mode - rewind up to prefixLength code points and select
+                     * successors[n], where n is the number of skipped code points.
+                     */
+                    for (int i = 0; i < getPrefixLength(); i++) {
+                        if (injectBranchProbability(UNLIKELY_PROBABILITY, locals.getIndex() > 0)) {
+                            inputSkipIntl(locals, false, codeRange);
+                        } else {
+                            initNextIndex(locals);
+                            ip = initialStateSuccessor(locals, curState, successors, i);
+                            continue outer;
+                        }
+                    }
+                    initNextIndex(locals);
+                    atBegin = inputAtBegin(locals);
+                } else {
+                    /*
+                     * We are in non-searching mode - if we start behind fromIndex, select
+                     * successors[n], where n is the number of code points between the current index
+                     * and fromIndex.
+                     */
+                    initNextIndex(locals);
+                    atBegin = inputAtBegin(locals);
+                    for (int i = 0; i < getPrefixLength(); i++) {
+                        assert isForward();
+                        if (locals.getIndex() < locals.getFromIndex()) {
+                            inputSkipIntl(locals, true, codeRange);
+                        } else {
+                            if (injectBranchProbability(LIKELY_PROBABILITY, atBegin)) {
+                                ip = initialStateSuccessor(locals, curState, successors, i);
+                                continue outer;
+                            } else {
+                                ip = initialStateSuccessor(locals, curState, successors, i + (successors.length / 2));
+                                continue outer;
+                            }
+                        }
+                    }
+                }
+                if (injectBranchProbability(LIKELY_PROBABILITY, atBegin)) {
+                    ip = initialStateSuccessor(locals, curState, successors, getPrefixLength());
+                    continue outer;
+                } else {
+                    ip = initialStateSuccessor(locals, curState, successors, getPrefixLength() + (successors.length / 2));
+                    continue outer;
+                }
+            } else if (curState instanceof DFAStateNode) {
+                DFAStateNode state = (DFAStateNode) curState;
+                if (ip > IP_TRANSITION_MARKER) {
+                    /*
+                     * execute DFA state transition
+                     */
+                    int i = ip >> 16;
+                    ip = execTransition(locals, state, i);
+                    continue outer;
+                } else {
+                    if (CompilerDirectives.hasNextTier()) {
+                        locals.incLoopCount(this);
+                    }
+                    /*
+                     * find matching DFA state transition
+                     */
+                    inputAdvance(locals);
+                    state.beforeFindSuccessor(locals, this);
+                    if (injectBranchProbability(CONTINUE_PROBABILITY, isForward() && state.canDoIndexOf(codeRange) && inputHasNext(locals))) {
+                        int indexOfNodeId = state.getIndexOfNodeId();
+                        InputIndexOfNode indexOfNode = getIndexOfNode(indexOfNodeId);
+                        TruffleString.CodePointSet indexOfParameter = indexOfParameters[indexOfNodeId];
+                        CompilerAsserts.partialEvaluationConstant(indexOfNodeId);
+                        CompilerAsserts.partialEvaluationConstant(indexOfNode);
+                        CompilerAsserts.partialEvaluationConstant(indexOfParameter);
+                        int indexOfResult = indexOfNode.execute(locals.getInput(), locals.getIndex(), getMaxIndex(locals), indexOfParameter, getEncoding());
+                        int postLoopIndex = indexOfResult < 0 ? getMaxIndex(locals) : indexOfResult;
+                        state.afterIndexOf(locals, this, locals.getIndex(), postLoopIndex, codeRange);
+                        assert locals.getIndex() == postLoopIndex;
+                        if (injectBranchProbability(CONTINUE_PROBABILITY, successors.length == 2 && indexOfResult >= 0)) {
+                            int successor = (state.getLoopToSelf() + 1) & 1;
+                            CompilerAsserts.partialEvaluationConstant(successor);
+                            inputIncNextIndexRaw(locals, inputGetCodePointSize(locals, codeRange));
+  
