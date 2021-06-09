@@ -86,4 +86,181 @@ public final class TRegexDFAExecutorNode extends TRegexExecutorNode {
                     TRegexDFAExecutorProperties props,
                     int numberOfCaptureGroups,
                     int maxNumberOfNFAStates,
-                    TruffleString.CodePointSet
+                    TruffleString.CodePointSet[] indexOfParameters,
+                    DFAAbstractStateNode[] states,
+                    TRegexDFAExecutorDebugRecorder debugRecorder,
+                    TRegexDFAExecutorNode innerLiteralPrefixMatcher) {
+        this(source, props, numberOfCaptureGroups, calcNumberOfTransitions(states), maxNumberOfNFAStates, indexOfParameters, states,
+                        props.isGenericCG() && maxNumberOfNFAStates > 1 ? initResultOrder(maxNumberOfNFAStates, numberOfCaptureGroups, props) : null, debugRecorder,
+                        innerLiteralPrefixMatcher);
+    }
+
+    public TRegexDFAExecutorNode(
+                    RegexSource source,
+                    TRegexDFAExecutorProperties props,
+                    int numberOfCaptureGroups,
+                    int numberOfTransitions,
+                    int maxNumberOfNFAStates,
+                    TruffleString.CodePointSet[] indexOfParameters,
+                    DFAAbstractStateNode[] states,
+                    int[] cgResultOrder,
+                    TRegexDFAExecutorDebugRecorder debugRecorder,
+                    TRegexDFAExecutorNode innerLiteralPrefixMatcher) {
+        super(source, numberOfCaptureGroups, numberOfTransitions);
+        this.props = props;
+        this.maxNumberOfNFAStates = maxNumberOfNFAStates;
+        this.indexOfParameters = indexOfParameters;
+        this.states = states;
+        this.cgResultOrder = cgResultOrder;
+        this.debugRecorder = debugRecorder;
+        this.innerLiteralPrefixMatcher = innerLiteralPrefixMatcher;
+    }
+
+    private TRegexDFAExecutorNode(TRegexDFAExecutorNode copy, TRegexDFAExecutorNode innerLiteralPrefixMatcher) {
+        this(copy.getSource(), copy.props, copy.getNumberOfCaptureGroups(), copy.getNumberOfTransitions(), copy.maxNumberOfNFAStates, copy.indexOfParameters, copy.states, copy.cgResultOrder,
+                        copy.debugRecorder,
+                        innerLiteralPrefixMatcher);
+    }
+
+    @Override
+    public TRegexDFAExecutorNode shallowCopy() {
+        return new TRegexDFAExecutorNode(this, innerLiteralPrefixMatcher == null ? null : innerLiteralPrefixMatcher.shallowCopy());
+    }
+
+    private DFAInitialStateNode getInitialState() {
+        return (DFAInitialStateNode) states[0];
+    }
+
+    public int getPrefixLength() {
+        return getInitialState().getPrefixLength();
+    }
+
+    public boolean isAnchored() {
+        return !getInitialState().hasUnAnchoredEntry();
+    }
+
+    @Override
+    public String getName() {
+        return "dfa";
+    }
+
+    @Override
+    public boolean isForward() {
+        return props.isForward();
+    }
+
+    @Override
+    public boolean isTrivial() {
+        return getNumberOfTransitions() < (isGenericCG() ? (TRegexOptions.TRegexMaxTransitionsInTrivialExecutor * 3) / 4 : TRegexOptions.TRegexMaxTransitionsInTrivialExecutor);
+    }
+
+    public boolean isBackward() {
+        return !props.isForward();
+    }
+
+    public boolean isSearching() {
+        return props.isSearching();
+    }
+
+    public boolean isSimpleCG() {
+        return props.isSimpleCG();
+    }
+
+    public boolean isGenericCG() {
+        return props.isGenericCG();
+    }
+
+    public boolean isRegressionTestMode() {
+        return props.isRegressionTestMode();
+    }
+
+    public int getNumberOfStates() {
+        return states.length;
+    }
+
+    private static int calcNumberOfTransitions(DFAAbstractStateNode[] states) {
+        int sum = 0;
+        for (DFAAbstractStateNode state : states) {
+            sum += state.getSuccessors().length;
+            if (state instanceof DFAStateNode && !((DFAStateNode) state).treeTransitionMatching() &&
+                            ((DFAStateNode) state).getSequentialMatchers().getNoMatchSuccessor() >= 0) {
+                sum++;
+            }
+        }
+        return sum;
+    }
+
+    public boolean recordExecution() {
+        return debugRecorder != null;
+    }
+
+    public TRegexDFAExecutorDebugRecorder getDebugRecorder() {
+        return debugRecorder;
+    }
+
+    InputIndexOfNode getIndexOfNode(int index) {
+        if (indexOfNodes == null) {
+            CompilerDirectives.transferToInterpreterAndInvalidate();
+            InputIndexOfNode[] nodes = new InputIndexOfNode[indexOfParameters.length];
+            for (int i = 0; i < nodes.length; i++) {
+                nodes[i] = InputIndexOfNode.create();
+            }
+            indexOfNodes = insert(nodes);
+        }
+        return indexOfNodes[index];
+    }
+
+    InputIndexOfStringNode getIndexOfStringNode() {
+        if (indexOfStringNode == null) {
+            CompilerDirectives.transferToInterpreterAndInvalidate();
+            indexOfStringNode = insert(InputIndexOfStringNode.create());
+        }
+        return indexOfStringNode;
+    }
+
+    @Override
+    public TRegexExecutorLocals createLocals(TruffleString input, int fromIndex, int index, int maxIndex) {
+        return new TRegexDFAExecutorLocals(input, fromIndex, index, maxIndex, createCGData());
+    }
+
+    @Override
+    public boolean writesCaptureGroups() {
+        return isSimpleCG();
+    }
+
+    private DFACaptureGroupTrackingData createCGData() {
+        if (isSimpleCG()) {
+            return new DFACaptureGroupTrackingData(null,
+                            createResultsArray(resultLength()),
+                            props.isSimpleCGMustCopy() ? new int[resultLength()] : null);
+        } else if (isGenericCG()) {
+            return new DFACaptureGroupTrackingData(
+                            maxNumberOfNFAStates == 1 ? null : Arrays.copyOf(cgResultOrder, cgResultOrder.length),
+                            createResultsArray(maxNumberOfNFAStates * resultLength()),
+                            new int[resultLength()]);
+        } else {
+            return null;
+        }
+    }
+
+    private int resultLength() {
+        return getNumberOfCaptureGroups() * 2 + (props.tracksLastGroup() ? 1 : 0);
+    }
+
+    private static int[] createResultsArray(int length) {
+        int[] results = new int[length];
+        Arrays.fill(results, -1);
+        return results;
+    }
+
+    /**
+     * records position of the END of the match found, or -1 if no match exists.
+     */
+    @Override
+    @ExplodeLoop(kind = ExplodeLoop.LoopExplosionKind.MERGE_EXPLODE)
+    public Object execute(VirtualFrame frame, final TRegexExecutorLocals abstractLocals, final TruffleString.CodeRange codeRange) {
+        TRegexDFAExecutorLocals locals = (TRegexDFAExecutorLocals) abstractLocals;
+        CompilerDirectives.ensureVirtualized(locals);
+        CompilerAsserts.partialEvaluationConstant(states);
+        CompilerAsserts.partialEvaluationConstant(states.length);
+        CompilerAsserts.pa
