@@ -383,4 +383,116 @@ public final class TRegexDFAExecutorNode extends TRegexExecutorNode {
                             int successor = (state.getLoopToSelf() + 1) & 1;
                             CompilerAsserts.partialEvaluationConstant(successor);
                             inputIncNextIndexRaw(locals, inputGetCodePointSize(locals, codeRange));
-  
+                            ip = execTransition(locals, state, successor);
+                            continue outer;
+                        }
+                    }
+                    if (injectBranchProbability(EXIT_PROBABILITY, !inputHasNext(locals))) {
+                        state.atEnd(locals, this);
+                        if (isBackward() && state.hasBackwardPrefixState() && locals.getIndex() > 0) {
+                            assert locals.getIndex() == locals.getFromIndex();
+                            /*
+                             * We have reached the starting index of the forward matcher, so we have
+                             * to switch to backward-prefix-states. These states will match
+                             * look-behind assertions only.
+                             */
+                            locals.setCurMinIndex(0);
+                            ip = transitionMatch(state, ((BackwardDFAStateNode) state).getBackwardPrefixStateIndex());
+                            continue outer;
+                        }
+                        break;
+                    }
+                    if (state.treeTransitionMatching()) {
+                        int c = inputReadAndDecode(locals, codeRange);
+                        int treeSuccessor = state.getTreeMatcher().checkMatchTree(c);
+                        // TODO: this switch loop should be replaced with a PE intrinsic
+                        for (int i = 0; i < successors.length; i++) {
+                            if (i == treeSuccessor) {
+                                ip = transitionMatch(state, i);
+                                continue outer;
+                            }
+                        }
+                        break;
+                    }
+                    Matchers matchers = state.getSequentialMatchers();
+                    CompilerAsserts.partialEvaluationConstant(matchers);
+                    if (matchers instanceof SimpleSequentialMatchers) {
+                        final int c = inputReadAndDecode(locals, codeRange);
+                        CharMatcher[] cMatchers = ((SimpleSequentialMatchers) matchers).getMatchers();
+                        if (cMatchers != null) {
+                            for (int i = 0; i < cMatchers.length; i++) {
+                                if (match(cMatchers, i, c)) {
+                                    ip = transitionMatch(state, i);
+                                    continue outer;
+                                }
+                            }
+                        }
+                    } else if (matchers instanceof UTF8SequentialMatchers) {
+                        /*
+                         * UTF-8 on-the fly decoding
+                         */
+                        final UTF8SequentialMatchers utf8Matchers = (UTF8SequentialMatchers) matchers;
+                        final CharMatcher[] ascii = utf8Matchers.getAscii();
+                        final CharMatcher[] enc2 = utf8Matchers.getEnc2();
+                        final CharMatcher[] enc3 = utf8Matchers.getEnc3();
+                        final CharMatcher[] enc4 = utf8Matchers.getEnc4();
+                        final int maxBytes = utf8Matchers.getMaxBytes();
+                        CompilerAsserts.partialEvaluationConstant(maxBytes);
+                        int c = inputReadRaw(locals);
+                        if (injectBranchProbability(LATIN1_PROBABILITY, codeRange == TruffleString.CodeRange.ASCII || c < 128)) {
+                            inputIncNextIndexRaw(locals);
+                            if (ascii != null) {
+                                for (int i = 0; i < ascii.length; i++) {
+                                    if (match(ascii, i, c)) {
+                                        ip = transitionMatch(state, i);
+                                        continue outer;
+                                    }
+                                }
+                            }
+                        } else {
+                            getBMPProfile().enter();
+                            int codepoint = 0;
+                            if (isBackward()) {
+                                codepoint = c & 0x3f;
+                                assert c >> 6 == 2;
+                                for (int i = 1; i < 4; i++) {
+                                    c = inputReadRaw(locals, locals.getIndex() - i);
+                                    if (i < 3 && c >> 6 == 2) {
+                                        codepoint |= (c & 0x3f) << (6 * i);
+                                    } else {
+                                        break;
+                                    }
+                                }
+                            }
+                            int nBytes = Integer.numberOfLeadingZeros(~(c << 24));
+                            assert 1 < nBytes && nBytes < 5 : nBytes;
+                            inputIncNextIndexRaw(locals, nBytes);
+                            if (maxBytes > 1 && nBytes <= maxBytes) {
+                                if (isBackward()) {
+                                    codepoint |= (c & (0xff >>> nBytes)) << (6 * (nBytes - 1));
+                                }
+                                if (isForward()) {
+                                    int index = locals.getIndex();
+                                    codepoint = (c & (0xff >>> nBytes)) << 6 | (inputReadRaw(locals, ++index) & 0x3f);
+                                    if (maxBytes > 2 && nBytes > 2) {
+                                        codepoint = codepoint << 6 | (inputReadRaw(locals, ++index) & 0x3f);
+                                    }
+                                    if (maxBytes > 3 && nBytes > 3) {
+                                        getAstralProfile().enter();
+                                        codepoint = codepoint << 6 | (inputReadRaw(locals, ++index) & 0x3f);
+                                    }
+                                }
+                                switch (nBytes - 2) {
+                                    case 0:
+                                        if (enc2 != null) {
+                                            for (int i = 0; i < enc2.length; i++) {
+                                                if (match(enc2, i, codepoint)) {
+                                                    ip = transitionMatch(state, i);
+                                                    continue outer;
+                                                }
+                                            }
+                                        }
+                                        break;
+                                    case 1:
+                                        if (enc3 != null) {
+                             
