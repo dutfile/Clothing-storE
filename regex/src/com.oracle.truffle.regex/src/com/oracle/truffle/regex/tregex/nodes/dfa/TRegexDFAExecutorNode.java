@@ -732,4 +732,29 @@ public final class TRegexDFAExecutorNode extends TRegexExecutorNode {
     }
 
     private boolean validArgs(TRegexDFAExecutorLocals locals) {
-        final int initialIndex = lo
+        final int initialIndex = locals.getIndex();
+        final int inputLength = getInputLength(locals);
+        final int fromIndex = locals.getFromIndex();
+        final int maxIndex = locals.getMaxIndex();
+        return inputLength >= 0 && inputLength < Integer.MAX_VALUE - 20 &&
+                        fromIndex >= 0 && fromIndex <= inputLength &&
+                        initialIndex >= 0 && initialIndex <= maxIndex &&
+                        maxIndex >= fromIndex && maxIndex <= inputLength;
+    }
+
+    private static int[] initResultOrder(int maxNumberOfNFAStates, int numberOfCaptureGroups, TRegexDFAExecutorProperties props) {
+        int[] resultOrder = new int[maxNumberOfNFAStates];
+        for (int i = 0; i < maxNumberOfNFAStates; i++) {
+            resultOrder[i] = i * (numberOfCaptureGroups * 2 + (props.tracksLastGroup() ? 1 : 0));
+        }
+        return resultOrder;
+    }
+
+    public TRegexDFAExecutorProperties getProperties() {
+        return props;
+    }
+
+    public int getMaxNumberOfNFAStates() {
+        return maxNumberOfNFAStates;
+    }
+}
