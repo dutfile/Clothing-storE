@@ -68,4 +68,18 @@ public class ThreadLocal03 extends JTTTest {
     }
 
     @Test
-    public void run1() thro
+    public void run1() throws Throwable {
+        runTest("test", 1);
+    }
+
+    @Test
+    public void run2() throws Throwable {
+        runTest("test", 2);
+    }
+
+    @Test
+    public void run3() throws Throwable {
+        runTest("test", 3);
+    }
+
+}
