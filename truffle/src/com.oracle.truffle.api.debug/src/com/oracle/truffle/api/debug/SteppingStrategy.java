@@ -426,4 +426,216 @@ abstract class SteppingStrategy {
     }
 
     /**
-     * Strategy: per-{@link #HALT_TAG} stepping, so
+     * Strategy: per-{@link #HALT_TAG} stepping, so long as not nested in method calls (i.e. at
+     * original stack depth).
+     * <ul>
+     * <li>User breakpoints are enabled.</li>
+     * <li>Execution continues until either:
+     * <ol>
+     * <li>execution arrives at a node holding {@link #HALT_TAG}, with stack depth no more than when
+     * started <strong>or:</strong></li>
+     * <li>the program completes.</li>
+     * </ol>
+     * </ul>
+     */
+    private static final class StepOver extends SteppingStrategy {
+
+        private final DebuggerSession session;
+        private final StepConfig stepConfig;
+        private final boolean exprStepping;
+        private int stackCounter;
+        private int exprCounter;
+        private int unfinishedStepCount;
+        private boolean activeFrame = true;
+        private boolean activeExpression = true;
+
+        StepOver(DebuggerSession session, StepConfig stepConfig) {
+            this.session = session;
+            this.stepConfig = stepConfig;
+            this.exprStepping = stepConfig.containsSourceElement(session, SourceElement.EXPRESSION);
+            this.unfinishedStepCount = stepConfig.getCount();
+        }
+
+        @Override
+        void initialize(SuspendedContext context, SuspendAnchor suspendAnchor) {
+            this.stackCounter = 0;
+            this.exprCounter = context.hasTag(SourceElement.EXPRESSION.getTag()) && SuspendAnchor.BEFORE == suspendAnchor ? 0 : -1;
+        }
+
+        @Override
+        void notifyCallEntry() {
+            stackCounter++;
+            activeFrame = stackCounter <= 0;
+        }
+
+        @Override
+        void notifyCallExit() {
+            boolean isOn = (--stackCounter) <= 0;
+            if (isOn) {
+                activeFrame = true;
+            }
+        }
+
+        @Override
+        void notifyNodeEntry(EventContext context) {
+            if (exprStepping && context.hasTag(SourceElement.EXPRESSION.getTag())) {
+                exprCounter++;
+                activeExpression = exprCounter <= 0;
+            }
+        }
+
+        @Override
+        void notifyNodeExit(EventContext context) {
+            if (exprStepping && context.hasTag(SourceElement.EXPRESSION.getTag())) {
+                boolean isOn = (--exprCounter) < 0;
+                if (isOn) {
+                    activeExpression = true;
+                }
+            }
+        }
+
+        @Override
+        boolean isStopAfterCall() {
+            return stackCounter < 0;
+        }
+
+        @Override
+        boolean isCollectingInputValues() {
+            return stepConfig.containsSourceElement(session, SourceElement.EXPRESSION);
+        }
+
+        @Override
+        boolean isActive(EventContext context, SuspendAnchor suspendAnchor) {
+            return activeFrame && activeExpression && stepConfig.matches(session, context, suspendAnchor);
+        }
+
+        @Override
+        boolean step(DebuggerSession steppingSession, EventContext context, SuspendAnchor suspendAnchor) {
+            if (stepConfig.matches(session, context, suspendAnchor) ||
+                            SuspendAnchor.AFTER == suspendAnchor && (stackCounter < 0 || exprCounter < 0)) {
+                stackCounter = 0;
+                exprCounter = context.hasTag(SourceElement.EXPRESSION.getTag()) && SuspendAnchor.BEFORE == suspendAnchor ? 0 : -1;
+                return --unfinishedStepCount <= 0;
+            } else {
+                return false;
+            }
+        }
+
+        @Override
+        public String toString() {
+            return String.format("STEP_OVER(stackCounter=%s, stepCount=%s)", stackCounter, unfinishedStepCount);
+        }
+
+    }
+
+    static final class Unwind extends SteppingStrategy {
+
+        private final int depth; // Negative depth
+        private final DebugValue returnValue;
+        private int stackCounter;
+        ThreadDeath unwind;
+
+        Unwind(int depth, DebugValue returnValue) {
+            this.depth = -depth;
+            this.returnValue = returnValue;
+        }
+
+        @Override
+        void initialize(SuspendedContext context, SuspendAnchor suspendAnchor) {
+            // We're entered already, we'll be called on exit once before unwind.
+            this.stackCounter = 1;
+        }
+
+        @Override
+        void notifyCallEntry() {
+            stackCounter++;
+        }
+
+        @Override
+        void notifyCallExit() {
+            stackCounter--;
+        }
+
+        @Override
+        Object notifyOnUnwind() {
+            if (depth == stackCounter) {
+                return returnValue != null ? returnValue.get() : ProbeNode.UNWIND_ACTION_REENTER;
+            } else {
+                return null;
+            }
+        }
+
+        @Override
+        boolean isActive(EventContext context, SuspendAnchor suspendAnchor) {
+            return SuspendAnchor.BEFORE == suspendAnchor;
+        }
+
+        @Override
+        boolean step(DebuggerSession steppingSession, EventContext context, SuspendAnchor suspendAnchor) {
+            return true;
+        }
+
+        @Override
+        boolean isUnwind() {
+            return true;
+        }
+
+        @Override
+        boolean isStopAfterCall() {
+            return false;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("REENTER(stackCounter=%s, depth=%s)", stackCounter, depth);
+        }
+
+    }
+
+    static final class ComposedStrategy extends SteppingStrategy {
+
+        private final SteppingStrategy first;
+        private SteppingStrategy last;
+        private SteppingStrategy current;
+
+        private ComposedStrategy(SteppingStrategy strategy1, SteppingStrategy strategy2) {
+            strategy1.next = strategy2;
+            first = strategy1;
+            current = first;
+            last = strategy2;
+        }
+
+        @Override
+        void initialize(SuspendedContext contex, SuspendAnchor suspendAnchor) {
+            assert current == first;
+            current.initialize(contex, suspendAnchor);
+        }
+
+        @Override
+        void notifyCallEntry() {
+            current.notifyCallEntry();
+        }
+
+        @Override
+        void notifyCallExit() {
+            current.notifyCallExit();
+        }
+
+        @Override
+        void notifyNodeEntry(EventContext context) {
+            current.notifyNodeEntry(context);
+        }
+
+        @Override
+        void notifyNodeExit(EventContext context) {
+            current.notifyNodeExit(context);
+        }
+
+        @Override
+        boolean isStopAfterCall() {
+            return current.isStopAfterCall();
+        }
+
+        @Override
+        boolean isActive(EventContext context, SuspendAnchor suspendAnchor) {
+            ret
