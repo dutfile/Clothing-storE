@@ -204,4 +204,226 @@ abstract class SteppingStrategy {
 
         @Override
         boolean step(DebuggerSession steppingSession, EventContext context, SuspendAnchor suspendAnchor) {
-            return Sus
+            return SuspendAnchor.BEFORE == suspendAnchor;
+        }
+
+        @Override
+        public String toString() {
+            return "HALT";
+        }
+
+    }
+
+    /**
+     * Strategy: the null stepping strategy.
+     * <ul>
+     * <li>User breakpoints are enabled.</li>
+     * <li>Execution continues until either:
+     * <ol>
+     * <li>execution arrives at a node with attached user breakpoint, <strong>or:</strong></li>
+     * <li>execution completes.</li>
+     * </ol>
+     * </ul>
+     */
+    private static final class Continue extends SteppingStrategy {
+
+        @Override
+        boolean step(DebuggerSession steppingSession, EventContext context, SuspendAnchor suspendAnchor) {
+            return false;
+        }
+
+        @Override
+        public boolean isDone() {
+            return true;
+        }
+
+        @Override
+        public String toString() {
+            return "CONTINUE";
+        }
+
+    }
+
+    /**
+     * Strategy: per-{@link #HALT_TAG} stepping.
+     * <ul>
+     * <li>User breakpoints are enabled.</li>
+     * <li>Execution continues until either:
+     * <ol>
+     * <li>execution <em>arrives</em> at a {@link #HALT_TAG} node, <strong>or:</strong></li>
+     * <li>execution <em>returns</em> to a {@link #CALL_TAG} node and the call stack is smaller then
+     * when execution started, <strong>or:</strong></li>
+     * <li>execution completes.</li>
+     * </ol>
+     * </ul>
+     *
+     * @see Debugger#prepareStepInto(int)
+     */
+    private static final class StepInto extends SteppingStrategy {
+
+        private final DebuggerSession session;
+        private final StepConfig stepConfig;
+        private int stackCounter;
+        private int unfinishedStepCount;
+
+        StepInto(DebuggerSession session, StepConfig stepConfig) {
+            this.session = session;
+            this.stepConfig = stepConfig;
+            this.unfinishedStepCount = stepConfig.getCount();
+        }
+
+        @Override
+        void initialize(SuspendedContext context, SuspendAnchor suspendAnchor) {
+            this.stackCounter = 0;
+        }
+
+        @Override
+        void notifyCallEntry() {
+            stackCounter++;
+        }
+
+        @Override
+        void notifyCallExit() {
+            stackCounter--;
+        }
+
+        @Override
+        boolean isStopAfterCall() {
+            return stackCounter < 0;
+        }
+
+        @Override
+        boolean isCollectingInputValues() {
+            return stepConfig.containsSourceElement(session, SourceElement.EXPRESSION);
+        }
+
+        @Override
+        boolean isActive(EventContext context, SuspendAnchor suspendAnchor) {
+            return stepConfig.matches(session, context, suspendAnchor);
+        }
+
+        @Override
+        boolean step(DebuggerSession steppingSession, EventContext context, SuspendAnchor suspendAnchor) {
+            if (stepConfig.matches(session, context, suspendAnchor) ||
+                            SuspendAnchor.AFTER == suspendAnchor && stackCounter < 0) {
+                stackCounter = 0;
+                if (--unfinishedStepCount <= 0) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("STEP_INTO(stackCounter=%s, stepCount=%s)", stackCounter, unfinishedStepCount);
+        }
+
+    }
+
+    /**
+     * Strategy: execution to nearest enclosing call site.
+     * <ul>
+     * <li>User breakpoints are enabled.</li>
+     * <li>Execution continues until either:
+     * <ol>
+     * <li>execution arrives at a node with attached user breakpoint, <strong>or:</strong></li>
+     * <li>execution <em>returns</em> to a CALL node and the call stack is smaller than when
+     * execution started, <strong>or:</strong></li>
+     * <li>execution completes.</li>
+     * </ol>
+     * </ul>
+     *
+     * @see Debugger#prepareStepOut()
+     */
+    private static final class StepOut extends SteppingStrategy {
+
+        private final DebuggerSession session;
+        private final StepConfig stepConfig;
+        private final boolean exprStepping;
+        private int stackCounter;
+        private int exprCounter;
+        private int unfinishedStepCount;
+        private boolean activeFrame = false;
+        private boolean activeExpression = false;
+
+        StepOut(DebuggerSession session, StepConfig stepConfig) {
+            this.session = session;
+            this.stepConfig = stepConfig;
+            this.exprStepping = stepConfig.containsSourceElement(session, SourceElement.EXPRESSION);
+            this.unfinishedStepCount = stepConfig.getCount();
+        }
+
+        @Override
+        void initialize(SuspendedContext context, SuspendAnchor suspendAnchor) {
+            this.stackCounter = 0;
+            this.exprCounter = 0;
+        }
+
+        @Override
+        void notifyCallEntry() {
+            stackCounter++;
+            activeFrame = false;
+        }
+
+        @Override
+        void notifyCallExit() {
+            boolean isOn = (--stackCounter) < 0;
+            if (isOn) {
+                activeFrame = true;
+            }
+        }
+
+        @Override
+        void notifyNodeEntry(EventContext context) {
+            if (exprStepping && context.hasTag(SourceElement.EXPRESSION.getTag())) {
+                exprCounter++;
+                activeExpression = false;
+            }
+        }
+
+        @Override
+        void notifyNodeExit(EventContext context) {
+            if (exprStepping && context.hasTag(SourceElement.EXPRESSION.getTag())) {
+                boolean isOn = (--exprCounter) < 0;
+                if (isOn) {
+                    activeExpression = true;
+                }
+            }
+        }
+
+        @Override
+        boolean isStopAfterCall() {
+            return activeFrame;
+        }
+
+        @Override
+        boolean isCollectingInputValues() {
+            return stepConfig.containsSourceElement(session, SourceElement.EXPRESSION);
+        }
+
+        @Override
+        boolean isActive(EventContext context, SuspendAnchor suspendAnchor) {
+            return (activeFrame || activeExpression) && stepConfig.matches(session, context, suspendAnchor);
+        }
+
+        @Override
+        boolean step(DebuggerSession steppingSession, EventContext context, SuspendAnchor suspendAnchor) {
+            stackCounter = 0;
+            exprCounter = 0;
+            if (--unfinishedStepCount <= 0) {
+                return true;
+            }
+            activeFrame = false; // waiting for next call exit
+            return false;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("STEP_OUT(stackCounter=%s, stepCount=%s)", stackCounter, unfinishedStepCount);
+        }
+
+    }
+
+    /**
+     * Strategy: per-{@link #HALT_TAG} stepping, so
