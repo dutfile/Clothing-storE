@@ -52,4 +52,183 @@ public class CatalogContentsTest extends CommandTestBase {
     @Override
     @Before
     public void setUp() throws Exception {
-  
+        super.setUp();
+        storage.graalInfo.put(BundleConstants.GRAAL_VERSION, "1.0.0.0");
+    }
+
+    RemotePropertiesStorage remstorage;
+    CatalogContents coll;
+
+    private Version initVersion(String s) throws IOException {
+        Version v = Version.fromString(s);
+        storage.graalInfo.put(BundleConstants.GRAAL_VERSION, s);
+        Path catalogPath = dataFile("../repo/catalog.properties");
+        Properties props = new Properties();
+        try (InputStream is = Files.newInputStream(catalogPath)) {
+            props.load(is);
+        }
+        remstorage = new RemotePropertiesStorage(this,
+                        getLocalRegistry(),
+                        props, "linux_amd64", v, catalogPath.toUri().toURL());
+        coll = new CatalogContents(this, remstorage, getLocalRegistry());
+        return v;
+    }
+
+    /**
+     * Checks that components for the version are provided.
+     */
+    @Test
+    public void testComponentsForVersion19() throws Exception {
+        initVersion("1.0.0.0");
+
+        Collection<String> ids = coll.getComponentIDs();
+        assertTrue(ids.contains("org.graalvm.python"));
+        assertTrue(ids.contains("org.graalvm.ruby"));
+        assertTrue(ids.contains("org.graalvm.r"));
+        // plus graalvm
+        assertEquals(4, ids.size());
+
+    }
+
+    @Test
+    public void testComponentsForVersion1901() throws Exception {
+        initVersion("1.0.1.0");
+        Collection<String> ids = coll.getComponentIDs();
+        assertTrue(ids.contains("org.graalvm.python"));
+        assertTrue(ids.contains("org.graalvm.r"));
+        assertTrue(ids.contains("org.graalvm.ruby"));
+        // plus graalvm
+        assertEquals(4, ids.size());
+    }
+
+    @Test
+    public void testComponentsInLatestUpdate() throws Exception {
+        initVersion("1.0.1.0");
+
+        Version v;
+        v = coll.findComponent("org.graalvm.ruby").getVersion();
+        assertEquals("1.0.1.1", v.toString());
+        v = coll.findComponent("org.graalvm.python").getVersion();
+        assertEquals("1.0.1.0", v.toString());
+        v = coll.findComponent("org.graalvm.r").getVersion();
+        assertEquals("1.0.1.1", v.toString());
+    }
+
+    @Test
+    public void testComponentsInPatchedGraal() throws Exception {
+        initVersion("1.0.1.1");
+
+        Version v;
+
+        v = coll.findComponent("org.graalvm.ruby").getVersion();
+        assertEquals("1.0.1.1", v.toString());
+        v = coll.findComponent("org.graalvm.python").getVersion();
+        assertEquals("1.0.1.0", v.toString());
+        v = coll.findComponent("org.graalvm.r").getVersion();
+        assertEquals("1.0.1.1", v.toString());
+    }
+
+    @Test
+    public void testComponentsForVersion191() throws Exception {
+        initVersion("1.1.0.0");
+
+        Collection<String> ids = coll.getComponentIDs();
+        assertTrue(ids.contains("org.graalvm.python"));
+        assertTrue(ids.contains("org.graalvm.r"));
+        // plus graalvm
+        assertEquals(3, ids.size());
+    }
+
+    /**
+     * Checks that the catalog will provide component versions that require to update the
+     * distribution for 1.0.1.0. Components in versions 1.1.x.x should be returned.
+     */
+    @Test
+    public void testDistUpdateFor1901() throws Exception {
+        initVersion("1.0.1.0");
+        coll.setAllowDistUpdate(true);
+
+        Version v;
+        v = coll.findComponent("org.graalvm.ruby").getVersion();
+        assertEquals("1.0.1.1", v.toString());
+        v = coll.findComponent("org.graalvm.python").getVersion();
+        assertEquals("1.1.0.0", v.toString());
+        v = coll.findComponent("org.graalvm.r").getVersion();
+        assertEquals("1.1.0.1", v.toString());
+    }
+
+    /**
+     * Checks that a specific version is provided.
+     */
+    @Test
+    public void testSpecificVersionNoDistUpdate() throws Exception {
+        initVersion("1.0.1.0");
+
+        Version v;
+        Version.Match vm = Version.fromString("1.1.0.0").match(Version.Match.Type.EXACT);
+        ComponentInfo ci = coll.findComponent("ruby", vm);
+        assertNull(ci);
+
+        vm = Version.fromString("1.0.1.0").match(Version.Match.Type.GREATER);
+        ci = coll.findComponent("ruby", vm);
+        v = ci.getVersion();
+        assertEquals("1.0.1.1", v.toString());
+
+        vm = Version.fromString("1.0.1.0").match(Version.Match.Type.GREATER);
+        v = coll.findComponent("python", vm).getVersion();
+        assertEquals("1.1.0.0", v.toString());
+
+        vm = Version.fromString("1.0.0.0").match(Version.Match.Type.EXACT);
+        ci = coll.findComponent("python", vm);
+        assertNull(ci);
+
+        v = coll.findComponent("org.graalvm.r").getVersion();
+        assertEquals("1.0.1.1", v.toString());
+
+        vm = Version.fromString("1.0.1.0").match(Version.Match.Type.MOSTRECENT);
+        v = coll.findComponent("r", vm).getVersion();
+        assertEquals("1.0.1.1", v.toString());
+    }
+
+    /**
+     * Checks that a specific version is provided.
+     */
+    @Test
+    public void testSpecificVersionDistUpdate() throws Exception {
+        initVersion("1.0.1.0");
+        coll.setAllowDistUpdate(true);
+
+        Version v;
+        Version.Match vm = Version.fromString("1.1.0.0").match(Version.Match.Type.EXACT);
+        ComponentInfo ci = coll.findComponent("ruby", vm);
+        assertNull(ci);
+
+        vm = Version.fromString("1.0.1.0").match(Version.Match.Type.GREATER);
+        ci = coll.findComponent("ruby", vm);
+        v = ci.getVersion();
+        assertEquals("1.0.1.1", v.toString());
+
+        vm = Version.fromString("1.0.1.0").match(Version.Match.Type.GREATER);
+        v = coll.findComponent("python", vm).getVersion();
+        assertEquals("1.1.0.0", v.toString());
+
+        vm = Version.fromString("1.0.0.0").match(Version.Match.Type.EXACT);
+        ci = coll.findComponent("python", vm);
+        assertNull(ci);
+
+        v = coll.findComponent("org.graalvm.r").getVersion();
+        assertEquals("1.1.0.1", v.toString());
+
+        vm = Version.fromString("1.0.1.0").match(Version.Match.Type.MOSTRECENT);
+        v = coll.findComponent("r", vm).getVersion();
+        assertEquals("1.1.0.1", v.toString());
+    }
+
+    /**
+     * 
+     */
+    @Test
+    public void testFindDependentComponents() {
+
+    }
+}
