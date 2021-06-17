@@ -638,4 +638,73 @@ abstract class SteppingStrategy {
 
         @Override
         boolean isActive(EventContext context, SuspendAnchor suspendAnchor) {
-            ret
+            return current.isActive(context, suspendAnchor);
+        }
+
+        @Override
+        boolean step(DebuggerSession steppingSession, EventContext context, SuspendAnchor suspendAnchor) {
+            boolean hit = current.step(steppingSession, context, suspendAnchor);
+            if (hit) {
+                if (current == last) {
+                    return true;
+                } else {
+                    current = current.next;
+                    current.initialize(SuspendedContext.create(context, steppingSession.getDebugger().getEnv()), suspendAnchor);
+                }
+            }
+            return false;
+        }
+
+        @Override
+        void consume() {
+            assert current == last;
+            last.consume();
+        }
+
+        @Override
+        boolean isConsumed() {
+            assert current == last;
+            return last.isConsumed();
+        }
+
+        @Override
+        boolean isDone() {
+            if (current == last) {
+                return last.isDone();
+            }
+            return false;
+        }
+
+        @Override
+        boolean isKill() {
+            if (current == last) {
+                return last.isKill();
+            }
+            return false;
+        }
+
+        @Override
+        boolean isComposable() {
+            return true;
+        }
+
+        @Override
+        synchronized void add(SteppingStrategy nextStrategy) {
+            last.next = nextStrategy;
+            last = nextStrategy;
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder all = new StringBuilder();
+            for (SteppingStrategy s = first; s.next != null; s = s.next) {
+                if (all.length() > 0) {
+                    all.append(", ");
+                }
+                all.append(s.toString());
+            }
+
+            return "COMPOSED(" + all + ")";
+        }
+    }
+}
