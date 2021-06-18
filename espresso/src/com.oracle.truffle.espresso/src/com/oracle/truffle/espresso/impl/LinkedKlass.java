@@ -99,4 +99,103 @@ public final class LinkedKlass {
         this.methods = linkedMethods;
     }
 
-    public static LinkedKlass create(ContextDescription desc
+    public static LinkedKlass create(ContextDescription description, ParserKlass parserKlass, LinkedKlass superKlass, LinkedKlass[] interfaces) {
+        LinkedKlassFieldLayout fieldLayout = new LinkedKlassFieldLayout(description, parserKlass, superKlass);
+        return new LinkedKlass(
+                        parserKlass,
+                        superKlass,
+                        interfaces,
+                        fieldLayout.instanceShape,
+                        fieldLayout.staticShape,
+                        fieldLayout.instanceFields,
+                        fieldLayout.staticFields,
+                        fieldLayout.fieldTableLength);
+    }
+
+    public static LinkedKlass redefine(ParserKlass parserKlass, LinkedKlass superKlass, LinkedKlass[] interfaces, LinkedKlass redefinedKlass) {
+        // On class redefinition we need to re-use the old shape.
+        // If we don't do it, shape checks on field accesses fail because `Field` instances in
+        // `ObjectKlass.fieldTable` hold references to the old shape, which does not match the shape
+        // of the new object instances.
+        // We work around this by means of an extension mechanism where all shapes contain
+        // one extra element
+        return new LinkedKlass(
+                        parserKlass,
+                        superKlass,
+                        interfaces,
+                        redefinedKlass.instanceShape,
+                        redefinedKlass.staticShape,
+                        redefinedKlass.instanceFields,
+                        redefinedKlass.staticFields,
+                        redefinedKlass.fieldTableLength);
+    }
+
+    int getFlags() {
+        int flags = parserKlass.getFlags();
+        if (hasFinalizer) {
+            flags |= ACC_FINALIZER;
+        }
+        return flags;
+    }
+
+    ConstantPool getConstantPool() {
+        return parserKlass.getConstantPool();
+    }
+
+    Attribute getAttribute(Symbol<Name> name) {
+        return parserKlass.getAttribute(name);
+    }
+
+    Symbol<Type> getType() {
+        return parserKlass.getType();
+    }
+
+    Symbol<Name> getName() {
+        return parserKlass.getName();
+    }
+
+    public ParserKlass getParserKlass() {
+        return parserKlass;
+    }
+
+    LinkedKlass getSuperKlass() {
+        return superKlass;
+    }
+
+    LinkedKlass[] getInterfaces() {
+        return interfaces;
+    }
+
+    int getMajorVersion() {
+        return getConstantPool().getMajorVersion();
+    }
+
+    int getMinorVersion() {
+        return getConstantPool().getMinorVersion();
+    }
+
+    LinkedMethod[] getLinkedMethods() {
+        return methods;
+    }
+
+    LinkedField[] getInstanceFields() {
+        return instanceFields;
+    }
+
+    LinkedField[] getStaticFields() {
+        return staticFields;
+    }
+
+    int getFieldTableLength() {
+        return fieldTableLength;
+    }
+
+    public StaticShape<StaticObjectFactory> getShape(boolean isStatic) {
+        return isStatic ? staticShape : instanceShape;
+    }
+
+    @Override
+    public String toString() {
+        return "LinkedKlass<" + getType() + ">";
+    }
+}
