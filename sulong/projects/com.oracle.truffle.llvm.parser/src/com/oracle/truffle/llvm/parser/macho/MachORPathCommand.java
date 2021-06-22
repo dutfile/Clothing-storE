@@ -28,3 +28,37 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 package com.oracle.truffle.llvm.parser.macho;
+
+public final class MachORPathCommand extends MachOLoadCommand {
+
+    private final String name;
+
+    private MachORPathCommand(int cmd, int cmdSize, String name) {
+        super(cmd, cmdSize);
+        this.name = name;
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "<" + name + ">";
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public static MachORPathCommand create(MachOReader buffer) {
+        int pos = buffer.getPosition();
+        int cmd = buffer.getInt();
+        assert cmd == MachOLoadCommand.LC_RPATH;
+        int cmdSize = buffer.getInt();
+        int offset = buffer.getInt();
+
+        buffer.setPosition(pos + offset);
+        String path = getString(buffer, cmdSize - offset);
+        buffer.setPosition(pos + cmdSize);
+
+        return new MachORPathCommand(cmd, cmdSize, path);
+    }
+
+}
