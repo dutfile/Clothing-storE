@@ -182,4 +182,13 @@ final class DefaultIntegerExports {
     }
 
     @ExportMessage
-    static Object getMetaObject(Integer
+    static Object getMetaObject(Integer receiver) throws UnsupportedMessageException {
+        throw UnsupportedMessageException.create();
+    }
+
+    @ExportMessage
+    @TruffleBoundary
+    static Object toDisplayString(Integer receiver, boolean allowSideEffects) {
+        return receiver.toString();
+    }
+}
