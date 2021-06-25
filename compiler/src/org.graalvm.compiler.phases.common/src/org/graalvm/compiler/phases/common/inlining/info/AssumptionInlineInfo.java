@@ -51,4 +51,17 @@ public class AssumptionInlineInfo extends ExactInlineInfo {
     @Override
     public EconomicSet<Node> inline(CoreProviders providers, String reason) {
         takenAssumption.recordTo(invoke.asNode().graph().getAssumptions());
-        return super.inline(providers, rea
+        return super.inline(providers, reason);
+    }
+
+    @Override
+    public void tryToDevirtualizeInvoke(Providers providers) {
+        takenAssumption.recordTo(invoke.asNode().graph().getAssumptions());
+        InliningUtil.replaceInvokeCallTarget(invoke, graph(), InvokeKind.Special, concrete);
+    }
+
+    @Override
+    public String toString() {
+        return "assumption " + concrete.format("%H.%n(%p):%r");
+    }
+}
