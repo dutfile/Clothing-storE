@@ -1,0 +1,4623 @@
+
+{
+  "items": [
+    {
+      "id": "DC0D45769EBF406EE0538714000A4386",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.1.0)(os_name=macos)(os_arch=amd64)(java_version=17))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.1.0",
+          "description": "Release version"
+        },
+        {
+          "key": "requireBundle",
+          "value": "org.graalvm.espresso",
+          "description": "Require bundle"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.espresso-llvm",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages/java",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "experimental",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "experimental",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "macos",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "False",
+          "description": "Polyglot part"
+        }
+      ],
+      "displayName": "Java on Truffle LLVM Java libraries macos amd64 22.1.0 jdk17 ee",
+      "checksum": "3f86f93cc44998b86aa6a9a5e59b31f0a35e8b5692cca42b6b04b485636c6b5c",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-07T13:08:39.568Z"
+    },
+    {
+      "id": "DC04E2FBFA88CE4EE0538714000A1AA0",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.1.0)(os_name=macos)(os_arch=amd64)(java_version=11))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.1.0",
+          "description": "Release version"
+        },
+        {
+          "key": "requireBundle",
+          "value": "org.graalvm.espresso",
+          "description": "Require bundle"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.espresso-llvm",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages/java",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk11",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "experimental",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "experimental",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "macos",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "False",
+          "description": "Polyglot part"
+        }
+      ],
+      "displayName": "Java on Truffle LLVM Java libraries macos amd64 22.1.0 jdk11 ee",
+      "checksum": "8cb10b44752cbea9a4f37aea66d6a9f273b265fb6c0d718ed6d7058ab1f0965e",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-07T13:08:30.900Z"
+    },
+    {
+      "id": "DC0D45769E5D406EE0538714000A4386",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=macos)(os_arch=amd64)(java_version=17))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "requireBundle",
+          "value": "org.graalvm.espresso",
+          "description": "Require bundle"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.espresso-llvm",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages/java",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "experimental",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "experimental",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "macos",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "False",
+          "description": "Polyglot part"
+        }
+      ],
+      "displayName": "Java on Truffle LLVM Java libraries macos amd64 22.2.0 jdk17 ee",
+      "checksum": "a5b4a77200007fb1d52344981e0c803d394aae8c6029ecf279ddff0a2a45f34a",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-07T12:49:42.520Z"
+    },
+    {
+      "id": "DC02FD0B9C72B342E0538714000ACF2A",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=macos)(os_arch=amd64)(java_version=11))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "requireBundle",
+          "value": "org.graalvm.espresso",
+          "description": "Require bundle"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.espresso-llvm",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages/java",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk11",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "experimental",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "experimental",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "macos",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "False",
+          "description": "Polyglot part"
+        }
+      ],
+      "displayName": "Java on Truffle LLVM Java libraries macos amd64 22.2.0 jdk11 ee",
+      "checksum": "71b26f91df8727a548aba9394943ee3221bc2a9062d7f44e252dae8cc65480a3",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-07T12:49:31.738Z"
+    },
+    {
+      "id": "DBD255350DBD2F20E0538714000A44FF",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=windows)(os_arch=amd64)(java_version=17))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.wasm",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages\\wasm",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "experimental",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "experimental",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "windows",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "True",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "GraalWasm windows amd64 22.2.0 jdk17 ee",
+      "checksum": "6560d7d558cfe40143f57648e2768fbd29ce1ec6a24d6b10cf6f08d2040215f0",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:46:07.030Z"
+    },
+    {
+      "id": "DBD255350DAF2F20E0538714000A44FF",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=windows)(os_arch=amd64)(java_version=17))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.espresso",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages\\java",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "experimental",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "experimental",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "windows",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "True",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "Java on Truffle windows amd64 22.2.0 jdk17 ee",
+      "checksum": "94be13b56e82187e3c7f51a3ddc78d7c553d3e101318dfc6f47bc0725a4bf9f7",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:46:05.735Z"
+    },
+    {
+      "id": "DBD255350DA02F20E0538714000A44FF",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=windows)(os_arch=amd64)(java_version=17))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "requireBundle",
+          "value": "org.graalvm.js",
+          "description": "Require bundle"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.nodejs",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages\\nodejs",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "supported",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "supported",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "windows",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "True",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "Graal.nodejs windows amd64 22.2.0 jdk17 ee",
+      "checksum": "9ac3c76459c7915de387d06d278ef5713b013dda5d4218e9f37d88607561d9b6",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:46:04.443Z"
+    },
+    {
+      "id": "DBD255350D932F20E0538714000A44FF",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=windows)(os_arch=amd64)(java_version=17))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.native-image",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "earlyadopter",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "earlyadopter",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "windows",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "False",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "Native Image windows amd64 22.2.0 jdk17 ee",
+      "checksum": "aacc592d961c2d1d078d93e0a0decfe2fbf4e4e503f03ee11a1caba7f784e403",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:46:03.144Z"
+    },
+    {
+      "id": "DBD255350D8A2F20E0538714000A44FF",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(os_name=windows)(os_arch=amd64)(java_version=17))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "os",
+          "value": "windows",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "True",
+          "description": "Artifact type"
+        }
+      ],
+      "displayName": "GraalVM Core windows amd64 22.2.0 jdk17 ee",
+      "checksum": "bd45903f9b58b28d9ff53346655eb39f6be6050b2133edfcf6ca1b9f05282128",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:46:01.858Z"
+    },
+    {
+      "id": "DBD255350D822F20E0538714000A44FF",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "supported",
+          "value": "True",
+          "description": "Status"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "os",
+          "value": "windows",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "True",
+          "description": "Artifact type"
+        }
+      ],
+      "displayName": "GraalVM Enterprise Edition 22.2.0 on jdk17 windows amd64",
+      "checksum": "12ad12141f08712c200c8352b884b8f1eeb8b3c0dfee3b87c76ed05355ab701d",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:46:00.605Z"
+    },
+    {
+      "id": "DBD255350D752F20E0538714000A44FF",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=macos)(os_arch=amd64)(java_version=17))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.llvm-toolchain",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "supported",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "supported",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "macos",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "False",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "LLVM.org toolchain macos amd64 22.2.0 jdk17 ee",
+      "checksum": "e3239f0d39924f8f53e6a35e3901a8ed64f9b83eeda15ebb75f5f1b15f438320",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:59.416Z"
+    },
+    {
+      "id": "DBD255350D672F20E0538714000A44FF",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=macos)(os_arch=amd64)(java_version=17))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.wasm",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages/wasm",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "experimental",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "experimental",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "macos",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "True",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "GraalWasm macos amd64 22.2.0 jdk17 ee",
+      "checksum": "1fb9daf6fb2bff476bed9bdafad7a655bbe2ed864096c0cadc935416c6e3964a",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:58.115Z"
+    },
+    {
+      "id": "DBD255350D582F20E0538714000A44FF",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=macos)(os_arch=amd64)(java_version=17))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "requireBundle",
+          "value": "org.graalvm.llvm-toolchain",
+          "description": "Require bundle"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.python",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages/python",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "experimental",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "experimental",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "macos",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "True",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "Graal.Python macos amd64 22.2.0 jdk17 ee",
+      "checksum": "424b5e6c5bfb8c6d4d87ed9147d06ee5498f1944d4d4f492bd8cdc23e3690faf",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:56.782Z"
+    },
+    {
+      "id": "DBD255350D492F20E0538714000A44FF",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=macos)(os_arch=amd64)(java_version=17))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "requireBundle",
+          "value": "org.graalvm.llvm-toolchain",
+          "description": "Require bundle"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.ruby",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages/ruby",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "experimental",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "experimental",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "macos",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "True",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "TruffleRuby macos amd64 22.2.0 jdk17 ee",
+      "checksum": "d5e44c0c6238daa5e695b94f678a9a4427df5ca40e5ffcda698c5150214da8dc",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:55.484Z"
+    },
+    {
+      "id": "DBD25450B9703307E0538714000AC8BE",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=macos)(os_arch=amd64)(java_version=17))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.espresso",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages/java",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "experimental",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "experimental",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "macos",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "True",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "Java on Truffle macos amd64 22.2.0 jdk17 ee",
+      "checksum": "e849dcd29d74aa0235aadda72ea4a23c6c85d9dbdcfd3dd69fe99f8acb07cbf1",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:54.054Z"
+    },
+    {
+      "id": "DBD255350D3A2F20E0538714000A44FF",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=macos)(os_arch=amd64)(java_version=17))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "requireBundle",
+          "value": "org.graalvm.js",
+          "description": "Require bundle"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.nodejs",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages/nodejs",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "supported",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "supported",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "macos",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "True",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "Graal.nodejs macos amd64 22.2.0 jdk17 ee",
+      "checksum": "295ea335c67036302a03d6a1f33d90320c7ac4ad133752c4f67039ec3cdf61e0",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:52.801Z"
+    },
+    {
+      "id": "DBD255350D2D2F20E0538714000A44FF",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=macos)(os_arch=amd64)(java_version=17))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.native-image",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "earlyadopter",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "earlyadopter",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "macos",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "False",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "Native Image macos amd64 22.2.0 jdk17 ee",
+      "checksum": "dc8e5f940260fb0a5fdacd68ab9136cafcf69806420e6112f94b40f14ff2b919",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:51.388Z"
+    },
+    {
+      "id": "DBD25450B9673307E0538714000AC8BE",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(os_name=macos)(os_arch=amd64)(java_version=17))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "os",
+          "value": "macos",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "True",
+          "description": "Artifact type"
+        }
+      ],
+      "displayName": "GraalVM Core macos amd64 22.2.0 jdk17 ee",
+      "checksum": "26dd2f88d8bffa535756a74ae76c6c8d18f9de0d4511eaf870a3cf27f4defa27",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:50.172Z"
+    },
+    {
+      "id": "DBD25450B95F3307E0538714000AC8BE",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "supported",
+          "value": "True",
+          "description": "Status"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "os",
+          "value": "macos",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "True",
+          "description": "Artifact type"
+        }
+      ],
+      "displayName": "GraalVM Enterprise Edition 22.2.0 on jdk17 darwin amd64",
+      "checksum": "4730d1ef0a7126a15c1a388ffd99c0e1ff2783676bc4996acb657a7fff6a0139",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:49.020Z"
+    },
+    {
+      "id": "DBD255350D202F20E0538714000A44FF",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=linux)(os_arch=aarch64)(java_version=17))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.llvm-toolchain",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "supported",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "supported",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "linux",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "aarch64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "False",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "LLVM.org toolchain linux aarch64 22.2.0 jdk17 ee",
+      "checksum": "66e9a79380202c2fc954e83f1856b69c8edde3909e5191708166f849c3037fda",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:47.696Z"
+    },
+    {
+      "id": "DBD206227B6A3259E0538714000A8AC8",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=linux)(os_arch=aarch64)(java_version=17))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.wasm",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages/wasm",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "experimental",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "experimental",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "linux",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "aarch64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "True",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "GraalWasm linux aarch64 22.2.0 jdk17 ee",
+      "checksum": "251076be28a1419773fe7c1050f399acf626d4a9918ec212fbc82bba6b080b3b",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:46.280Z"
+    },
+    {
+      "id": "DBD206227B5B3259E0538714000A8AC8",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=linux)(os_arch=aarch64)(java_version=17))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "requireBundle",
+          "value": "org.graalvm.llvm-toolchain",
+          "description": "Require bundle"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.ruby",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages/ruby",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "experimental",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "experimental",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "linux",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "aarch64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "True",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "TruffleRuby linux aarch64 22.2.0 jdk17 ee",
+      "checksum": "57554962809ba66cd8e63613194a63ead817f24afc12c8dcced7feb0c2b74ae8",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:44.880Z"
+    },
+    {
+      "id": "DBD255350D122F20E0538714000A44FF",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=linux)(os_arch=aarch64)(java_version=17))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.espresso",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages/java",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "experimental",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "experimental",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "linux",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "aarch64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "True",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "Java on Truffle linux aarch64 22.2.0 jdk17 ee",
+      "checksum": "4674692f9469edcfa83fe230d3c7d942ba26557a403efcd431ad5da7d1358eb5",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:43.593Z"
+    },
+    {
+      "id": "DBD206227B4D3259E0538714000A8AC8",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=windows)(os_arch=amd64)(java_version=11))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.wasm",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages\\wasm",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk11",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "experimental",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "experimental",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "windows",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "True",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "GraalWasm windows amd64 22.2.0 jdk11 ee",
+      "checksum": "307bdc705411bc07a834b175acf3a6ea048a12d0d31b8635004f1a6a9124ef3c",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:43.331Z"
+    },
+    {
+      "id": "DBD206227B3E3259E0538714000A8AC8",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=linux)(os_arch=aarch64)(java_version=17))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "requireBundle",
+          "value": "org.graalvm.js",
+          "description": "Require bundle"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.nodejs",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages/nodejs",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "supported",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "supported",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "linux",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "aarch64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "True",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "Graal.nodejs linux aarch64 22.2.0 jdk17 ee",
+      "checksum": "e896ed6ad4e9588e0a8c9e4b10d3138eb98116d9d1f0517aaeca273c71641e56",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:42.309Z"
+    },
+    {
+      "id": "DBD255350D042F20E0538714000A44FF",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=windows)(os_arch=amd64)(java_version=11))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.espresso",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages\\java",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk11",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "experimental",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "experimental",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "windows",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "True",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "Java on Truffle windows amd64 22.2.0 jdk11 ee",
+      "checksum": "b4c02b54a1c8a8ee03b129e180104e6997cc6522e501c1adfe2c2d7ff246bf3d",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:42.036Z"
+    },
+    {
+      "id": "DBD255350CF72F20E0538714000A44FF",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=linux)(os_arch=aarch64)(java_version=17))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.native-image",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "earlyadopter",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "earlyadopter",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "linux",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "aarch64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "False",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "Native Image linux aarch64 22.2.0 jdk17 ee",
+      "checksum": "f77427d240c48b1dc8d0b02d7212016c73518f359a2706486a2f803804ed6579",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:41.074Z"
+    },
+    {
+      "id": "DBD206227B2F3259E0538714000A8AC8",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=windows)(os_arch=amd64)(java_version=11))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "requireBundle",
+          "value": "org.graalvm.js",
+          "description": "Require bundle"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.nodejs",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages\\nodejs",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk11",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "supported",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "supported",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "windows",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "True",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "Graal.nodejs windows amd64 22.2.0 jdk11 ee",
+      "checksum": "a1bfd2bb5343d0e12e0d025804e54d0801977a335b792fdb33e58eaab71197b8",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:40.768Z"
+    },
+    {
+      "id": "DBD206227B263259E0538714000A8AC8",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(os_name=linux)(os_arch=aarch64)(java_version=17))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "os",
+          "value": "linux",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "aarch64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "True",
+          "description": "Artifact type"
+        }
+      ],
+      "displayName": "GraalVM Core linux aarch64 22.2.0 jdk17 ee",
+      "checksum": "0528b454f95bbd7aac53f9982faa1a48e2a64286378a7075c6bd0f21246eb20b",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:39.781Z"
+    },
+    {
+      "id": "DBD255350CEA2F20E0538714000A44FF",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=windows)(os_arch=amd64)(java_version=11))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.native-image",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "java",
+          "value": "jdk11",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "earlyadopter",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "earlyadopter",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "windows",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "False",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "Native Image windows amd64 22.2.0 jdk11 ee",
+      "checksum": "1a699587304dc71ad40fc8cb8f5587bb50e385b9ba15c64fa299bc1b41c0ca8f",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:39.477Z"
+    },
+    {
+      "id": "DBD206227B1E3259E0538714000A8AC8",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "supported",
+          "value": "True",
+          "description": "Status"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "os",
+          "value": "linux",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "aarch64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "True",
+          "description": "Artifact type"
+        }
+      ],
+      "displayName": "GraalVM Enterprise Edition 22.2.0 on jdk17 linux aarch64",
+      "checksum": "f015e8cbbf97d6535fa76657335f766e60f2aa5395275b7e2edc31b75f69d762",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:38.630Z"
+    },
+    {
+      "id": "DBD255350CE12F20E0538714000A44FF",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(os_name=windows)(os_arch=amd64)(java_version=11))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "java",
+          "value": "jdk11",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "os",
+          "value": "windows",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "True",
+          "description": "Artifact type"
+        }
+      ],
+      "displayName": "GraalVM Core windows amd64 22.2.0 jdk11 ee",
+      "checksum": "5bffeac3f90da3c781113045cb2b793fc5a631652e42a3da7c03ff2ffcace287",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:38.153Z"
+    },
+    {
+      "id": "DBD206227B113259E0538714000A8AC8",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=linux)(os_arch=amd64)(java_version=17))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.llvm-toolchain",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "supported",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "supported",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "linux",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "False",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "LLVM.org toolchain linux amd64 22.2.0 jdk17 ee",
+      "checksum": "afc469b00c91847be85f240cddc7af8f2baddcae2799a7213b34acb2a8f4836b",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:37.495Z"
+    },
+    {
+      "id": "DBD206227B093259E0538714000A8AC8",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "supported",
+          "value": "True",
+          "description": "Status"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "java",
+          "value": "jdk11",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "os",
+          "value": "windows",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "True",
+          "description": "Artifact type"
+        }
+      ],
+      "displayName": "GraalVM Enterprise Edition 22.2.0 on jdk11 windows amd64",
+      "checksum": "f843cb1068fcfab011182f1b3adf5a0e510fd6dd89ee4ee43d4747dedfa15534",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:37.035Z"
+    },
+    {
+      "id": "DBD206227AFA3259E0538714000A8AC8",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=linux)(os_arch=amd64)(java_version=17))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "requireBundle",
+          "value": "org.graalvm.espresso",
+          "description": "Require bundle"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.espresso-llvm",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages/java",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "supported",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "supported",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "linux",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "False",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "Java on Truffle LLVM Java libraries linux amd64 22.2.0 jdk17 ee",
+      "checksum": "ae39bc58ffeb4b63312d27dc8a79e17575424470fe3ce8216690dda9b4e4bbd6",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:36.207Z"
+    },
+    {
+      "id": "DBD255350CD42F20E0538714000A44FF",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=macos)(os_arch=amd64)(java_version=11))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.llvm-toolchain",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "java",
+          "value": "jdk11",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "supported",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "supported",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "macos",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "False",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "LLVM.org toolchain macos amd64 22.2.0 jdk11 ee",
+      "checksum": "37c54e93d56eb961e05d1ddce99254627fde02e610bcc9a097f100c505c56e02",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:35.889Z"
+    },
+    {
+      "id": "DBD25450B9513307E0538714000AC8BE",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=linux)(os_arch=amd64)(java_version=17))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.wasm",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages/wasm",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "experimental",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "experimental",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "linux",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "True",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "GraalWasm linux amd64 22.2.0 jdk17 ee",
+      "checksum": "4d545378b7b7c121d09f08c09320c6d5a493e92729d50ed3ff0893da1a209384",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:34.928Z"
+    },
+    {
+      "id": "DBD255350CC62F20E0538714000A44FF",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=macos)(os_arch=amd64)(java_version=11))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.wasm",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages/wasm",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk11",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "experimental",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "experimental",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "macos",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "True",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "GraalWasm macos amd64 22.2.0 jdk11 ee",
+      "checksum": "f6b338fe0fbca0967be0b34960a92a7fd860a2dd7fc723eabb418260c7b55d4a",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:34.474Z"
+    },
+    {
+      "id": "DBD255350CB72F20E0538714000A44FF",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=linux)(os_arch=amd64)(java_version=17))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "requireBundle",
+          "value": "org.graalvm.llvm-toolchain",
+          "description": "Require bundle"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.python",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages/python",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "experimental",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "experimental",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "linux",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "True",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "Graal.Python linux amd64 22.2.0 jdk17 ee",
+      "checksum": "3ddd45cd1ecb2df95bef345a2f22f86744610b21b80b5792f376ba8aa38f71af",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:33.506Z"
+    },
+    {
+      "id": "DBD206227AEB3259E0538714000A8AC8",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=macos)(os_arch=amd64)(java_version=11))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "requireBundle",
+          "value": "org.graalvm.llvm-toolchain",
+          "description": "Require bundle"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.python",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages/python",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk11",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "experimental",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "experimental",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "macos",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "True",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "Graal.Python macos amd64 22.2.0 jdk11 ee",
+      "checksum": "069a4089318aacff56dff46d76d9b098586b30f5c02aa73a44cbd8976f770d6b",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:33.175Z"
+    },
+    {
+      "id": "DBD255350CA82F20E0538714000A44FF",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=linux)(os_arch=amd64)(java_version=17))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "requireBundle",
+          "value": "org.graalvm.llvm-toolchain",
+          "description": "Require bundle"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.ruby",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages/ruby",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "experimental",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "experimental",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "linux",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "True",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "TruffleRuby linux amd64 22.2.0 jdk17 ee",
+      "checksum": "c7eb2dee3692a8bf7f8590c96c99f0d3bdd3af17ad02647eb13b94e2fe3f2181",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:32.205Z"
+    },
+    {
+      "id": "DBD25450B9423307E0538714000AC8BE",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=macos)(os_arch=amd64)(java_version=11))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "requireBundle",
+          "value": "org.graalvm.llvm-toolchain",
+          "description": "Require bundle"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.ruby",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages/ruby",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk11",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "experimental",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "experimental",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "macos",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "True",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "TruffleRuby macos amd64 22.2.0 jdk11 ee",
+      "checksum": "be38fff57316b909ef0695510a19671a6db1ac83a5c55a52c1da02b5a6a1d0f5",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:31.822Z"
+    },
+    {
+      "id": "DBD206227ADC3259E0538714000A8AC8",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=linux)(os_arch=amd64)(java_version=17))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "requireBundle",
+          "value": "org.graalvm.espresso",
+          "description": "Require bundle"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.espresso",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages/java",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "supported",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "supported",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "linux",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "True",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "Java on Truffle linux amd64 22.2.0 jdk17 ee",
+      "checksum": "d7869b7bba6dac2c60f76e58cd9a6b5eadabfc6a18552a99b60f22b6bb13b74c",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:30.549Z"
+    },
+    {
+      "id": "DBD255350C9A2F20E0538714000A44FF",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=macos)(os_arch=amd64)(java_version=11))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.espresso",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages/java",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk11",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "experimental",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "experimental",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "macos",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "True",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "Java on Truffle macos amd64 22.2.0 jdk11 ee",
+      "checksum": "b30ce36cd913e2d36c3f3254199249dd26e2051d6aea0891cd1ec9d9e0ce8646",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:30.492Z"
+    },
+    {
+      "id": "DBD25450B9333307E0538714000AC8BE",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=linux)(os_arch=amd64)(java_version=17))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "requireBundle",
+          "value": "org.graalvm.js",
+          "description": "Require bundle"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.nodejs",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages/nodejs",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "supported",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "supported",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "linux",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "True",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "Graal.nodejs linux amd64 22.2.0 jdk17 ee",
+      "checksum": "5e1cef1f3689371c9e39c30ce335cde999534a860a7743c5768e61f80bb395b6",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:29.265Z"
+    },
+    {
+      "id": "DBD25450B9243307E0538714000AC8BE",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=macos)(os_arch=amd64)(java_version=11))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "requireBundle",
+          "value": "org.graalvm.js",
+          "description": "Require bundle"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.nodejs",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages/nodejs",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk11",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "supported",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "supported",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "macos",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "True",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "Graal.nodejs macos amd64 22.2.0 jdk11 ee",
+      "checksum": "4afdb1da810776d3514b7e190be5234a5081257cdd5797bb49fd9f41e3600107",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:28.967Z"
+    },
+    {
+      "id": "DBD25450B9173307E0538714000AC8BE",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=linux)(os_arch=amd64)(java_version=17))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.native-image",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "earlyadopter",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "earlyadopter",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "linux",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "False",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "Native Image linux amd64 22.2.0 jdk17 ee",
+      "checksum": "88c56f763d686a71bba3806de04829650c0fc370f013e3b4f5df589541c0cbed",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:27.700Z"
+    },
+    {
+      "id": "DBD255350C8D2F20E0538714000A44FF",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=macos)(os_arch=amd64)(java_version=11))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.native-image",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "java",
+          "value": "jdk11",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "earlyadopter",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "earlyadopter",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "macos",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "False",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "Native Image macos amd64 22.2.0 jdk11 ee",
+      "checksum": "f8230f8bfb51cf9f9671b4f78db8ace31fbe74d53cbfc702d5931de24d22f3d5",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:27.679Z"
+    },
+    {
+      "id": "DBD255350C842F20E0538714000A44FF",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(os_name=macos)(os_arch=amd64)(java_version=11))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "java",
+          "value": "jdk11",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "os",
+          "value": "macos",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "True",
+          "description": "Artifact type"
+        }
+      ],
+      "displayName": "GraalVM Core macos amd64 22.2.0 jdk11 ee",
+      "checksum": "bcf84250ef8154e49d4b41ff60cc289c7c3980bd783737ae2c4a7578b049db51",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:26.474Z"
+    },
+    {
+      "id": "DBD206227AD33259E0538714000A8AC8",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(os_name=linux)(os_arch=amd64)(java_version=17))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "os",
+          "value": "linux",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "True",
+          "description": "Artifact type"
+        }
+      ],
+      "displayName": "GraalVM Core linux amd64 22.2.0 jdk17 ee",
+      "checksum": "2d8d5c8215db45528da319fafe34c6369fcffc0ef8b0d3e6891b4e3ea4c22e7b",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:26.435Z"
+    },
+    {
+      "id": "DBD206227ACB3259E0538714000A8AC8",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "supported",
+          "value": "True",
+          "description": "Status"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "java",
+          "value": "jdk11",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "os",
+          "value": "macos",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "True",
+          "description": "Artifact type"
+        }
+      ],
+      "displayName": "GraalVM Enterprise Edition 22.2.0 on jdk11 darwin amd64",
+      "checksum": "29198b90900629cbb2587a13b37258eb6ca9f93ec18b1cf42f3f37683e797749",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:25.218Z"
+    },
+    {
+      "id": "DBD206227AC33259E0538714000A8AC8",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "supported",
+          "value": "True",
+          "description": "Status"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "java",
+          "value": "jdk17",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "os",
+          "value": "linux",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "True",
+          "description": "Artifact type"
+        }
+      ],
+      "displayName": "GraalVM Enterprise Edition 22.2.0 on jdk17 linux amd64",
+      "checksum": "e7da04e927ecb28bf345702c5fe98aade1901c6f742d3f6ff1b157b82accc94c",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:24.919Z"
+    },
+    {
+      "id": "DBD206227AB63259E0538714000A8AC8",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=linux)(os_arch=aarch64)(java_version=11))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.llvm-toolchain",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "java",
+          "value": "jdk11",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "supported",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "supported",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "linux",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "aarch64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "False",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "LLVM.org toolchain linux aarch64 22.2.0 jdk11 ee",
+      "checksum": "b7c808d1dc1f2e6d4d26b8fa9fa488e3c34f5422a5f350f4fb6eb6cc162124ac",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:23.962Z"
+    },
+    {
+      "id": "DBD25450B9093307E0538714000AC8BE",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=linux)(os_arch=aarch64)(java_version=11))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.wasm",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages/wasm",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk11",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "experimental",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "experimental",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "linux",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "aarch64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "True",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "GraalWasm linux aarch64 22.2.0 jdk11 ee",
+      "checksum": "8d45638561e1486dad0a28c4f3f2ab175d6e3483bfde1cb3c4f7da6a505f3cc9",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:22.676Z"
+    },
+    {
+      "id": "DBD206227AA73259E0538714000A8AC8",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=linux)(os_arch=aarch64)(java_version=11))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "requireBundle",
+          "value": "org.graalvm.llvm-toolchain",
+          "description": "Require bundle"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.ruby",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages/ruby",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk11",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "experimental",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "experimental",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "linux",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "aarch64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "True",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "TruffleRuby linux aarch64 22.2.0 jdk11 ee",
+      "checksum": "7450b2106e745ee07b623d5577929174d72e065f1986ac51cabb5eba3d087af2",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:21.394Z"
+    },
+    {
+      "id": "DBD206227A993259E0538714000A8AC8",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=linux)(os_arch=aarch64)(java_version=11))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.espresso",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages/java",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk11",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "experimental",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "experimental",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "linux",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "aarch64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "True",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "Java on Truffle linux aarch64 22.2.0 jdk11 ee",
+      "checksum": "f0706d2695c1bc5ca13d7d470b98d37edda8ed8db56917f829116bff1dd19f86",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:20.131Z"
+    },
+    {
+      "id": "DBD206227A8A3259E0538714000A8AC8",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=linux)(os_arch=aarch64)(java_version=11))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "requireBundle",
+          "value": "org.graalvm.js",
+          "description": "Require bundle"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.nodejs",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages/nodejs",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk11",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "supported",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "supported",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "linux",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "aarch64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "True",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "Graal.nodejs linux aarch64 22.2.0 jdk11 ee",
+      "checksum": "bdaf1a2b19d1eaf669355944c02250e44a2b85396fe1555a28c2560e48ea0ab3",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:18.808Z"
+    },
+    {
+      "id": "DBD206227A7D3259E0538714000A8AC8",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=linux)(os_arch=aarch64)(java_version=11))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.native-image",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "java",
+          "value": "jdk11",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "earlyadopter",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "earlyadopter",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "linux",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "aarch64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "False",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "Native Image linux aarch64 22.2.0 jdk11 ee",
+      "checksum": "f37b23cbc162650b7047dff60d28acebdeb4f7968253c892cc38a9122b14acf4",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:17.553Z"
+    },
+    {
+      "id": "DBD206227A743259E0538714000A8AC8",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(os_name=linux)(os_arch=aarch64)(java_version=11))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "java",
+          "value": "jdk11",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "os",
+          "value": "linux",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "aarch64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "True",
+          "description": "Artifact type"
+        }
+      ],
+      "displayName": "GraalVM Core linux aarch64 22.2.0 jdk11 ee",
+      "checksum": "0e00306b0b906c9e36d27f7ff5fc7bfa18d9cd0ff50de1017b26ab79da6b4288",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:16.183Z"
+    },
+    {
+      "id": "DBD206227A6C3259E0538714000A8AC8",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "supported",
+          "value": "True",
+          "description": "Status"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "java",
+          "value": "jdk11",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "os",
+          "value": "linux",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "aarch64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "True",
+          "description": "Artifact type"
+        }
+      ],
+      "displayName": "GraalVM Enterprise Edition 22.2.0 on jdk11 linux aarch64",
+      "checksum": "785c4d637f350abc4499ff5fe64a0f259234efd6c44c202ce291956a0135be81",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:15.065Z"
+    },
+    {
+      "id": "DBD206227A5F3259E0538714000A8AC8",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=linux)(os_arch=amd64)(java_version=11))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.llvm-toolchain",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "java",
+          "value": "jdk11",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "supported",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "supported",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "linux",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "False",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "LLVM.org toolchain linux amd64 22.2.0 jdk11 ee",
+      "checksum": "2afcc41b5241170dacaf1d3817eb9c01232303479dcdcf289e60f3a96e489921",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:13.869Z"
+    },
+    {
+      "id": "DBD206227A503259E0538714000A8AC8",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=linux)(os_arch=amd64)(java_version=11))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "requireBundle",
+          "value": "org.graalvm.espresso",
+          "description": "Require bundle"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.espresso-llvm",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages/java",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk11",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "supported",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "supported",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "linux",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "False",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "Java on Truffle LLVM Java libraries linux amd64 22.2.0 jdk11 ee",
+      "checksum": "1d88d354def0132ebb7eb7b4af7c5fd39a3e2d9c6f039d8a8049ed5b6f28cfc4",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:12.481Z"
+    },
+    {
+      "id": "DBD206227A423259E0538714000A8AC8",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=linux)(os_arch=amd64)(java_version=11))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.wasm",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages/wasm",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk11",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "experimental",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "experimental",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "linux",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "True",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "GraalWasm linux amd64 22.2.0 jdk11 ee",
+      "checksum": "fb35b451af72c1cd66f1221c6596120e6780c0295a61ff900254caed9307d60c",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:11.081Z"
+    },
+    {
+      "id": "DBD206227A333259E0538714000A8AC8",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=linux)(os_arch=amd64)(java_version=11))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "requireBundle",
+          "value": "org.graalvm.llvm-toolchain",
+          "description": "Require bundle"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.python",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages/python",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk11",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "experimental",
+          "description": "Stability Level"
+        },
+        {
+          "key": "stability",
+          "value": "experimental",
+          "description": "Stability"
+        },
+        {
+          "key": "os",
+          "value": "linux",
+          "description": "Operating System"
+        },
+        {
+          "key": "arch",
+          "value": "amd64",
+          "description": "Architecture"
+        },
+        {
+          "key": "isBase",
+          "value": "False",
+          "description": "Artifact type"
+        },
+        {
+          "key": "polyglot",
+          "value": "True",
+          "description": "Polyglot part"
+        },
+        {
+          "key": "supported",
+          "value": "False",
+          "description": "Status"
+        }
+      ],
+      "displayName": "Graal.Python linux amd64 22.2.0 jdk11 ee",
+      "checksum": "1fdd8a83aa176059d99a7656342309b44a11309f0455ba6d4851449911d7a6bd",
+      "status": "PUBLISHED",
+      "timeCreated": "2022-04-04T10:45:09.799Z"
+    },
+    {
+      "id": "DBD255350C752F20E0538714000A44FF",
+      "licenseId": "D53D4BDFD333BFD6E0538814000A1027",
+      "licenseName": "Oracle Technology Network License Agreement | GraalVM Enterprise Edition",
+      "productId": "DBD2062278CC3259E0538714000A8AC8",
+      "metadata": [
+        {
+          "key": "requiredCapabilities",
+          "value": "org.graalvm; filter:=\"(&(graalvm_version=22.2.0)(os_name=linux)(os_arch=amd64)(java_version=11))\"",
+          "description": "Required Capabilities"
+        },
+        {
+          "key": "version",
+          "value": "22.2.0",
+          "description": "Release version"
+        },
+        {
+          "key": "requireBundle",
+          "value": "org.graalvm.llvm-toolchain",
+          "description": "Require bundle"
+        },
+        {
+          "key": "symbolicName",
+          "value": "org.graalvm.ruby",
+          "description": "Symbolic name"
+        },
+        {
+          "key": "workingDirectories",
+          "value": "languages/ruby",
+          "description": "Working Directory"
+        },
+        {
+          "key": "java",
+          "value": "jdk11",
+          "description": "Java version"
+        },
+        {
+          "key": "edition",
+          "value": "ee",
+          "description": "Edition"
+        },
+        {
+          "key": "stabilityLevel",
+          "value": "experimental",
+          "description": "Stability Level"
+        },
+        {

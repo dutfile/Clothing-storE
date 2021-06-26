@@ -48,4 +48,35 @@ public final class AArch64CGlobalDataLoadAddressOp extends AArch64LIRInstruction
 
     private final CGlobalDataInfo dataInfo;
 
-    AArch64CGlob
+    AArch64CGlobalDataLoadAddressOp(CGlobalDataInfo dataInfo, AllocatableValue result) {
+        super(TYPE);
+        this.dataInfo = dataInfo;
+        this.result = result;
+    }
+
+    @Override
+    public void emitCode(CompilationResultBuilder crb, AArch64MacroAssembler masm) {
+        int addressBitSize = result.getPlatformKind().getSizeInBytes() * Byte.SIZE;
+        assert addressBitSize == 64;
+        if (SubstrateUtil.HOSTED) {
+            // AOT compilation: record patch that is fixed up later
+            crb.compilationResult.recordDataPatch(masm.position(), new CGlobalDataReference(dataInfo));
+            Register resultRegister = asRegister(result);
+            if (dataInfo.isSymbolReference()) {
+                // Pure symbol reference: the data contains the symbol's address, load it
+                masm.adrpLdr(addressBitSize, resultRegister, resultRegister);
+            } else {
+                // Data: load its address
+                masm.adrpAdd(resultRegister);
+            }
+        } else {
+            // Runtime compilation: compute the actual address
+            Pointer globalsBase = CGlobalDataInfo.CGLOBALDATA_RUNTIME_BASE_ADDRESS.get();
+            Pointer address = globalsBase.add(dataInfo.getOffset());
+            masm.mov(asRegister(result), address.rawValue());
+            if (dataInfo.isSymbolReference()) { // load data, which contains symbol's address
+                masm.ldr(addressBitSize, asRegister(result), AArch64Address.createBaseRegisterOnlyAddress(addressBitSize, asRegister(result)));
+            }
+        }
+    }
+}
