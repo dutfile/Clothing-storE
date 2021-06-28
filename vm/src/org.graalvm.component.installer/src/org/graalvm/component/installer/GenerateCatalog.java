@@ -218,4 +218,180 @@ public final class GenerateCatalog {
             pathBase = SystemUtils.fromUserString(pb).toAbsolutePath();
         }
         urlPrefix = env.optValue(OPT_URL_BASE);
-        graalVersionPrefix = env.optValue(OPT_GR
+        graalVersionPrefix = env.optValue(OPT_GRAAL_PREFIX);
+        if (graalVersionPrefix != null) {
+            graalVersionName = env.optValue(OPT_GRAAL_NAME);
+            if (graalVersionName == null) {
+                throw new IOException("Graal prefix specified, but no human-readable name");
+            }
+        }
+        forceVersion = env.optValue(OPT_FORCE_VERSION);
+        forceOS = env.optValue(OPT_FORCE_OS);
+        forceVariant = env.optValue(OPT_FORCE_VARIANT);
+        forceArch = env.optValue(OPT_FORCE_ARCH);
+        if (env.hasOption(OPT_FORMAT_1)) {
+            formatVer = 1;
+        } else if (env.hasOption(OPT_FORMAT_2)) {
+            formatVer = 2;
+        }
+        String s = env.optValue(OPT_GRAAL_NAME_FORMAT);
+        if (s != null) {
+            graalNameFormatString = s;
+        }
+
+        switch (formatVer) {
+            case 1:
+                graalVersionFormatString = "%s_%s%s_%s";
+                break;
+            case 2:
+                graalVersionFormatString = "%2$s%3$s_%4$s/%1$s";
+                break;
+            default:
+                throw new IllegalStateException();
+        }
+
+        if (env.hasOption(OPT_SEARCH_LOCATION)) {
+            Path listFrom = Paths.get(env.optValue("l"));
+            Files.walk(listFrom).filter((p) -> p.toString().endsWith(".jar")).forEach(
+                            (p) -> locations.add(p.toString()));
+        }
+        // process the rest of non-options parameters as locations.
+        while (env.hasParameter()) {
+            locations.add(env.nextParameter());
+        }
+
+        for (String spec : locations) {
+            File f = null;
+            String u = null;
+
+            int eq = spec.indexOf('=');
+            if (eq != -1) {
+                f = new File(spec.substring(0, eq));
+                if (!f.exists()) {
+                    throw new FileNotFoundException(f.toString());
+                }
+                String uriPart = spec.substring(eq + 1);
+                u = uriPart;
+            } else {
+                f = new File(spec);
+                if (!f.exists()) {
+                    f = null;
+                    u = spec;
+                    // create a URL, just to fail fast, if the URL is wrong:
+                    URL check = SystemUtils.toURL(spec);
+                    // ... and use it somehow, so ECJ does not fail the gate.
+                    assert check.toString() != null;
+                }
+            }
+            addComponentSpec(f, u);
+        }
+    }
+
+    private void addComponentSpec(File f, String u) {
+        Spec spc = new Spec(f, u);
+        if (f != null) {
+            if (pathBase != null) {
+                spc.relativePath = pathBase.relativize(f.toPath().toAbsolutePath()).toString();
+            }
+        }
+        componentSpecs.add(spc);
+    }
+
+    private URL createURL(String spec) throws MalformedURLException {
+        if (urlPrefix != null) {
+            return SystemUtils.toURL(urlPrefix, spec);
+        } else {
+            return SystemUtils.toURL(spec);
+        }
+    }
+
+    private void downloadFiles() throws IOException {
+        for (Spec spec : componentSpecs) {
+            if (spec.f == null) {
+                FileDownloader dn = new FileDownloader(spec.u, createURL(spec.u), env);
+                dn.setDisplayProgress(true);
+                dn.download();
+                spec.f = dn.getLocalFile();
+            }
+        }
+    }
+
+    private String os;
+    private String variant;
+    private String arch;
+    private String version;
+    private int formatVer = 1;
+
+    private String findComponentPrefix(ComponentInfo info) {
+        Map<String, String> m = info.getRequiredGraalValues();
+        if (graalVersionPrefix != null) {
+            arch = os = variant = null;
+            version = graalVersionPrefix;
+            return graalVersionPrefix;
+        }
+        if (forceVersion != null) {
+            version = forceVersion;
+        } else {
+            switch (formatVer) {
+                case 1:
+                    version = info.getVersionString();
+                    break;
+                case 2:
+                    version = info.getVersion().toString();
+                    break;
+            }
+        }
+        String var = forceVariant != null ? forceVariant : m.get(CommonConstants.CAP_OS_VARIANT);
+        return String.format(graalVersionFormatString,
+                        version,
+                        os = forceOS != null ? forceOS : m.get(CommonConstants.CAP_OS_NAME),
+                        variant = var == null || var.isEmpty() ? "" : "_" + var,
+                        arch = forceArch != null ? forceArch : m.get(CommonConstants.CAP_OS_ARCH));
+    }
+
+    private void generateReleases() {
+        for (String prefix : graalVMReleases.keySet()) {
+            GraalVersion ver = graalVMReleases.get(prefix);
+            String vprefix;
+            String n;
+            if (ver.os == null) {
+                vprefix = graalVersionPrefix;
+                n = graalVersionName;
+            } else {
+                // do not use serial for releases.
+                vprefix = String.format(graalVersionFormatString, ver.version, ver.os, ver.variant, ver.arch);
+                n = String.format(graalNameFormatString, ver.version, ver.os, ver.variant, ver.arch);
+            }
+            catalogHeader.append(GRAALVM_CAPABILITY).append('.').append(vprefix).append('=').append(n).append('\n');
+            if (ver.os == null) {
+                break;
+            }
+        }
+    }
+
+    private void generateCatalog() throws IOException {
+        for (Spec spec : componentSpecs) {
+            File f = spec.f;
+            byte[] hash = computeHash(f);
+            String hashString = digest2String(hash);
+            try (JarFile jf = new JarFile(f)) {
+                ComponentPackageLoader ldr = new JarMetaLoader(jf, hashString, env);
+                ComponentInfo info = ldr.createComponentInfo();
+                String prefix = findComponentPrefix(info);
+                if (!graalVMReleases.containsKey(prefix)) {
+                    graalVMReleases.put(prefix, new GraalVersion(version, os, variant, arch));
+                }
+                Manifest mf = jf.getManifest();
+                if (mf == null) {
+                    throw new IOException("No manifest in " + spec);
+                }
+                String tagString;
+
+                if (formatVer < 2 || info.getTag() == null || info.getTag().isEmpty()) {
+                    tagString = "";
+                } else {
+                    // include hash of the file in property prefix.
+                    tagString = "/" + hashString; // NOI18N
+                }
+                Attributes atts = mf.getMainAttributes();
+                String bid = atts.getValue(BundleConstants.BUNDLE_ID).toLowerCase().replace(
