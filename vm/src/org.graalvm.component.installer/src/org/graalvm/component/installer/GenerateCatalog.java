@@ -394,4 +394,85 @@ public final class GenerateCatalog {
                     tagString = "/" + hashString; // NOI18N
                 }
                 Attributes atts = mf.getMainAttributes();
-                String bid = atts.getValue(BundleConstants.BUNDLE_ID).toLowerCase().replace(
+                String bid = atts.getValue(BundleConstants.BUNDLE_ID).toLowerCase().replace("-", "_");
+                String bl = atts.getValue(BundleConstants.BUNDLE_NAME);
+
+                if (bid == null) {
+                    throw new IOException("Missing bundle id in " + spec);
+                }
+                if (bl == null) {
+                    throw new IOException("Missing bundle name in " + spec);
+                }
+                String name;
+                prefix += tagString;
+                if (spec.u != null) {
+                    name = spec.u.toString();
+                } else {
+                    name = spec.relativePath != null ? spec.relativePath : f.getName();
+                }
+                int pos;
+                while ((pos = name.indexOf("${")) != -1) {
+                    int endPos = name.indexOf("}", pos + 1);
+                    if (endPos == -1) {
+                        break;
+                    }
+                    String key = name.substring(pos + 2, endPos);
+                    String repl = info.getRequiredGraalValues().get(key);
+                    if (repl == null) {
+                        switch (key) {
+                            case "version":
+                                repl = version;
+                                break;
+                            case "os":
+                                repl = os;
+                                break;
+                            case "arch":
+                                repl = arch;
+                                break;
+                            case "comp_version":
+                                repl = info.getVersionString();
+                                break;
+                            default:
+                                throw new IllegalArgumentException(key);
+                        }
+                    }
+                    if (repl == null) {
+                        throw new IllegalArgumentException(key);
+                    }
+                    String toReplace = "${" + key + "}";
+                    name = name.replace(toReplace, repl);
+                }
+                String url = (urlPrefix == null || urlPrefix.isEmpty()) ? name : urlPrefix + "/" + name;
+                String sel;
+                String hashSuffix;
+
+                switch (formatVer) {
+                    case 1:
+                        sel = "Component.{0}.{1}";
+                        hashSuffix = "-hash";
+                        break;
+                    case 2:
+                        sel = "Component.{0}/{1}";
+                        hashSuffix = "-hash";
+                        break;
+                    default:
+                        throw new IllegalStateException();
+                }
+                catalogContents.append(MessageFormat.format(
+                                sel + "={2}\n", prefix, bid, url));
+                catalogContents.append(MessageFormat.format(
+                                sel + hashSuffix + "={2}\n", prefix, bid, hashString));
+
+                for (Object a : atts.keySet()) {
+                    String key = a.toString();
+                    String val = atts.getValue(key);
+                    if (key.startsWith("x-GraalVM-Message-")) { // NOI18N
+                        continue;
+                    }
+                    catalogContents.append(MessageFormat.format(
+                                    sel + "-{2}={3}\n", prefix, bid, key, val));
+                }
+            }
+        }
+    }
+}
