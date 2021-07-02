@@ -147,4 +147,121 @@ public class AllocationLimitsTest {
     public void allocaParameterOverflowInt() {
         exception.expect(PolyglotException.class);
         exception.expectMessage(EXCEEDS_LIMIT);
-        library.getMember("a
+        library.getMember("alloca_parameter").execute(0xFFFF_FFFF_0000_0010L);
+    }
+
+    @Test
+    public void allocaOverflowInt() {
+        exception.expect(PolyglotException.class);
+        exception.expectMessage("unsupported value range");
+        library.getMember("alloca_overflow_int").execute();
+    }
+
+    @Test
+    public void allocaOverflowIntI1() {
+        exception.expect(PolyglotException.class);
+        exception.expectMessage(EXCEEDS_LIMIT);
+        library.getMember("alloca_overflow_int_i1").execute();
+    }
+
+    @Test
+    public void allocaOverflowIntI64() {
+        exception.expect(PolyglotException.class);
+        exception.expectMessage(EXCEEDS_LIMIT);
+        library.getMember("alloca_overflow_int_i64").execute();
+    }
+
+    /**
+     * Checks whether we can create a ArrayType of maximum size (0xFFFF_FFFF_FFFF_FFFF) without
+     * allocating it.
+     */
+    @Test
+    public void arrayMaxSizePtr() {
+        Value v = library.getMember("array_max_size_ptr").execute(new Object[]{null});
+        Assert.assertTrue(v.asBoolean());
+    }
+
+    @Test
+    public void arrayNegativeOffset() {
+        Value v = library.getMember("alloca_array_negative_offset").execute();
+        Assert.assertEquals(2, v.asLong());
+    }
+
+    @Test
+    public void allocaArrayExceedSize() {
+        exception.expect(PolyglotException.class);
+        exception.expectMessage(EXCEEDS_LIMIT);
+        library.getMember("alloca_array_exceed_size").execute();
+    }
+
+    @Test
+    public void allocaArrayOverflowInt() {
+        exception.expect(PolyglotException.class);
+        exception.expectMessage(EXCEEDS_LIMIT);
+        library.getMember("alloca_array_overflow_int").execute();
+    }
+
+    /**
+     * Checks whether we can create a VectorType of maximum size (0xFFFFFFFF) without allocating it.
+     */
+    @Test
+    public void vectorMaxSizePtr() {
+        Value v = library.getMember("vector_max_size_ptr").execute(new Object[]{null});
+        Assert.assertTrue(v.asBoolean());
+    }
+
+    @Test
+    public void allocaVectorIntMinValue() {
+        exception.expect(PolyglotException.class);
+        exception.expectMessage(EXCEEDS_LIMIT);
+        library.getMember("alloca_vector_int_min_value").execute();
+    }
+
+    @Test
+    public void allocaVectorIntMinusOne() {
+        exception.expect(PolyglotException.class);
+        exception.expectMessage(EXCEEDS_LIMIT);
+        library.getMember("alloca_vector_int_minus_one").execute();
+    }
+
+    @Test
+    public void allocaVarWidthMinIntBits() {
+        Value v = library.getMember("alloca_varwidth_min_int_bits").execute();
+        Assert.assertTrue(v.asBoolean());
+    }
+
+    @Test
+    public void allocaVarWidthMaxIntBits() {
+        Value v = library.getMember("alloca_varwidth_max_int_bits").execute();
+        long bytesAllocated = v.asLong();
+        Assert.assertTrue(bytesAllocated != 0);
+    }
+
+    /**
+     * Checks whether we can create a {@link VariableBitWidthType} of
+     * {@link VariableBitWidthType#MAX_INT_BITS} size without allocating it.
+     */
+    @Test
+    public void varWidthMaxIntBitsPtr() {
+        Value v = library.getMember("varwidth_max_int_bits_ptr").execute(new Object[]{null});
+        Assert.assertTrue(v.asBoolean());
+    }
+
+    @Test
+    public void allocaVarWidthUnderflow() {
+        // we cannot easily create an out-of-range bitcode -- testing the constructor instead
+        exception.expect(LLVMParserException.class);
+        exception.expectMessage("out of range");
+        VariableBitWidthType varWidth = new VariableBitWidthType(VariableBitWidthType.MIN_INT_BITS - 1);
+        Assert.assertNotNull(varWidth);
+    }
+
+    @Test
+    public void allocaVarWidthOverflow() {
+        // we cannot easily create an out-of-range bitcode -- testing the constructor instead
+        exception.expect(LLVMParserException.class);
+        exception.expectMessage("out of range");
+        VariableBitWidthType varWidth = new VariableBitWidthType(VariableBitWidthType.MAX_INT_BITS + 1);
+        Assert.assertNotNull(varWidth);
+    }
+}
