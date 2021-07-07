@@ -49,4 +49,61 @@ import com.oracle.truffle.api.nodes.NodeInfo;
 import com.oracle.truffle.api.strings.TruffleString;
 import com.oracle.truffle.sl.SLLanguage;
 import com.oracle.truffle.sl.nodes.SLExpressionNode;
-import c
+import com.oracle.truffle.sl.runtime.SLContext;
+import com.oracle.truffle.sl.runtime.SLFunction;
+import com.oracle.truffle.sl.runtime.SLFunctionRegistry;
+
+/**
+ * Constant literal for a {@link SLFunction function} value, created when a function name occurs as
+ * a literal in SL source code. Note that function redefinition can change the {@link CallTarget
+ * call target} that is executed when calling the function, but the {@link SLFunction} for a name
+ * never changes. This is guaranteed by the {@link SLFunctionRegistry}.
+ */
+@NodeInfo(shortName = "func")
+public final class SLFunctionLiteralNode extends SLExpressionNode {
+
+    /** The name of the function. */
+    private final TruffleString functionName;
+
+    /**
+     * The resolved function. During parsing (in the constructor of this node), we do not have the
+     * {@link SLContext} available yet, so the lookup can only be done at {@link #executeGeneric
+     * first execution}. The {@link CompilationFinal} annotation ensures that the function can still
+     * be constant folded during compilation.
+     */
+    @CompilationFinal private SLFunction cachedFunction;
+
+    public SLFunctionLiteralNode(TruffleString functionName) {
+        this.functionName = functionName;
+    }
+
+    @Override
+    public SLFunction executeGeneric(VirtualFrame frame) {
+        SLLanguage l = SLLanguage.get(this);
+        CompilerAsserts.partialEvaluationConstant(l);
+
+        SLFunction function;
+        if (l.isSingleContext()) {
+            function = this.cachedFunction;
+            if (function == null) {
+                /* We are about to change a @CompilationFinal field. */
+                CompilerDirectives.transferToInterpreterAndInvalidate();
+                /* First execution of the node: lookup the function in the function registry. */
+                this.cachedFunction = function = SLContext.get(this).getFunctionRegistry().lookup(functionName, true);
+            }
+        } else {
+            /*
+             * We need to rest the cached function otherwise it might cause a memory leak.
+             */
+            if (this.cachedFunction != null) {
+                CompilerDirectives.transferToInterpreterAndInvalidate();
+                this.cachedFunction = null;
+            }
+            // in the multi-context case we are not allowed to store
+            // SLFunction objects in the AST. Instead we always perform the lookup in the hash map.
+            function = SLContext.get(this).getFunctionRegistry().lookup(functionName, true);
+        }
+        return function;
+    }
+
+}
