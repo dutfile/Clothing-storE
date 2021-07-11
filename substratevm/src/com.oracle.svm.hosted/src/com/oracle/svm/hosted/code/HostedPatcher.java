@@ -19,4 +19,34 @@
  * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
  *
  * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
- * or visit www.oracle.com if you need additional information 
+ * or visit www.oracle.com if you need additional information or have any
+ * questions.
+ */
+package com.oracle.svm.hosted.code;
+
+import com.oracle.svm.hosted.image.RelocatableBuffer;
+
+import jdk.vm.ci.code.site.Reference;
+
+/**
+ * Patcher used when building native images (Hosted mode).
+ */
+public interface HostedPatcher {
+    /**
+     * Create relocation for the binary file.
+     *
+     * @param ref value instruction sequence should refer to
+     * @param relocs buffer of added relocation site information
+     * @param compStart codecache-relative starting position this method's machine code
+     */
+    void relocate(Reference ref, RelocatableBuffer relocs, int compStart);
+
+    /**
+     * Patch the code buffer.
+     *
+     * @param compStart codecache-relative starting position this method's machine code
+     * @param relative pc-relative offset
+     * @param code machine code generated for this method
+     */
+    void patch(int compStart, int relative, byte[] code);
+}
