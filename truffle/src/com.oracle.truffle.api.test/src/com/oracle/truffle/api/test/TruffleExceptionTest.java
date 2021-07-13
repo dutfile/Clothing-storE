@@ -174,4 +174,126 @@ public class TruffleExceptionTest extends AbstractPolyglotTest {
                     return new TruffleExceptionImpl("Test exception", n);
                 });
                 CallTarget throwTarget = new TestRootNode(languageInstance, "test-throw-internal", null, true, throwNode).getCallTarget();
-                CallTa
+                CallTarget innerInvokeTarget = new TestRootNode(languageInstance, "test-call-inner", null, new InvokeNode(throwTarget)).getCallTarget();
+                CallTarget internalInvokeTarget = new TestRootNode(languageInstance, "test-call-internal", null, true, new InvokeNode(innerInvokeTarget)).getCallTarget();
+                CallTarget outerInvokeTarget = new TestRootNode(languageInstance, "test-call-outer", null, new InvokeNode(internalInvokeTarget)).getCallTarget();
+                return outerInvokeTarget;
+            }
+        },
+                        "<proxyLanguage> test-call-inner",
+                        "<proxyLanguage> test-call-outer",
+                        "(org.graalvm.sdk/)?org.graalvm.polyglot.Context.eval");
+    }
+
+    @Test
+    public void testPolyglotStackTraceExplicitFillIn() {
+        testStackTraceImpl(new ProxyLanguage() {
+            @Override
+            protected CallTarget parse(TruffleLanguage.ParsingRequest request) throws Exception {
+                ThrowNode throwNode = new ThrowNode((n) -> {
+                    TruffleExceptionImpl e = new TruffleExceptionImpl("Test exception", n);
+                    TruffleStackTrace.fillIn(e);
+                    return e;
+                });
+                return new TestRootNode(languageInstance, "test", null, throwNode).getCallTarget();
+            }
+        },
+                        "<proxyLanguage> test",
+                        "(org.graalvm.sdk/)?org.graalvm.polyglot.Context.eval");
+    }
+
+    @Test
+    public void testPolyglotStackTraceInternalError() {
+        testStackTraceImpl(new ProxyLanguage() {
+            @Override
+            protected CallTarget parse(TruffleLanguage.ParsingRequest request) throws Exception {
+                ThrowNode throwNode = new ThrowNode(new InternalExceptionFactory());
+                return new TestRootNode(languageInstance, "test", null, throwNode).getCallTarget();
+            }
+        },
+                        Pattern.quote("com.oracle.truffle.api.test.TruffleExceptionTest$InternalExceptionFactory.apply"),
+                        Pattern.quote("com.oracle.truffle.api.test.TruffleExceptionTest$ThrowNode.executeVoid"),
+                        Pattern.quote("com.oracle.truffle.api.test.TruffleExceptionTest$TestRootNode.execute"),
+                        "<proxyLanguage> test",
+                        "(org.graalvm.sdk/)?org.graalvm.polyglot.Context.eval");
+    }
+
+    @Test
+    public void testExceptionFromCreateContext() {
+        String message = "Failed to create";
+        ExceptionType type = ExceptionType.EXIT;
+        assertFails(() -> setupEnv(Context.create(), new ProxyLanguage() {
+            @Override
+            protected LanguageContext createContext(Env env) {
+                throw new TruffleExceptionImpl(message, null, type, null);
+            }
+        }), PolyglotException.class, (pe) -> {
+            Assert.assertEquals(message, pe.getMessage());
+            Assert.assertTrue(pe.isExit());
+            Assert.assertFalse(pe.isInternalError());
+            Assert.assertEquals(0, pe.getExitStatus());
+            Assert.assertNull(pe.getGuestObject());
+        });
+    }
+
+    private void testStackTraceImpl(ProxyLanguage proxy, String... patterns) {
+        setupEnv(Context.create(), proxy);
+        assertFails(() -> context.eval(ProxyLanguage.ID, "Test"), PolyglotException.class, (pe) -> {
+            verifyStackTrace(pe, patterns);
+        });
+    }
+
+    static void verifyStackTrace(PolyglotException pe, String... patterns) {
+        StringWriter buffer = new StringWriter();
+        try (PrintWriter out = new PrintWriter(buffer)) {
+            pe.printStackTrace(out);
+        }
+        String[] lines = Arrays.stream(buffer.toString().split(System.lineSeparator())).map((l) -> l.trim()).filter((l) -> l.startsWith("at ")).map((l) -> {
+            int end = l.lastIndexOf('(');
+            if (end < 0) {
+                end = l.length();
+            }
+            return l.substring(3, end);
+        }).toArray((len) -> new String[len]);
+        Assert.assertTrue("Not enough lines " + Arrays.toString(lines), patterns.length <= lines.length);
+        for (int i = 0; i < lines.length && i < patterns.length; i++) {
+            String line = lines[i];
+            Pattern pattern = Pattern.compile(patterns[i]);
+            Assert.assertTrue("Expected " + patterns[i] + " but got " + line, pattern.matcher(line).matches());
+        }
+    }
+
+    @Test
+    public void testExceptionFromPolyglotExceptionConstructor() {
+        // The IS_EXCEPTION cannot be tested, it is called by the InteropLibrary.Asserts before we
+        // get to the creation of PolyglotExceptionImpl.
+        testExceptionFromPolyglotExceptionConstructorImpl(ExceptionType.RUNTIME_ERROR, false);
+        testExceptionFromPolyglotExceptionConstructorImpl(ExceptionType.RUNTIME_ERROR, true, TruffleExceptionImpl.MessageKind.GET_EXCEPTION_TYPE);
+        testExceptionFromPolyglotExceptionConstructorImpl(ExceptionType.EXIT, true, TruffleExceptionImpl.MessageKind.GET_EXCEPTION_EXIT_STATUS);
+        testExceptionFromPolyglotExceptionConstructorImpl(ExceptionType.PARSE_ERROR, true, TruffleExceptionImpl.MessageKind.IS_EXCEPTION_INCOMPLETE_SOURCE);
+        testExceptionFromPolyglotExceptionConstructorImpl(ExceptionType.RUNTIME_ERROR, true, TruffleExceptionImpl.MessageKind.HAS_SOURCE_LOCATION);
+        testExceptionFromPolyglotExceptionConstructorImpl(ExceptionType.RUNTIME_ERROR, true, TruffleExceptionImpl.MessageKind.GET_SOURCE_LOCATION);
+    }
+
+    private void testExceptionFromPolyglotExceptionConstructorImpl(ExceptionType type, boolean hasInternal, TruffleExceptionImpl.MessageKind... failOn) {
+        setupEnv(Context.create(), new ProxyLanguage() {
+            @Override
+            protected CallTarget parse(TruffleLanguage.ParsingRequest request) throws Exception {
+                InjectException injectException = new InjectException(failOn);
+                ThrowNode throwNode = new ThrowNode((n) -> new TruffleExceptionImpl("test", n, type, injectException));
+                return new TestRootNode(languageInstance, "test", "unnamed", throwNode).getCallTarget();
+            }
+        });
+        assertFails(() -> context.eval(ProxyLanguage.ID, "Test"), PolyglotException.class, (pe) -> {
+            Assert.assertFalse(pe.isInternalError());
+            if (hasInternal) {
+                Assert.assertEquals(1, pe.getSuppressed().length);
+                Assert.assertTrue(((PolyglotException) pe.getSuppressed()[0]).isInternalError());
+            } else {
+                Assert.assertEquals(0, pe.getSuppressed().length);
+            }
+        });
+    }
+
+    static Context createContext(VerifyingHandler handler) {
+        return Context.newBuilder().option
