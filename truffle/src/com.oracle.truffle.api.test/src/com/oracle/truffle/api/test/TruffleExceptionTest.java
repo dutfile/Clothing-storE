@@ -296,4 +296,207 @@ public class TruffleExceptionTest extends AbstractPolyglotTest {
     }
 
     static Context createContext(VerifyingHandler handler) {
-        return Context.newBuilder().option
+        return Context.newBuilder().option(String.format("log.%s.level", handler.loggerName), "FINE").logHandler(handler).build();
+    }
+
+    static CallTarget createAST(Class<?> testClass, TruffleLanguage<ProxyLanguage.LanguageContext> lang,
+                    ExceptionFactory exceptionObjectFactroy, boolean customStackTraceElementGuestObject) {
+        ThrowNode throwNode = new ThrowNode(exceptionObjectFactroy);
+        TryCatchNode tryCatch = new TryCatchNode(new BlockNode(testClass, BlockNode.Kind.TRY, throwNode),
+                        new BlockNode(testClass, BlockNode.Kind.CATCH),
+                        new BlockNode(testClass, BlockNode.Kind.FINALLY));
+        return new TestRootNode(lang, "test", customStackTraceElementGuestObject ? "unnamed" : null, tryCatch).getCallTarget();
+    }
+
+    @SuppressWarnings({"unchecked", "unused"})
+    static <T extends Throwable> T sthrow(Class<T> type, Throwable t) throws T {
+        throw (T) t;
+    }
+
+    static final class TestRootNode extends RootNode {
+
+        private final String name;
+        private final String ownerName;
+        private final boolean internal;
+        private final StackTraceElementGuestObject customStackTraceElementGuestObject;
+        @Child StatementNode body;
+
+        TestRootNode(TruffleLanguage<?> language, String name, String ownerName, StatementNode body) {
+            this(language, name, ownerName, false, body);
+        }
+
+        TestRootNode(TruffleLanguage<?> language, String name, String ownerName, boolean internal, StatementNode body) {
+            super(language);
+            this.name = name;
+            this.ownerName = ownerName;
+            this.internal = internal;
+            this.body = body;
+            this.customStackTraceElementGuestObject = ownerName != null ? new StackTraceElementGuestObject(name, ownerName) : null;
+        }
+
+        @Override
+        public String getQualifiedName() {
+            return ownerName != null ? ownerName + '.' + name : name;
+        }
+
+        @Override
+        public String getName() {
+            return name;
+        }
+
+        @Override
+        public Object execute(VirtualFrame frame) {
+            body.executeVoid(frame);
+            return true;
+        }
+
+        @Override
+        protected Object translateStackTraceElement(TruffleStackTraceElement element) {
+            if (customStackTraceElementGuestObject != null) {
+                return customStackTraceElementGuestObject;
+            } else {
+                return super.translateStackTraceElement(element);
+            }
+        }
+
+        @Override
+        public boolean isInternal() {
+            return internal;
+        }
+    }
+
+    @ExportLibrary(InteropLibrary.class)
+    static final class StackTraceElementGuestObject implements TruffleObject {
+
+        private final String name;
+        private final Object owner;
+
+        StackTraceElementGuestObject(String name, String ownerName) {
+            this.name = name;
+            this.owner = new OwnerMetaObject(ownerName);
+        }
+
+        @ExportMessage
+        @SuppressWarnings("static-method")
+        boolean hasExecutableName() {
+            return true;
+        }
+
+        @ExportMessage
+        Object getExecutableName() {
+            return name;
+        }
+
+        @ExportMessage
+        @SuppressWarnings("static-method")
+        boolean hasDeclaringMetaObject() {
+            return true;
+        }
+
+        @ExportMessage
+        Object getDeclaringMetaObject() {
+            return owner;
+        }
+
+        @ExportLibrary(InteropLibrary.class)
+        static final class OwnerMetaObject implements TruffleObject {
+
+            private final String name;
+
+            OwnerMetaObject(String name) {
+                this.name = name;
+            }
+
+            @ExportMessage
+            @SuppressWarnings("static-method")
+            boolean isMetaObject() {
+                return true;
+            }
+
+            @ExportMessage
+            @SuppressWarnings({"static-method", "unused"})
+            boolean isMetaInstance(Object object) {
+                return false;
+            }
+
+            @ExportMessage
+            Object getMetaQualifiedName() {
+                return name;
+            }
+
+            @ExportMessage
+            Object getMetaSimpleName() {
+                return name;
+            }
+        }
+    }
+
+    abstract static class StatementNode extends Node {
+        abstract void executeVoid(VirtualFrame frame);
+    }
+
+    static class BlockNode extends StatementNode {
+
+        enum Kind {
+            TRY,
+            CATCH,
+            FINALLY
+        }
+
+        @Children private StatementNode[] children;
+
+        BlockNode(Class<?> testClass, Kind kind, StatementNode... children) {
+            this.children = new StatementNode[children.length + 1];
+            this.children[0] = new LogNode(testClass, kind.name());
+            System.arraycopy(children, 0, this.children, 1, children.length);
+        }
+
+        @Override
+        @ExplodeLoop
+        void executeVoid(VirtualFrame frame) {
+            for (StatementNode child : children) {
+                child.executeVoid(frame);
+            }
+        }
+    }
+
+    private static class LogNode extends StatementNode {
+
+        private final TruffleLogger log;
+        private final String message;
+
+        LogNode(Class<?> testClass, String message) {
+            log = TruffleLogger.getLogger(ProxyLanguage.ID, testClass.getName());
+            this.message = message;
+        }
+
+        @Override
+        void executeVoid(VirtualFrame frame) {
+            log.fine(message);
+        }
+    }
+
+    private static final class TryCatchNode extends StatementNode {
+
+        @Child private BlockNode block;
+        @Child private BlockNode catchBlock;
+        @Child private BlockNode finallyBlock;
+        @Child private InteropLibrary exceptions = InteropLibrary.getFactory().createDispatched(5);
+        private final BranchProfile exceptionProfile = BranchProfile.create();
+
+        TryCatchNode(BlockNode block, BlockNode catchBlock, BlockNode finallyBlock) {
+            this.block = block;
+            this.catchBlock = catchBlock;
+            this.finallyBlock = finallyBlock;
+        }
+
+        @Override
+        void executeVoid(VirtualFrame frame) {
+            Throwable exception = null;
+            try {
+                block.executeVoid(frame);
+            } catch (Throwable ex) {
+                exception = executeCatchBlock(frame, ex, catchBlock);
+            }
+            // Java finally blocks that execute nodes are not allowed for
+            // compilation as code in finally blocks
