@@ -499,4 +499,170 @@ public class TruffleExceptionTest extends AbstractPolyglotTest {
                 exception = executeCatchBlock(frame, ex, catchBlock);
             }
             // Java finally blocks that execute nodes are not allowed for
-            // compilation as code in finally blocks
+            // compilation as code in finally blocks is duplicated
+            // by the Java bytecode compiler. This can lead to
+            // exponential code growth in worst cases.
+            if (finallyBlock != null) {
+                finallyBlock.executeVoid(frame);
+            }
+            if (exception != null) {
+                if (exception instanceof ControlFlowException) {
+                    throw (ControlFlowException) exception;
+                }
+                try {
+                    throw exceptions.throwException(exception);
+                } catch (UnsupportedMessageException ie) {
+                    throw CompilerDirectives.shouldNotReachHere(ie);
+                }
+            }
+        }
+
+        @SuppressWarnings("unchecked")
+        private <T extends Throwable> Throwable executeCatchBlock(VirtualFrame frame, Throwable ex, BlockNode catchBlk) throws T {
+            if (ex instanceof ControlFlowException) {
+                // run finally blocks for control flow
+                return ex;
+            }
+            exceptionProfile.enter();
+            if (exceptions.isException(ex)) {
+                assertTruffleExceptionProperties(ex);
+                if (catchBlk != null) {
+                    try {
+                        catchBlk.executeVoid(frame);
+                        return null;
+                    } catch (Throwable catchEx) {
+                        return executeCatchBlock(frame, catchEx, null);
+                    }
+                } else {
+                    // run finally blocks for any interop exception
+                    return ex;
+                }
+            } else {
+                // do not run finally blocks for internal errors or unwinds
+                throw (T) ex;
+            }
+        }
+
+        @TruffleBoundary
+        private void assertTruffleExceptionProperties(Throwable ex) {
+            try {
+                Assert.assertEquals(ExceptionType.RUNTIME_ERROR, exceptions.getExceptionType(ex));
+                AbstractPolyglotTest.assertFails(() -> {
+                    exceptions.getExceptionExitStatus(ex);
+                    return null;
+                }, UnsupportedMessageException.class);
+                if (ex.getMessage() != null) {
+                    Assert.assertTrue(exceptions.hasExceptionMessage(ex));
+                    Assert.assertEquals(ex.getMessage(), exceptions.getExceptionMessage(ex));
+                } else {
+                    Assert.assertFalse(exceptions.hasExceptionMessage(ex));
+                }
+                assertStackTrace(ex);
+            } catch (InteropException ie) {
+                CompilerDirectives.shouldNotReachHere(ie);
+            }
+        }
+
+        private void assertStackTrace(Throwable t) throws UnsupportedMessageException, InvalidArrayIndexException {
+            List<TruffleStackTraceElement> stack = TruffleStackTrace.getStackTrace(t);
+            Object stackGuestObject = exceptions.getExceptionStackTrace(t);
+            Assert.assertTrue(exceptions.hasArrayElements(stackGuestObject));
+            Assert.assertEquals(stack.size(), exceptions.getArraySize(stackGuestObject));
+            for (int i = 0; i < stack.size(); i++) {
+                Object stackTraceElementObject = exceptions.readArrayElement(stackGuestObject, i);
+                verifyStackTraceElementGuestObject(stackTraceElementObject);
+                Assert.assertTrue(exceptions.hasExecutableName(stackTraceElementObject));
+                String executableName = exceptions.asString(exceptions.getExecutableName(stackTraceElementObject));
+                Assert.assertEquals(stack.get(i).getTarget().getRootNode().getName(), executableName);
+                String qualifiedName;
+                if (exceptions.hasDeclaringMetaObject(stackTraceElementObject)) {
+                    qualifiedName = exceptions.asString(exceptions.getMetaQualifiedName(exceptions.getDeclaringMetaObject(stackTraceElementObject))) + '.' + executableName;
+                } else {
+                    qualifiedName = executableName;
+                }
+                Assert.assertEquals(stack.get(i).getTarget().getRootNode().getQualifiedName(), qualifiedName);
+            }
+        }
+    }
+
+    interface ExceptionFactory {
+        Object apply(Node t);
+    }
+
+    static final class InternalExceptionFactory implements ExceptionFactory {
+        @Override
+        public Object apply(Node t) {
+            CompilerDirectives.transferToInterpreter();
+            throw new RuntimeException();
+        }
+    }
+
+    static class ThrowNode extends StatementNode {
+
+        private final ExceptionFactory exceptionObjectFactory;
+        @Child InteropLibrary interop;
+
+        ThrowNode(ExceptionFactory exceptionObjectFactroy) {
+            this.exceptionObjectFactory = exceptionObjectFactroy;
+            this.interop = InteropLibrary.getFactory().createDispatched(1);
+        }
+
+        @Override
+        void executeVoid(VirtualFrame frame) {
+            try {
+                throw interop.throwException(exceptionObjectFactory.apply(this));
+            } catch (UnsupportedMessageException um) {
+                throw CompilerDirectives.shouldNotReachHere(um);
+            }
+        }
+    }
+
+    static class InvokeNode extends StatementNode {
+
+        private final DirectCallNode call;
+
+        InvokeNode(CallTarget target) {
+            this.call = Truffle.getRuntime().createDirectCallNode(target);
+        }
+
+        @Override
+        void executeVoid(VirtualFrame frame) {
+            this.call.call();
+        }
+    }
+
+    @SuppressWarnings("serial")
+    @ExportLibrary(InteropLibrary.class)
+    static final class TruffleExceptionImpl extends AbstractTruffleException {
+
+        enum MessageKind {
+            IS_EXCEPTION,
+            THROW_EXCEPTION,
+            GET_EXCEPTION_TYPE,
+            GET_EXCEPTION_EXIT_STATUS,
+            IS_EXCEPTION_INCOMPLETE_SOURCE,
+            HAS_SOURCE_LOCATION,
+            GET_SOURCE_LOCATION
+        }
+
+        private final ExceptionType exceptionType;
+        private final Consumer<MessageKind> exceptionInjection;
+
+        TruffleExceptionImpl(String message, Node location) {
+            this(message, location, ExceptionType.RUNTIME_ERROR, null);
+        }
+
+        TruffleExceptionImpl(
+                        String message,
+                        Node location,
+                        ExceptionType exceptionType,
+                        Consumer<MessageKind> exceptionInjection) {
+            super(message, location);
+            this.exceptionType = exceptionType;
+            this.exceptionInjection = exceptionInjection;
+        }
+
+        @ExportMessage
+        boolean isException() {
+            injectException(MessageKind.IS_EXCEPTION);
+            retur
