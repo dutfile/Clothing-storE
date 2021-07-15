@@ -665,4 +665,114 @@ public class TruffleExceptionTest extends AbstractPolyglotTest {
         @ExportMessage
         boolean isException() {
             injectException(MessageKind.IS_EXCEPTION);
-            retur
+            return true;
+        }
+
+        @ExportMessage
+        RuntimeException throwException() {
+            injectException(MessageKind.THROW_EXCEPTION);
+            throw this;
+        }
+
+        @ExportMessage
+        ExceptionType getExceptionType() {
+            injectException(MessageKind.GET_EXCEPTION_TYPE);
+            return exceptionType;
+        }
+
+        @ExportMessage
+        int getExceptionExitStatus() throws UnsupportedMessageException {
+            injectException(MessageKind.GET_EXCEPTION_EXIT_STATUS);
+            if (exceptionType != ExceptionType.EXIT) {
+                throw UnsupportedMessageException.create();
+            } else {
+                return 0;
+            }
+        }
+
+        @ExportMessage
+        boolean isExceptionIncompleteSource() throws UnsupportedMessageException {
+            injectException(MessageKind.IS_EXCEPTION_INCOMPLETE_SOURCE);
+            if (exceptionType != ExceptionType.PARSE_ERROR) {
+                throw UnsupportedMessageException.create();
+            } else {
+                return true;
+            }
+        }
+
+        @ExportMessage
+        boolean hasSourceLocation() {
+            injectException(MessageKind.HAS_SOURCE_LOCATION);
+            Node location = getLocation();
+            return location != null && location.getEncapsulatingSourceSection() != null;
+        }
+
+        @ExportMessage(name = "getSourceLocation")
+        SourceSection getSource() throws UnsupportedMessageException {
+            injectException(MessageKind.GET_SOURCE_LOCATION);
+            Node location = getLocation();
+            SourceSection section = location == null ? null : location.getEncapsulatingSourceSection();
+            if (section == null) {
+                throw UnsupportedMessageException.create();
+            } else {
+                return section;
+            }
+        }
+
+        @TruffleBoundary
+        private void injectException(MessageKind messageKind) {
+            if (exceptionInjection != null) {
+                exceptionInjection.accept(messageKind);
+            }
+        }
+    }
+
+    private static final class InjectException implements Consumer<TruffleExceptionImpl.MessageKind> {
+
+        private final Set<TruffleExceptionImpl.MessageKind> messages;
+
+        private InjectException(TruffleExceptionImpl.MessageKind... messages) {
+            this.messages = EnumSet.noneOf(TruffleExceptionImpl.MessageKind.class);
+            Collections.addAll(this.messages, messages);
+        }
+
+        @Override
+        public void accept(TruffleExceptionImpl.MessageKind kind) {
+            if (messages.contains(kind)) {
+                throw new RuntimeException();
+            }
+        }
+    }
+
+    static final class VerifyingHandler extends Handler {
+
+        final String loggerName;
+        private Queue<String> expected = new ArrayDeque<>();
+
+        VerifyingHandler(Class<?> testClass) {
+            loggerName = String.format("%s.%s", ProxyLanguage.ID, testClass.getName());
+        }
+
+        void expect(BlockNode.Kind... kinds) {
+            Arrays.stream(kinds).map(BlockNode.Kind::name).forEach(expected::add);
+        }
+
+        @Override
+        public void publish(LogRecord lr) {
+            if (loggerName.equals(lr.getLoggerName())) {
+                String head = expected.remove();
+                Assert.assertEquals(head, lr.getMessage());
+            }
+        }
+
+        @Override
+        public void flush() {
+        }
+
+        @Override
+        public void close() {
+            Assert.assertTrue("All expected events must be consumed. Remaining events: " + String.join(", ", expected), expected.isEmpty());
+        }
+    }
+
+}
