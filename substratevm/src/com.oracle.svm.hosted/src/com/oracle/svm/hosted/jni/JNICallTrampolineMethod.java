@@ -55,4 +55,92 @@ import com.oracle.svm.hosted.thread.VMThreadMTFeature;
 import jdk.vm.ci.code.CallingConvention;
 import jdk.vm.ci.code.RegisterValue;
 import jdk.vm.ci.meta.JavaType;
-import jdk.v
+import jdk.vm.ci.meta.ResolvedJavaField;
+import jdk.vm.ci.meta.ResolvedJavaMethod;
+import jdk.vm.ci.meta.ResolvedJavaType;
+
+/**
+ * A trampoline for implementing JNI functions for calling Java methods from native code:
+ * <p>
+ * <code>
+ * NativeType CallStatic<type>Method(JNIEnv *env, jclass clazz, jmethodID methodID, ...);
+ * NativeType Call<type>Method(JNIEnv *env, jobject obj, jmethodID methodID, ...);
+ * </code>
+ * <p>
+ * The {@code jmethodID} values that we pass out are the image heap offsets (or addresses) of
+ * {@link JNIAccessibleMethod} objects, which are immutable so they are never moved by the garbage
+ * collector. The trampoline simply jumps to the address of a specific call wrapper that is stored
+ * in a {@link #jumpAddressField field} of the object. The wrappers then take care of spilling
+ * callee-saved registers, transitioning from native to Java and back, obtaining the arguments in a
+ * particular form (varargs, array, va_list) and boxing/unboxing object handles as necessary.
+ */
+public class JNICallTrampolineMethod extends CustomSubstitutionMethod {
+    private final ResolvedJavaField jumpAddressField;
+    private final boolean nonVirtual;
+
+    public JNICallTrampolineMethod(ResolvedJavaMethod original, ResolvedJavaField jumpAddressField, boolean nonVirtual) {
+        super(original);
+        this.jumpAddressField = jumpAddressField;
+        this.nonVirtual = nonVirtual;
+    }
+
+    @Override
+    public int getModifiers() {
+        return super.getModifiers() & ~Modifier.NATIVE;
+    }
+
+    @Override
+    public StructuredGraph buildGraph(DebugContext debug, ResolvedJavaMethod method, HostedProviders providers, Purpose purpose) {
+        HostedGraphKit kit = new JNIGraphKit(debug, providers, method, purpose);
+        kit.append(new LoweredDeadEndNode());
+
+        return kit.finalizeGraph();
+    }
+
+    public ParseFunction createCustomParseFunction() {
+        return (debug, method, reason, config) -> {
+            // no parsing necessary
+        };
+    }
+
+    public CompileFunction createCustomCompileFunction() {
+        return (debug, method, identifier, reason, config) -> {
+            SubstrateBackend backend = config.getBackendForNormalMethod();
+
+            // Determine register for jmethodID argument
+            HostedProviders providers = (HostedProviders) config.getProviders();
+            List<JavaType> parameters = new ArrayList<>();
+            parameters.add(providers.getMetaAccess().lookupJavaType(JNIEnvironment.class));
+            parameters.add(providers.getMetaAccess().lookupJavaType(JNIObjectHandle.class));
+            if (nonVirtual) {
+                parameters.add(providers.getMetaAccess().lookupJavaType(JNIObjectHandle.class));
+            }
+            parameters.add(providers.getMetaAccess().lookupJavaType(JNIMethodId.class));
+            ResolvedJavaType returnType = providers.getWordTypes().getWordImplType();
+            CallingConvention callingConvention = backend.getCodeCache().getRegisterConfig().getCallingConvention(
+                            SubstrateCallingConventionKind.Native.toType(true), returnType, parameters.toArray(new JavaType[0]), backend);
+            RegisterValue threadArg = null;
+            int threadIsolateOffset = -1;
+            if (SubstrateOptions.SpawnIsolates.getValue()) {
+                threadArg = (RegisterValue) callingConvention.getArgument(0); // JNIEnv
+                if (SubstrateOptions.MultiThreaded.getValue()) {
+                    threadIsolateOffset = ImageSingletons.lookup(VMThreadMTFeature.class).offsetOf(VMThreads.IsolateTL);
+                }
+                // NOTE: GR-17030: JNI is currently broken in the single-threaded, multi-isolate
+                // case. Fixing this also requires changes to how trampolines are generated.
+            }
+            RegisterValue methodIdArg = (RegisterValue) callingConvention.getArgument(parameters.size() - 1);
+
+            return backend.createJNITrampolineMethod(method, identifier, threadArg, threadIsolateOffset, methodIdArg, getFieldOffset(providers));
+        };
+    }
+
+    private int getFieldOffset(HostedProviders providers) {
+        HostedMetaAccess metaAccess = (HostedMetaAccess) providers.getMetaAccess();
+        HostedUniverse universe = metaAccess.getUniverse();
+        AnalysisUniverse analysisUniverse = universe.getBigBang().getUniverse();
+        HostedField hostedField = universe.lookup(analysisUniverse.lookup(jumpAddressField));
+        assert hostedField.hasLocation();
+        return hostedField.getLocation();
+    }
+}
