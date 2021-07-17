@@ -94,4 +94,54 @@ public class SynchronizationTest {
         @Specialization
         Object doNotify(Object monitor) {
             Assert.assertEquals(false, Thread.holdsLock(getLock()));
-            final boolean holdsLock = ((Reent
+            final boolean holdsLock = ((ReentrantLock) getLock()).isHeldByCurrentThread();
+            Assert.assertEquals(false, holdsLock);
+
+            synchronized (monitor) {
+                monitor.notify();
+            }
+            return monitor;
+        }
+
+    }
+
+    static class IfNode extends ValueNode {
+
+        @Child WaitNode waitNode = WaitNodeFactory.create(null, null);
+        @Child NotifyNode notifyNode = NotifyNodeFactory.create(null);
+
+    }
+
+    @Test
+    public void testFirstExecutionDoesNotHoldLock() throws InterruptedException {
+        final Object monitor = new Object();
+        final CountDownLatch latch = new CountDownLatch(1);
+
+        final IfNode ifNode = new IfNode();
+
+        // We need a root node to get its lock
+        @SuppressWarnings("unused")
+        final CallTarget callTarget = TestHelper.createCallTarget(ifNode);
+
+        Thread waitThread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                ifNode.waitNode.executeEvaluated(monitor, latch);
+            }
+        });
+        waitThread.start();
+
+        Thread notifyThread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                ifNode.notifyNode.executeEvaluated(monitor);
+            }
+        });
+
+        latch.await();
+        notifyThread.start();
+
+        waitThread.join();
+        notifyThread.join();
+    }
+}
