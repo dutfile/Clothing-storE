@@ -35,4 +35,61 @@
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CO
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+package com.oracle.truffle.api.dsl.test;
+
+import static com.oracle.truffle.api.dsl.test.TestHelper.createRoot;
+import static com.oracle.truffle.api.dsl.test.TestHelper.executeWith;
+import static org.junit.Assert.assertEquals;
+
+import org.junit.Test;
+
+import com.oracle.truffle.api.dsl.Fallback;
+import com.oracle.truffle.api.dsl.NodeChild;
+import com.oracle.truffle.api.dsl.Specialization;
+import com.oracle.truffle.api.dsl.test.NullTestFactory.NullTest1Factory;
+import com.oracle.truffle.api.dsl.test.TypeSystemTest.TestRootNode;
+import com.oracle.truffle.api.dsl.test.TypeSystemTest.ValueNode;
+
+public class NullTest {
+
+    @Test
+    public void testGuardInvocations() {
+        TestRootNode<NullTest1> root = createRoot(NullTest1Factory.getInstance());
+
+        assertEquals("fallback", executeWith(root, (Object) null));
+        assertEquals(true, executeWith(root, true));
+        assertEquals(42L, executeWith(root, 42));
+        assertEquals("string", executeWith(root, "s"));
+        assertEquals("fallback", executeWith(root, (Object) null));
+    }
+
+    @SuppressWarnings("unused")
+    @NodeChild("a")
+    abstract static class NullTest1 extends ValueNode {
+
+        @Specialization
+        long s(long a) {
+            return a;
+        }
+
+        @Specialization
+        boolean s(boolean a) {
+            return a;
+        }
+
+        @Specialization
+        String s(String a) {
+            return "string";
+        }
+
+        @Fallback
+        Object s(Object a) {
+            return "fallback";
+        }
+
+    }
+
+}
