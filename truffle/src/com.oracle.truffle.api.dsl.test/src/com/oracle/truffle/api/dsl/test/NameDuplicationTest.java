@@ -21,4 +21,79 @@
  * without restriction, including without limitation the rights to copy, create
  * derivative works of, display, perform, and distribute the Software and make,
  * use, sell, offer for sale, import, export, have made, and have sold the
- * Software and the Larger
+ * Software and the Larger Work(s), and to sublicense the foregoing rights on
+ * either these or other terms.
+ *
+ * This license is subject to the following condition:
+ *
+ * The above copyright notice and either this complete permission notice or at a
+ * minimum a reference to the UPL must be included in all copies or substantial
+ * portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+package com.oracle.truffle.api.dsl.test;
+
+import com.oracle.truffle.api.dsl.NodeChild;
+import com.oracle.truffle.api.dsl.Specialization;
+import com.oracle.truffle.api.dsl.test.TypeSystemTest.ValueNode;
+
+@SuppressWarnings({"truffle-inlining", "truffle-neverdefault", "truffle-sharing"})
+public class NameDuplicationTest {
+
+    @NodeChild
+    abstract static class Test0 extends ValueNode {
+
+        @Specialization
+        int base(int a) {
+            return a;
+        }
+
+    }
+
+    @NodeChild
+    abstract static class Test1 extends ValueNode {
+
+        @Specialization
+        int generic(int a) {
+            return a;
+        }
+
+    }
+
+    @NodeChild
+    abstract static class Test2 extends ValueNode {
+
+        @Specialization
+        int polymorphic(int a) {
+            return a;
+        }
+
+    }
+
+    @NodeChild
+    abstract static class Test3 extends ValueNode {
+
+        @Specialization
+        int uninitialized(int a) {
+            return a;
+        }
+
+    }
+
+    abstract static class AddNode extends ValueNode {
+
+        @Specialization
+        int add() {
+            return 0;
+        }
+
+    }
+
+}
