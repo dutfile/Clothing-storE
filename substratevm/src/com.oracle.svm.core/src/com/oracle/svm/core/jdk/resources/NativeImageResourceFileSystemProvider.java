@@ -250,4 +250,10 @@ public class NativeImageResourceFileSystemProvider extends FileSystemProvider {
 
     void removeFileSystem() {
         try {
-            w
+            writeLock.lock();
+            fileSystem = null;
+        } finally {
+            writeLock.unlock();
+        }
+    }
+}
