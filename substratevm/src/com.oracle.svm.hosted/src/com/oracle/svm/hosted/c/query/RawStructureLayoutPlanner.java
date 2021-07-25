@@ -46,4 +46,166 @@ import com.oracle.svm.hosted.c.info.SizableInfo.SignednessValue;
 import com.oracle.svm.hosted.c.info.StructBitfieldInfo;
 import com.oracle.svm.hosted.c.info.StructFieldInfo;
 import com.oracle.svm.util.ReflectionUtil;
-import com
+import com.oracle.svm.util.ReflectionUtil.ReflectionUtilError;
+
+import jdk.vm.ci.meta.ResolvedJavaType;
+
+public final class RawStructureLayoutPlanner extends NativeInfoTreeVisitor {
+
+    private RawStructureLayoutPlanner(NativeLibraries nativeLibs) {
+        super(nativeLibs);
+    }
+
+    public static void plan(NativeLibraries nativeLibs, NativeCodeInfo nativeCodeInfo) {
+        /*
+         * Raw structure types have no C header file. They are stored in the built-in NativeCodeInfo
+         * object. We can therefore skip all the others.
+         */
+        if (!nativeCodeInfo.isBuiltin()) {
+            return;
+        }
+
+        RawStructureLayoutPlanner planner = new RawStructureLayoutPlanner(nativeLibs);
+        nativeCodeInfo.accept(planner);
+    }
+
+    @Override
+    protected void visitRawStructureInfo(RawStructureInfo info) {
+        if (info.isPlanned()) {
+            return;
+        }
+
+        ResolvedJavaType type = info.getAnnotatedElement();
+        for (ResolvedJavaType t : type.getInterfaces()) {
+            if (!nativeLibs.isPointerBase(t)) {
+                throw UserError.abort("Type %s must not implement %s", type, t);
+            }
+
+            if (t.equals(nativeLibs.getPointerBaseType())) {
+                continue;
+            }
+
+            ElementInfo einfo = nativeLibs.findElementInfo(t);
+            if (!(einfo instanceof RawStructureInfo)) {
+                throw UserError.abort(new CInterfaceError("Illegal super type " + t + " found", type).getMessage());
+            }
+
+            RawStructureInfo rinfo = (RawStructureInfo) einfo;
+            rinfo.accept(this);
+            assert rinfo.isPlanned();
+
+            if (info.getParentInfo() != null) {
+                throw UserError.abort(new CInterfaceError("Only single inheritance of RawStructure types is supported", type).getMessage());
+            }
+            info.setParentInfo(rinfo);
+        }
+
+        for (ElementInfo child : new ArrayList<>(info.getChildren())) {
+            if (child instanceof StructFieldInfo) {
+                StructFieldInfo fieldInfo = (StructFieldInfo) child;
+                StructFieldInfo parentFieldInfo = findParentFieldInfo(fieldInfo, info.getParentInfo());
+                if (parentFieldInfo != null) {
+                    fieldInfo.mergeChildrenAndDelete(parentFieldInfo);
+                } else {
+                    computeSize(fieldInfo);
+                }
+            }
+        }
+
+        planLayout(info);
+    }
+
+    @Override
+    protected void visitRawPointerToInfo(RawPointerToInfo info) {
+        info.getSizeInfo().setProperty(getSizeInBytes(info.getAnnotatedElement()));
+    }
+
+    private void computeSize(StructFieldInfo info) {
+        final int declaredSize;
+        if (info.isObject()) {
+            declaredSize = ConfigurationValues.getObjectLayout().getReferenceSize();
+        } else {
+            /*
+             * Resolve field size using the declared type in its accessors. Note that the field
+             * offsets are not calculated before visiting all StructFieldInfos and collecting all
+             * field types.
+             */
+            final ResolvedJavaType fieldType;
+            AccessorInfo accessor = info.getAccessorInfoWithSize();
+            switch (accessor.getAccessorKind()) {
+                case GETTER:
+                    fieldType = accessor.getReturnType();
+                    break;
+                case SETTER:
+                    fieldType = accessor.getValueParameterType();
+                    break;
+                default:
+                    throw shouldNotReachHere("Unexpected accessor kind " + accessor.getAccessorKind());
+            }
+            if (info.getKind() == ElementKind.INTEGER) {
+                info.getSignednessInfo().setProperty(isSigned(fieldType) ? SignednessValue.SIGNED : SignednessValue.UNSIGNED);
+            }
+            declaredSize = getSizeInBytes(fieldType);
+        }
+        info.getSizeInfo().setProperty(declaredSize);
+    }
+
+    /**
+     * Compute the offsets of each field.
+     */
+    private void planLayout(RawStructureInfo info) {
+        /* Inherit from the parent type. */
+        int currentOffset = info.getParentInfo() != null ? info.getParentInfo().getSizeInfo().getProperty() : 0;
+
+        List<StructFieldInfo> fields = new ArrayList<>();
+        for (ElementInfo child : info.getChildren()) {
+            if (child instanceof StructFieldInfo) {
+                fields.add((StructFieldInfo) child);
+            } else if (child instanceof StructBitfieldInfo) {
+                throw UserError.abort("StructBitfield is currently not supported by RawStructures!");
+            }
+        }
+
+        /*
+         * Sort fields in field size descending order. Note that prior to this, the fields are
+         * already sorted in alphabetical order.
+         */
+        fields.sort((f1, f2) -> f2.getSizeInfo().getProperty() - f1.getSizeInfo().getProperty());
+
+        for (StructFieldInfo finfo : fields) {
+            assert findParentFieldInfo(finfo, info.getParentInfo()) == null;
+            int fieldSize = finfo.getSizeInfo().getProperty();
+            currentOffset = alignOffset(currentOffset, fieldSize);
+            assert currentOffset % fieldSize == 0;
+            finfo.getOffsetInfo().setProperty(currentOffset);
+            currentOffset += fieldSize;
+        }
+
+        int totalSize;
+        Class<? extends IntUnaryOperator> sizeProviderClass = info.getAnnotatedElement().getAnnotation(RawStructure.class).sizeProvider();
+        if (sizeProviderClass == IntUnaryOperator.class) {
+            /* No sizeProvider specified in the annotation, so no adjustment necessary. */
+            totalSize = currentOffset;
+
+        } else {
+            IntUnaryOperator sizeProvider;
+            try {
+                sizeProvider = ReflectionUtil.newInstance(sizeProviderClass);
+            } catch (ReflectionUtilError ex) {
+                throw UserError.abort(ex.getCause(), "The size provider of @%s %s cannot be instantiated via no-argument constructor",
+                                RawStructure.class.getSimpleName(), info.getAnnotatedElement().toJavaName(true));
+            }
+
+            totalSize = sizeProvider.applyAsInt(currentOffset);
+            if (totalSize < currentOffset) {
+                throw UserError.abort("The size provider of @%s %s computed size %d which is smaller than the minimum size of %d",
+                                RawStructure.class.getSimpleName(), info.getAnnotatedElement().toJavaName(true), totalSize, currentOffset);
+            }
+        }
+
+        info.getSizeInfo().setProperty(totalSize);
+        info.setPlanned();
+    }
+
+    private StructFieldInfo findParentFieldInfo(StructFieldInfo fieldInfo, RawStructureInfo parentInfo) {
+        if (parentInfo == nu
