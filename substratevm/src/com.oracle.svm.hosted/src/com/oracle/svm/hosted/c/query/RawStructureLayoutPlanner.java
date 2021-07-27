@@ -208,4 +208,34 @@ public final class RawStructureLayoutPlanner extends NativeInfoTreeVisitor {
     }
 
     private StructFieldInfo findParentFieldInfo(StructFieldInfo fieldInfo, RawStructureInfo parentInfo) {
-        if (parentInfo == nu
+        if (parentInfo == null) {
+            return null;
+        }
+        StructFieldInfo result;
+        if (parentInfo.getParentInfo() != null) {
+            result = findParentFieldInfo(fieldInfo, parentInfo.getParentInfo());
+            if (result != null) {
+                return result;
+            }
+        }
+
+        for (ElementInfo child : parentInfo.getChildren()) {
+            if (child instanceof StructFieldInfo) {
+                StructFieldInfo parentFieldInfo = (StructFieldInfo) child;
+                if (fieldInfo.getName().equals(parentFieldInfo.getName())) {
+                    return parentFieldInfo;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static int alignOffset(int offset, int fieldSize) {
+        if (offset % fieldSize == 0) {
+            return offset;
+        }
+
+        return (offset / fieldSize + 1) * fieldSize;
+    }
+}
