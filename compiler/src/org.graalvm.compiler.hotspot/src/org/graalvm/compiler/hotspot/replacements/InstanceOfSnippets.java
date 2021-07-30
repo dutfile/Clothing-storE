@@ -133,4 +133,146 @@ public class InstanceOfSnippets implements Snippets {
      * A test against a final type.
      */
     @Snippet
-    public static Object instanceofExact(Object object, KlassPointer exactHub, Object trueValue,
+    public static Object instanceofExact(Object object, KlassPointer exactHub, Object trueValue, Object falseValue, @ConstantParameter Counters counters) {
+        KlassPointer objectHub = loadHubOrNullIntrinsic(object);
+        if (probability(LIKELY_PROBABILITY, objectHub.notEqual(exactHub))) {
+            counters.exactMiss.inc();
+            return falseValue;
+        }
+        counters.exactHit.inc();
+        return trueValue;
+    }
+
+    /**
+     * A test against a primary type.
+     */
+    @Snippet
+    public static Object instanceofPrimary(KlassPointer hub, Object object, @ConstantParameter int superCheckOffset, Object trueValue, Object falseValue, @ConstantParameter Counters counters) {
+        if (probability(NOT_FREQUENT_PROBABILITY, object == null)) {
+            counters.isNull.inc();
+            return falseValue;
+        }
+        GuardingNode anchorNode = SnippetAnchorNode.anchor();
+        KlassPointer objectHub = loadHubIntrinsic(PiNode.piCastNonNull(object, anchorNode));
+        if (probability(NOT_LIKELY_PROBABILITY, objectHub.readKlassPointer(superCheckOffset, PRIMARY_SUPERS_LOCATION).notEqual(hub))) {
+            counters.displayMiss.inc();
+            return falseValue;
+        }
+        counters.displayHit.inc();
+        return trueValue;
+    }
+
+    /**
+     * A test against a restricted secondary type type.
+     */
+    @Snippet(allowMissingProbabilities = true)
+    public static Object instanceofSecondary(KlassPointer hub, Object object, @VarargsParameter KlassPointer[] hints, @VarargsParameter boolean[] hintIsPositive, Object trueValue, Object falseValue,
+                    @ConstantParameter Counters counters) {
+        if (probability(NOT_FREQUENT_PROBABILITY, object == null)) {
+            counters.isNull.inc();
+            return falseValue;
+        }
+        GuardingNode anchorNode = SnippetAnchorNode.anchor();
+        KlassPointer objectHub = loadHubIntrinsic(PiNode.piCastNonNull(object, anchorNode));
+        // if we get an exact match: succeed immediately
+        ExplodeLoopNode.explodeLoop();
+        for (int i = 0; i < hints.length; i++) {
+            KlassPointer hintHub = hints[i];
+            boolean positive = hintIsPositive[i];
+            if (probability(NOT_FREQUENT_PROBABILITY, hintHub.equal(objectHub))) {
+                counters.hintsHit.inc();
+                return positive ? trueValue : falseValue;
+            }
+        }
+        counters.hintsMiss.inc();
+        if (!checkSecondarySubType(hub, objectHub, counters)) {
+            return falseValue;
+        }
+        return trueValue;
+    }
+
+    /**
+     * Type test used when the type being tested against is not known at compile time.
+     */
+    @Snippet(allowMissingProbabilities = true)
+    public static Object instanceofDynamic(KlassPointer hub, Object object, Object trueValue, Object falseValue, @ConstantParameter boolean allowNull, @ConstantParameter boolean exact,
+                    @ConstantParameter Counters counters) {
+        if (probability(NOT_FREQUENT_PROBABILITY, object == null)) {
+            counters.isNull.inc();
+            if (allowNull) {
+                return trueValue;
+            } else {
+                return falseValue;
+            }
+        }
+        GuardingNode anchorNode = SnippetAnchorNode.anchor();
+        KlassPointer nonNullObjectHub = loadHubIntrinsic(PiNode.piCastNonNull(object, anchorNode));
+        if (exact) {
+            if (probability(LIKELY_PROBABILITY, nonNullObjectHub.notEqual(hub))) {
+                counters.exactMiss.inc();
+                return falseValue;
+            }
+            counters.exactHit.inc();
+            return trueValue;
+        }
+        // The hub of a primitive type can be null => always return false in this case.
+        if (probability(FAST_PATH_PROBABILITY, !hub.isNull())) {
+            if (checkUnknownSubType(hub, nonNullObjectHub, counters)) {
+                return trueValue;
+            }
+        }
+        return falseValue;
+    }
+
+    @Snippet(allowMissingProbabilities = true)
+    public static Object isAssignableFrom(@NonNullParameter Class<?> thisClassNonNull, @NonNullParameter Class<?> otherClassNonNull, Object trueValue, Object falseValue,
+                    @ConstantParameter Counters counters) {
+        if (probability(NOT_LIKELY_PROBABILITY, thisClassNonNull == otherClassNonNull)) {
+            return trueValue;
+        }
+
+        KlassPointer thisHub = ClassGetHubNode.readClass(thisClassNonNull);
+        KlassPointer otherHub = ClassGetHubNode.readClass(otherClassNonNull);
+        if (probability(FAST_PATH_PROBABILITY, !thisHub.isNull())) {
+            if (probability(FAST_PATH_PROBABILITY, !otherHub.isNull())) {
+                GuardingNode guardNonNull = SnippetAnchorNode.anchor();
+                KlassPointer nonNullOtherHub = ClassGetHubNode.piCastNonNull(otherHub, guardNonNull);
+                if (TypeCheckSnippetUtils.checkUnknownSubType(thisHub, nonNullOtherHub, counters)) {
+                    return trueValue;
+                }
+            }
+        }
+
+        // If either hub is null, one of them is a primitive type and given that the class is not
+        // equal, return false.
+        return falseValue;
+    }
+
+    public static class Templates extends InstanceOfSnippetsTemplates {
+
+        private final SnippetInfo instanceofWithProfile;
+        private final SnippetInfo instanceofExact;
+        private final SnippetInfo instanceofPrimary;
+        private final SnippetInfo instanceofSecondary;
+        private final SnippetInfo instanceofDynamic;
+        private final SnippetInfo isAssignableFrom;
+
+        private final Counters counters;
+
+        public Templates(OptionValues options, SnippetCounter.Group.Factory factory, HotSpotProviders providers) {
+            super(options, providers);
+
+            this.instanceofWithProfile = snippet(providers, InstanceOfSnippets.class, "instanceofWithProfile");
+            this.instanceofExact = snippet(providers, InstanceOfSnippets.class, "instanceofExact");
+            this.instanceofPrimary = snippet(providers, InstanceOfSnippets.class, "instanceofPrimary");
+            this.instanceofSecondary = snippet(providers, InstanceOfSnippets.class, "instanceofSecondary", SECONDARY_SUPER_CACHE_LOCATION);
+            this.instanceofDynamic = snippet(providers, InstanceOfSnippets.class, "instanceofDynamic", SECONDARY_SUPER_CACHE_LOCATION);
+            this.isAssignableFrom = snippet(providers, InstanceOfSnippets.class, "isAssignableFrom", SECONDARY_SUPER_CACHE_LOCATION);
+
+            this.counters = new Counters(factory);
+        }
+
+        @Override
+        protected Arguments makeArguments(InstanceOfUsageReplacer replacer, LoweringTool tool) {
+            if (replacer.instanceOf instanceof InstanceOfNode) {
+    
