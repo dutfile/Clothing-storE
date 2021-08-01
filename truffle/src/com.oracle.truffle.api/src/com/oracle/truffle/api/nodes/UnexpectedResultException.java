@@ -30,4 +30,48 @@
  * minimum a reference to the UPL must be included in all copies or substantial
  * portions of the Software.
  *
- * THE SOFTWARE IS P
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+package com.oracle.truffle.api.nodes;
+
+import com.oracle.truffle.api.CompilerDirectives;
+
+/**
+ * An exception that should be thrown if the return value cannot be represented as a value of the
+ * return type. The Truffle optimizer has special knowledge of this exception class and will never
+ * compile a catch block that catches this exception type.
+ * 
+ * @since 0.8 or earlier
+ */
+@SuppressWarnings("serial")
+public final class UnexpectedResultException extends SlowPathException {
+
+    private static final long serialVersionUID = 3676602078425211386L;
+    private final Object result;
+
+    /**
+     * Creates the exception with the alternative result that cannot be represented as a value of
+     * the return type.
+     *
+     * @param result the alternative result
+     * @since 0.8 or earlier
+     */
+    public UnexpectedResultException(Object result) {
+        CompilerDirectives.transferToInterpreterAndInvalidate();
+        this.result = result;
+    }
+
+    /**
+     * @return the unexpected result
+     * @since 0.8 or earlier
+     */
+    public Object getResult() {
+        return result;
+    }
+}
