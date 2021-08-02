@@ -117,3 +117,4 @@ public class MergedLibraryTest extends AbstractLibraryTest {
         assertEquals("value", interop.readMember(obj, "key"));
     }
 
+}
