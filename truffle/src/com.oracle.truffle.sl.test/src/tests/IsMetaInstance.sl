@@ -27,4 +27,8 @@ function main() {
   
   printTypes(number);
   printTypes(string);
-  
+  printTypes(boolean);
+  printTypes(object);
+  printTypes(f);
+  printTypes(null);
+}
