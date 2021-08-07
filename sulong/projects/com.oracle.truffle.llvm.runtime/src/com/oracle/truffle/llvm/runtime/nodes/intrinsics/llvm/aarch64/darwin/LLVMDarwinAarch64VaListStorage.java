@@ -122,4 +122,168 @@ public final class LLVMDarwinAarch64VaListStorage extends LLVMVaListStorage {
             }
         }
         self.vaListStackPtr = stackAllocationNode.executeWithTarget(stackSize, frame);
-        self.nativized =
+        self.nativized = false;
+    }
+
+    // TODO: is there a helper for this?
+    private static long alignUp(long address) {
+        long mask = (8 - 1); // 64bit
+        return ((address + mask) & ~mask);
+    }
+
+    // NativeTypeLibrary library
+    @SuppressWarnings("static-method")
+    @ExportMessage
+    boolean hasNativeType() {
+        return true;
+    }
+
+    @SuppressWarnings("static-method")
+    @ExportMessage
+    @TruffleBoundary
+    Object getNativeType() {
+        return LLVMLanguage.get(null).getInteropType(LLVMSourceTypeFactory.resolveType(VA_LIST_TYPE, findDataLayoutFromCurrentFrame()));
+    }
+
+    // LLVMManagedReadLibrary implementation
+    @SuppressWarnings("static-method")
+    @ExportMessage
+    boolean isReadable() {
+        return true;
+    }
+
+    @ExportMessage
+    static class ReadI8 {
+        @Specialization(guards = "vaList.isNativized()")
+        @GenerateAOT.Exclude // recursion cut
+        static byte readNativeI8(LLVMDarwinAarch64VaListStorage vaList, long offset,
+                        @Cached LLVMI8OffsetLoadNode offsetLoadNode) {
+            return offsetLoadNode.executeWithTarget(vaList.vaListStackPtr, offset);
+        }
+
+        @Specialization(guards = "!vaList.isNativized()", limit = "1")
+        static byte readI8Managed(LLVMDarwinAarch64VaListStorage vaList, long offset,
+                        @CachedLibrary("vaList.argsArea") LLVMManagedReadLibrary readLibrary) {
+            return readLibrary.readI8(vaList.argsArea, offset);
+        }
+    }
+
+    @ExportMessage
+    static class ReadI16 {
+        @Specialization(guards = "vaList.isNativized()")
+        @GenerateAOT.Exclude // recursion cut
+        static short readNativeI16(LLVMDarwinAarch64VaListStorage vaList, long offset,
+                        @Cached LLVMI16OffsetLoadNode offsetLoadNode) {
+            return offsetLoadNode.executeWithTarget(vaList.vaListStackPtr, offset);
+        }
+
+        @Specialization(guards = "!vaList.isNativized()", limit = "1")
+        static short readI16Managed(LLVMDarwinAarch64VaListStorage vaList, long offset,
+                        @CachedLibrary("vaList.argsArea") LLVMManagedReadLibrary readLibrary) {
+            return readLibrary.readI16(vaList.argsArea, offset);
+        }
+    }
+
+    @ExportMessage
+    static class ReadI32 {
+        @Specialization(guards = "vaList.isNativized()")
+        @GenerateAOT.Exclude // recursion cut
+        static int readNativeI32(LLVMDarwinAarch64VaListStorage vaList, long offset,
+                        @Cached LLVMI32OffsetLoadNode offsetLoad) {
+            return offsetLoad.executeWithTarget(vaList.vaListStackPtr, offset);
+        }
+
+        @Specialization(guards = "!vaList.isNativized()", limit = "1")
+        static int readI32Managed(LLVMDarwinAarch64VaListStorage vaList, long offset,
+                        @CachedLibrary("vaList.argsArea") LLVMManagedReadLibrary readLibrary) {
+            return readLibrary.readI32(vaList.argsArea, offset);
+        }
+    }
+
+    @ExportMessage
+    static class ReadPointer {
+        @Specialization(guards = "vaList.isNativized()")
+        @GenerateAOT.Exclude // recursion cut
+        static LLVMPointer readNativePointer(LLVMDarwinAarch64VaListStorage vaList, long offset,
+                        @Cached LLVMPointerOffsetLoadNode offsetLoad) {
+            return offsetLoad.executeWithTarget(vaList.vaListStackPtr, offset);
+        }
+
+        @Specialization(guards = "!vaList.isNativized()", limit = "1")
+        static LLVMPointer readPointerManaged(LLVMDarwinAarch64VaListStorage vaList, long offset,
+                        @CachedLibrary("vaList.argsArea") LLVMManagedReadLibrary readLibrary) {
+            return readLibrary.readPointer(vaList.argsArea, offset);
+        }
+    }
+
+    @ExportMessage
+    static class ReadDouble {
+        @Specialization(guards = "vaList.isNativized()")
+        @GenerateAOT.Exclude // recursion cut
+        static double readNativeDouble(LLVMDarwinAarch64VaListStorage vaList, long offset,
+                        @Cached LLVMDoubleOffsetLoadNode doubleOffsetLoadNode) {
+            return doubleOffsetLoadNode.executeWithTarget(vaList.vaListStackPtr, offset);
+        }
+
+        @Specialization(guards = "!vaList.isNativized()", limit = "1")
+        static double readDoubleManaged(LLVMDarwinAarch64VaListStorage vaList, long offset,
+                        @CachedLibrary("vaList.argsArea") LLVMManagedReadLibrary readLibrary) {
+            return readLibrary.readDouble(vaList.argsArea, offset);
+        }
+    }
+
+    @ExportMessage
+    static class ReadGenericI64 {
+        @Specialization(guards = "vaList.isNativized()")
+        @GenerateAOT.Exclude // recursion cut
+        static Object readNativeGenericI64(LLVMDarwinAarch64VaListStorage vaList, long offset,
+                        @Cached LLVMI64OffsetLoadNode llvmi64OffsetLoadNode) {
+            return llvmi64OffsetLoadNode.executeWithTargetGeneric(vaList.vaListStackPtr, offset);
+        }
+
+        @Specialization(guards = "!vaList.isNativized()", limit = "1")
+        static Object readI64Managed(LLVMDarwinAarch64VaListStorage vaList, long offset,
+                        @CachedLibrary("vaList.argsArea") LLVMManagedReadLibrary readLibrary) {
+            return readLibrary.readGenericI64(vaList.argsArea, offset);
+        }
+    }
+
+    @SuppressWarnings("static-method")
+    @ExportMessage
+    @TruffleBoundary
+    void toNative(@Cached LLVMI64OffsetStoreNode i64RegSaveAreaStore,
+                    @Cached LLVMI32OffsetStoreNode i32RegSaveAreaStore,
+                    @Cached LLVM80BitFloatOffsetStoreNode fp80bitRegSaveAreaStore,
+                    @Cached LLVMPointerOffsetStoreNode pointerRegSaveAreaStore,
+                    @Cached NativeProfiledMemMove memMove,
+                    @Cached BranchProfile nativizedProfile) {
+
+        if (isNativized()) {
+            nativizedProfile.enter();
+            return;
+        }
+        nativized = true;
+
+        /* Reconstruct the native memory according to darwin-aarch64 ABI. */
+        final int vaLength = realArguments.length - numberOfExplicitArguments;
+        assert vaLength > 0;
+
+        long offset = 0;
+        for (int i = numberOfExplicitArguments; i < realArguments.length; i++) {
+            final Object object = realArguments[i];
+
+            long size = storeArgument(vaListStackPtr, offset, memMove, i64RegSaveAreaStore, i32RegSaveAreaStore, fp80bitRegSaveAreaStore, pointerRegSaveAreaStore, object, Integer.BYTES);
+            assert size <= Long.BYTES;
+            offset += Long.BYTES;
+        }
+    }
+
+    @SuppressWarnings("static-method")
+    @ExportMessage
+    void cleanup(@SuppressWarnings("unused") Frame frame) {
+        throw CompilerDirectives.shouldNotReachHere("should only be called on LLVMMaybeVaPointer");
+    }
+
+    @SuppressWarnings("static-method")
+    @ExportMessage
+    void copy(@SuppressWarnings("unused") Object dest, @
