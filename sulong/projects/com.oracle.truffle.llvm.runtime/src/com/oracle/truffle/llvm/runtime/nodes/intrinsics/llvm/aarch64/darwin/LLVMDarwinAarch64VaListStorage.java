@@ -286,4 +286,92 @@ public final class LLVMDarwinAarch64VaListStorage extends LLVMVaListStorage {
 
     @SuppressWarnings("static-method")
     @ExportMessage
-    void copy(@SuppressWarnings("unused") Object dest, @
+    void copy(@SuppressWarnings("unused") Object dest, @SuppressWarnings("unused") Frame frame) {
+        throw CompilerDirectives.shouldNotReachHere("should never be called directly");
+    }
+
+    /**
+     * This is the implementation of the {@code va_arg} instruction.
+     */
+    @SuppressWarnings("static-method")
+    @ExportMessage
+    Object shift(Type type, @SuppressWarnings("unused") Frame frame,
+                    @CachedLibrary(limit = "1") LLVMManagedReadLibrary readLib) {
+
+        try {
+            if (type instanceof PrimitiveType) {
+                switch (((PrimitiveType) type).getPrimitiveKind()) {
+                    case DOUBLE:
+                        return readLib.readDouble(this, consumedBytes);
+                    case FLOAT:
+                        return readLib.readFloat(this, consumedBytes);
+                    case I1:
+                        return readLib.readI8(this, consumedBytes) != 0;
+                    case I16:
+                        return readLib.readI16(this, consumedBytes);
+                    case I32:
+                        return readLib.readI32(this, consumedBytes);
+                    case I64:
+                        return readLib.readGenericI64(this, consumedBytes);
+                    case I8:
+                        return readLib.readI8(this, consumedBytes);
+                    default:
+                        throw CompilerDirectives.shouldNotReachHere("not implemented");
+                }
+            } else if (type instanceof PointerType) {
+                return readLib.readPointer(this, consumedBytes);
+            } else {
+                throw CompilerDirectives.shouldNotReachHere("not implemented");
+            }
+        } finally {
+            consumedBytes += Long.BYTES;
+        }
+    }
+
+    @GenerateUncached
+    public abstract static class Aarch64VAListPointerWrapperFactory extends VAListPointerWrapperFactory {
+
+        public abstract Object execute(Object pointer);
+
+        @Specialization(guards = "!isManagedPointer(p)")
+        Object createNativeWrapper(LLVMPointer p) {
+            return LLVMMaybeVaPointer.createWithHeap(p);
+        }
+
+        @Specialization(limit = "3", guards = {"isManagedPointer(p)", "isGlobal(p)"})
+        @GenerateAOT.Exclude
+        Object extractFromGlobal(LLVMManagedPointer p,
+                        @Bind("getGlobal(p)") Object global,
+                        @CachedLibrary("global") LLVMManagedReadLibrary readLibrary) {
+            /* probe content of global storage */
+            Object ret = readLibrary.readGenericI64(global, 0);
+            if (ret instanceof LLVMDarwinAarch64VaListStorage) {
+                return LLVMMaybeVaPointer.createWithStorage(p, ret);
+            } else if (ret instanceof LLVMMaybeVaPointer) {
+                return ret;
+            }
+
+            assert LLVMManagedPointer.isInstance(p);
+            /* no VAList in it, use LLVMMaybeVaPointer as a wrapper */
+            return LLVMMaybeVaPointer.createWithHeap(p);
+        }
+
+        @Specialization(guards = {"isManagedPointer(p)", "!isGlobal(p)"})
+        Object extractFromManaged(LLVMManagedPointer p) {
+            assert p.getObject() instanceof LLVMMaybeVaPointer;
+            return p.getObject();
+        }
+
+        static boolean isManagedPointer(Object o) {
+            return LLVMManagedPointer.isInstance(o);
+        }
+
+        static boolean isGlobal(Object o) {
+            return LLVMManagedPointer.cast(o).getObject() instanceof LLVMGlobalContainer;
+        }
+
+        static Object getGlobal(Object o) {
+            return LLVMManagedPointer.cast(o).getObject();
+        }
+    }
+}
