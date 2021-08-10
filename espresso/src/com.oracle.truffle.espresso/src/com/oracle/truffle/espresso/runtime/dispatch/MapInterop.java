@@ -80,4 +80,103 @@ public class MapInterop extends EspressoInterop {
         Meta meta = receiver.getKlass().getMeta();
         Method containsKey = getInteropKlass(receiver).itableLookup(meta.java_util_Map, meta.java_util_Map_containsKey.getITableIndex());
         try {
-            return (boolean) invokeContains.execute(contai
+            return (boolean) invokeContains.execute(containsKey, receiver, new Object[]{key});
+        } catch (UnsupportedTypeException | ArityException e) {
+            CompilerDirectives.transferToInterpreterAndInvalidate();
+            throw EspressoError.shouldNotReachHere(e);
+        }
+    }
+
+    @ExportMessage
+    public static long getHashSize(StaticObject receiver,
+                    @Cached.Exclusive @Cached InvokeEspressoNode invoke) throws UnsupportedMessageException {
+        if (!hasHashEntries(receiver)) {
+            throw UnsupportedMessageException.create();
+        }
+        Meta meta = receiver.getKlass().getMeta();
+        Method size = getInteropKlass(receiver).itableLookup(meta.java_util_Map, meta.java_util_Map_size.getITableIndex());
+        try {
+            return (int) invoke.execute(size, receiver, EMPTY_ARRAY);
+        } catch (UnsupportedTypeException | ArityException e) {
+            CompilerDirectives.transferToInterpreterAndInvalidate();
+            throw EspressoError.shouldNotReachHere(e);
+        }
+    }
+
+    @ExportMessage
+    public static Object readHashValue(StaticObject receiver, Object key,
+                    @Cached.Exclusive @Cached InvokeEspressoNode invoke,
+                    @Cached.Shared("contains") @Cached InvokeEspressoNode contains) throws UnsupportedMessageException, UnknownKeyException {
+        if (!isHashEntryReadable(receiver, key, contains)) {
+            throw UnsupportedMessageException.create();
+        }
+        Meta meta = receiver.getKlass().getMeta();
+        Method get = getInteropKlass(receiver).itableLookup(meta.java_util_Map, meta.java_util_Map_get.getITableIndex());
+        try {
+            return invoke.execute(get, receiver, new Object[]{key});
+        } catch (UnsupportedTypeException e) {
+            throw UnknownKeyException.create(key);
+        } catch (ArityException e) {
+            CompilerDirectives.transferToInterpreterAndInvalidate();
+            throw EspressoError.shouldNotReachHere(e);
+        }
+    }
+
+    @ExportMessage
+    public static void writeHashEntry(StaticObject receiver, Object key, Object value,
+                    @Cached.Exclusive @Cached InvokeEspressoNode invoke) throws UnknownKeyException {
+        Meta meta = receiver.getKlass().getMeta();
+        Method put = getInteropKlass(receiver).itableLookup(meta.java_util_Map, meta.java_util_Map_put.getITableIndex());
+        try {
+            invoke.execute(put, receiver, new Object[]{key, value});
+        } catch (UnsupportedTypeException e) {
+            throw UnknownKeyException.create(key);
+        } catch (ArityException e) {
+            CompilerDirectives.transferToInterpreterAndInvalidate();
+            throw EspressoError.shouldNotReachHere(e);
+        }
+    }
+
+    @ExportMessage
+    public static void removeHashEntry(StaticObject receiver, Object key,
+                    @Cached.Exclusive @Cached InvokeEspressoNode invoke,
+                    @Cached.Shared("contains") @Cached InvokeEspressoNode contains) throws UnsupportedMessageException, UnknownKeyException {
+        if (!isHashEntryReadable(receiver, key, contains)) {
+            throw UnsupportedMessageException.create();
+        }
+        Meta meta = receiver.getKlass().getMeta();
+        Method remove = getInteropKlass(receiver).itableLookup(meta.java_util_Map, meta.java_util_Map_remove.getITableIndex());
+        try {
+            invoke.execute(remove, receiver, new Object[]{key});
+        } catch (UnsupportedTypeException e) {
+            throw UnknownKeyException.create(key);
+        } catch (ArityException e) {
+            CompilerDirectives.transferToInterpreterAndInvalidate();
+            throw EspressoError.shouldNotReachHere(e);
+        }
+    }
+
+    @SuppressWarnings("static-method")
+    @ExportMessage
+    public static Object getHashEntriesIterator(StaticObject receiver,
+                    @CachedLibrary(limit = "1") InteropLibrary setLibrary,
+                    @Cached.Exclusive @Cached InvokeEspressoNode invoke) throws UnsupportedMessageException {
+        if (!hasHashEntries(receiver)) {
+            throw UnsupportedMessageException.create();
+        }
+        Meta meta = receiver.getKlass().getMeta();
+        Method entrySet = getInteropKlass(receiver).itableLookup(meta.java_util_Map, meta.java_util_Map_entrySet.getITableIndex());
+        Object set = null;
+        try {
+            set = invoke.execute(entrySet, receiver, EMPTY_ARRAY);
+        } catch (ArityException | UnsupportedTypeException e) {
+            CompilerDirectives.transferToInterpreterAndInvalidate();
+            throw EspressoError.shouldNotReachHere(e);
+        }
+        assert set != null;
+        assert setLibrary.hasIterator(set);
+        return setLibrary.getIterator(set);
+    }
+
+    // endregion ### Hashes
+}
