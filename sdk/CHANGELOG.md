@@ -99,4 +99,51 @@ the close operation throws a [`PolyglotException`](https://www.graalvm.org/sdk/j
     * Added `hasHashEntry(Object)` specifying that the mapping for the specified key exists.
     * Added `getHashValue(Object)` returning the value for the specified key.
     * Added `getHashValueOrDefault(Object, Object)` returning the value for the specified key or a default value if the mapping for given key does not exist.
-    * Added `putHashEntry(Object, Object)` as
+    * Added `putHashEntry(Object, Object)` associating the specified value with the specified key.
+    * Added `removeHashEntry(Object)` removing the mapping for a given key.
+    * Added `getHashEntriesIterator()` returning a hash entries iterator.
+    * Added `getHashKeysIterator()` returning a hash keys iterator.
+    * Added `getHashValuesIterator()` returning a hash values iterator.
+* Added `HostAccess.Builder.allowMapAccess(boolean)` to allow the guest application to access Java `Map` as values with hash entries (true by default for `HostAccess.ALL`, false otherwise).
+* Added `ProxyHashMap` to proxy map guest values.
+* When `HostAccess.Builder.allowMapAccess(boolean)` is enabled the Java `HashMap.Entry` is interpreted as a guest value with two array elements.
+* Added `Context.safepoint()` to manually poll thread local of a polyglot context while a host method is executed. For example, this allows the context to check for potential interruption or cancellation.
+* `Value.putMember(String, Object)` now throws `UnsupportedOperationException` instead of `IllegalArgumentException` if the member is not writable.
+* `Value.removeMember(String)` now throws `UnsupportedOperationException` instead of returning `false` if the member is not removable.
+* `Value.invokeMember(String, Object...)` now throws `UnsupportedOperationException` instead of `IllegalArgumentException` if the member is not invokable.
+
+## Version 21.0.0
+* Added support for explicitly selecting a host method overload using the signature in the form of comma-separated fully qualified parameter type names enclosed by parentheses (e.g. `methodName(f.q.TypeName,java.lang.String,int,int[])`).
+* Deprecated host method selection by JNI mangled signature, replaced by the aforementioned new form. Scheduled for removal in 21.2.
+
+## Version 20.3.0
+* Added a `log.file` option that allows redirection of all language, instrument or engine logging to a file. The handler configured with the `Context.Builder.logHandler` method has precedence over the new option.
+* The option `-Dgraal.LogFile` is no longer inherited by the polyglot engine. Use the `log.file` option or configure a log handler instead.
+* In host interop, `null` now adheres to Java semantics:
+	* (Host interop's) `null` has no meta-object (e.g. `Value.getMetaObject()` returns `null`)
+	* `Value.isMetaInstance(Object)` behaves like `instanceof` with respect to `null` (e.g. `null` is **NOT** an instance of any meta-object)
+* Removed handling of `--jvm.*` and `--native.*` launcher options, which were deprecated since 1.0.0 RC14.
+* Added the ability to specify a `TargetMappingPrecedence` of target type mappings for `HostAccess`  configurations that influence conversion order and precedence in relation to default  mappings and other target type mappings.
+* Added `PolyglotException.isInterrupted()` to determine if an error was caused by an interruption of an application thread. The interrupted exceptions are no longer `PolyglotException.isCancelled()` but `PolyglotException.isInterrupted()`.
+* All Truffle Graal runtime options (-Dgraal.) which were deprecated in GraalVM 20.1 are removed. The Truffle runtime options are no longer specified as Graal options (-Dgraal.). The Graal options must be replaced by corresponding engine options specified using [polyglot API](https://www.graalvm.org/sdk/javadoc/org/graalvm/polyglot/Engine.Builder.html#option-java.lang.String-java.lang.String-).
+* Added `Engine.getCachedSources()` to return the sources that were previously cached by the engine.
+* Added support a default `OptionType` for Java enums. `OptionType.defaultType(Class<?>)` is now always supported for `enum` classes.
+* Added `Context.interrupt(Duration)` to interrupt a polyglot Context execution. The interrupt is non-destructive meaning that the polyglot Context can still be used for further execution.
+* Added `Value.as(Class)` support for converting values to abstract host classes with a default constructor.
+* Added `HostAccess.Builder.allowAllClassImplementations` to allow converting values to abstract host classes using `Value.as` and host interop (true by default for `HostAccess.ALL`, false otherwise).
+
+## Version 20.2.0
+* Added `-Dpolyglot.engine.AllowExperimentalOptions=true` to allow experimental options for all polyglot engines of a host VM. This system property is intended to be used for testing only and should not be enabled in production environments.
+* Added [a factory method](https://www.graalvm.org/sdk/javadoc/org/graalvm/polyglot/io/FileSystem.html#newDefaultFileSystem--) creating a FileSystem based on the host Java NIO. The obtained instance can be used as a delegate in a decorating filesystem.
+* Added `PolyglotException.isResourceExhausted()` to determine if an error was caused by a resource limit (e.g. OutOfMemoryError) that was exceeded.
+* Added `Context.parse(Source)` to parse but not evaluate a source. Parsing a source allows to trigger e.g. syntax validation prior to executing the code.
+* Added optional [FileSystem.isSameFile](https://www.graalvm.org/sdk/javadoc/org/graalvm/polyglot/io/FileSystem.html#isSameFile-java.nio.file.Path-java.nio.file.Path-java.nio.file.LinkOption...-) method testing if the given paths refer to the same physical file. The method can be overridden by the `FileSystem` implementer with a more efficient test.
+* Added `EconomicMap.putIfAbsent(K, V)` to associate a value with the specified key if not already present in the map.
+
+## Version 20.1.0
+* The `PerformanceWarningsAreFatal` and `TracePerformanceWarnings` engine options take a comma separated list of performance warning types. Allowed warning types are `call` to enable virtual call warnings, `instanceof` to enable virtual instance of warnings and `store` to enables virtual store warnings. There are also `all` and `none` types to enable (disable) all performance warnings.
+* The `<language-id>.home` system property that can be used in some development scenarios to specify a language's directory is deprecated. The `org.graalvm.language.<language-uid>.home` property should be used instead. Setting this new system property is reflected by the `HomeFinder` API.
+* Added `CompilationFailureAction` engine option which deprecates `CompilationExceptionsArePrinted `, `CompilationExceptionsAreThrown`, `CompilationExceptionsAreFatal` and `PerformanceWarningsAreFatal` options.
+* Added `TreatPerformanceWarningsAsErrors` engine option which deprecates the `PerformanceWarningsAreFatal` option. To replace the `PerformanceWarningsAreFatal` option use the `TreatPerformanceWarningsAsErrors` with `CompilationFailureAction` set to `ExitVM`.
+* Added `bailout` into performance warning kinds used by `TracePerformanceWarnings`, `PerformanceWarningsAreFatal` and `CompilationExceptionsAreFatal` options.
+* Added [OptionDescriptor.getDeprecationMessage](https://www.graalvm.org/sdk/javado
