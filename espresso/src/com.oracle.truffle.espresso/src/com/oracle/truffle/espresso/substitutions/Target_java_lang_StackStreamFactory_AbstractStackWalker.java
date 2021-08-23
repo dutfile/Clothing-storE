@@ -48,4 +48,15 @@ public final class Target_java_lang_StackStreamFactory_AbstractStackWalker {
                     @JavaType(Object[].class) StaticObject frames,
                     @Inject EspressoLanguage language,
                     @Inject Meta meta) {
-        return meta.getContext().getVM().JVM_CallStackWalk19(stackStream, mode, skipframes, contScope,
+        return meta.getContext().getVM().JVM_CallStackWalk19(stackStream, mode, skipframes, contScope, cont, batchSize, startIndex, frames, language, meta);
+    }
+
+    static class Provider extends SubstitutionNamesProvider {
+        public static Provider INSTANCE = new Provider();
+
+        @Override
+        public String[] substitutionClassNames() {
+            return TARGET_NAME;
+        }
+    }
+}
