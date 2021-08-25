@@ -157,4 +157,17 @@ final class ClassAssembler {
         methodVisitor.visitMaxs(1, 1);
         methodVisitor.visitEnd();
 
-        methodVisitor =
+        methodVisitor = classWriter.visitMethod(ACC_PUBLIC | ACC_BRIDGE | ACC_SYNTHETIC, "get", "()Lcom/oracle/truffle/espresso/runtime/StaticObject;", null, null);
+        methodVisitor.visitCode();
+        methodVisitor.visitVarInsn(ALOAD, 0);
+        methodVisitor.visitMethodInsn(INVOKESPECIAL, "java/lang/ref/PublicFinalReference", "get", "()Ljava/lang/Object;", false);
+        methodVisitor.visitTypeInsn(CHECKCAST, "com/oracle/truffle/espresso/runtime/StaticObject");
+        methodVisitor.visitInsn(ARETURN);
+        methodVisitor.visitMaxs(1, 1);
+        methodVisitor.visitEnd();
+
+        classWriter.visitEnd();
+
+        return classWriter.toByteArray();
+    }
+}
