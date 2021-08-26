@@ -47,3 +47,48 @@ public class LLVMForeignIntrinsicCallNode extends RootNode {
         LLVMExpressionNode[] args = new LLVMExpressionNode[argCount];
 
         // intrinsics shouldn't need the stack argument
+        args[0] = null;
+
+        for (int i = 1; i < argCount; i++) {
+            LLVMInteropType.Value argType = (LLVMInteropType.Value) interopType.getParameter(i - 1);
+            args[i] = new ForeignIntrinsicArgNode(i - 1, argType);
+        }
+
+        LLVMExpressionNode intrinsicNode = intrinsic.createIntrinsicNode(args, type.getArgumentTypes().toArray(Type.EMPTY_ARRAY));
+        return new LLVMForeignIntrinsicCallNode(language, intrinsicNode, (LLVMInteropType.Value) interopType.getReturnType());
+    }
+
+    @Child LLVMExpressionNode intrinsicNode;
+    @Child LLVMDataEscapeNode dataEscape;
+
+    private final LLVMInteropType.Structured retType;
+
+    protected LLVMForeignIntrinsicCallNode(LLVMLanguage language, LLVMExpressionNode intrinsic, LLVMInteropType.Value retType) {
+        super(language);
+        this.intrinsicNode = intrinsic;
+        this.dataEscape = LLVMDataEscapeNode.create(retType.kind.foreignToLLVMType);
+        this.retType = retType.baseType;
+    }
+
+    @Override
+    public Object execute(VirtualFrame frame) {
+        Object ret = intrinsicNode.executeGeneric(frame);
+        return dataEscape.executeWithType(ret, retType);
+    }
+
+    static class ForeignIntrinsicArgNode extends LLVMExpressionNode {
+
+        private final int argIdx;
+        @Child ForeignToLLVM toLLVM;
+
+        ForeignIntrinsicArgNode(int argIdx, LLVMInteropType.Value argType) {
+            this.argIdx = argIdx;
+            this.toLLVM = CommonNodeFactory.createForeignToLLVM(argType);
+        }
+
+        @Override
+        public Object executeGeneric(VirtualFrame frame) {
+            return toLLVM.executeWithTarget(frame.getArguments()[argIdx]);
+        }
+    }
+}
