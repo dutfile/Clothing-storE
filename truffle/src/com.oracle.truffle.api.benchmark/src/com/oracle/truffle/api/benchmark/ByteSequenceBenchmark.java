@@ -72,4 +72,16 @@ public class ByteSequenceBenchmark {
             }
         }
 
-  
+    }
+
+    @Benchmark
+    @OperationsPerInvocation(ITERATIONS)
+    public int testHashing(HashingState state) {
+        int hash = 0;
+        for (int i = 0; i < state.sequences.length; i++) {
+            hash += state.sequences[i].hashCode();
+        }
+        return hash;
+    }
+
+}
