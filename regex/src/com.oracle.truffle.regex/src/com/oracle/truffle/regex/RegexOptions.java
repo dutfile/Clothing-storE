@@ -112,4 +112,192 @@ public final class RegexOptions {
 
     private static final int U180E_WHITESPACE = 1;
     public static final String U180E_WHITESPACE_NAME = "U180EWhitespace";
-    private s
+    private static final int REGRESSION_TEST_MODE = 1 << 1;
+    public static final String REGRESSION_TEST_MODE_NAME = "RegressionTestMode";
+    private static final int DUMP_AUTOMATA = 1 << 2;
+    public static final String DUMP_AUTOMATA_NAME = "DumpAutomata";
+    private static final int STEP_EXECUTION = 1 << 3;
+    public static final String STEP_EXECUTION_NAME = "StepExecution";
+    private static final int ALWAYS_EAGER = 1 << 4;
+    public static final String ALWAYS_EAGER_NAME = "AlwaysEager";
+    private static final int UTF_16_EXPLODE_ASTRAL_SYMBOLS = 1 << 5;
+    public static final String UTF_16_EXPLODE_ASTRAL_SYMBOLS_NAME = "UTF16ExplodeAstralSymbols";
+    private static final int VALIDATE = 1 << 6;
+    public static final String VALIDATE_NAME = "Validate";
+    private static final int IGNORE_ATOMIC_GROUPS = 1 << 7;
+    public static final String IGNORE_ATOMIC_GROUPS_NAME = "IgnoreAtomicGroups";
+    private static final int GENERATE_DFA_IMMEDIATELY = 1 << 8;
+    private static final String GENERATE_DFA_IMMEDIATELY_NAME = "GenerateDFAImmediately";
+    private static final int BOOLEAN_MATCH = 1 << 9;
+    private static final String BOOLEAN_MATCH_NAME = "BooleanMatch";
+    private static final int MUST_ADVANCE = 1 << 10;
+    public static final String MUST_ADVANCE_NAME = "MustAdvance";
+
+    public static final String FLAVOR_NAME = "Flavor";
+    public static final String FLAVOR_PYTHON = "Python";
+    public static final String FLAVOR_RUBY = "Ruby";
+    public static final String FLAVOR_ECMASCRIPT = "ECMAScript";
+    private static final String[] FLAVOR_OPTIONS = {FLAVOR_PYTHON, FLAVOR_RUBY, FLAVOR_ECMASCRIPT};
+
+    public static final String ENCODING_NAME = "Encoding";
+
+    public static final String PYTHON_METHOD_NAME = "PythonMethod";
+    public static final String PYTHON_METHOD_SEARCH = "search";
+    public static final String PYTHON_METHOD_MATCH = "match";
+    public static final String PYTHON_METHOD_FULLMATCH = "fullmatch";
+    private static final String[] PYTHON_METHOD_OPTIONS = {PYTHON_METHOD_SEARCH, PYTHON_METHOD_MATCH, PYTHON_METHOD_FULLMATCH};
+
+    public static final String PYTHON_LOCALE_NAME = "PythonLocale";
+
+    public static final RegexOptions DEFAULT = new RegexOptions(0, ECMAScriptFlavor.INSTANCE, Encodings.UTF_16_RAW, null, null);
+
+    private final int options;
+    private final RegexFlavor flavor;
+    private final Encodings.Encoding encoding;
+    private final PythonMethod pythonMethod;
+    private final String pythonLocale;
+
+    private RegexOptions(int options, RegexFlavor flavor, Encodings.Encoding encoding, PythonMethod pythonMethod, String pythonLocale) {
+        this.options = options;
+        this.flavor = flavor;
+        this.encoding = encoding;
+        this.pythonMethod = pythonMethod;
+        this.pythonLocale = pythonLocale;
+    }
+
+    public static Builder builder(Source source, String sourceString) {
+        return new Builder(source, sourceString);
+    }
+
+    private boolean isBitSet(int bit) {
+        return (options & bit) != 0;
+    }
+
+    public boolean isU180EWhitespace() {
+        return isBitSet(U180E_WHITESPACE);
+    }
+
+    public boolean isRegressionTestMode() {
+        return isBitSet(REGRESSION_TEST_MODE);
+    }
+
+    /**
+     * Produce ASTs and automata in JSON, DOT (GraphViz) and LaTeX formats.
+     */
+    public boolean isDumpAutomata() {
+        return isBitSet(DUMP_AUTOMATA);
+    }
+
+    public boolean isDumpAutomataWithSourceSections() {
+        return isDumpAutomata() && getFlavor() == ECMAScriptFlavor.INSTANCE;
+    }
+
+    /**
+     * Trace the execution of automata in JSON files.
+     */
+    public boolean isStepExecution() {
+        return isBitSet(STEP_EXECUTION);
+    }
+
+    /**
+     * Generate DFA matchers immediately after parsing the expression.
+     */
+    public boolean isGenerateDFAImmediately() {
+        return isBitSet(GENERATE_DFA_IMMEDIATELY);
+    }
+
+    /**
+     * Don't track capture groups, just return a boolean match result instead.
+     */
+    public boolean isBooleanMatch() {
+        return isBitSet(BOOLEAN_MATCH);
+    }
+
+    /**
+     * Always match capture groups eagerly.
+     */
+    public boolean isAlwaysEager() {
+        return isBitSet(ALWAYS_EAGER);
+    }
+
+    /**
+     * Explode astral symbols ({@code 0x10000 - 0x10FFFF}) into sub-automata where every state
+     * matches one {@code char} as opposed to one code point.
+     */
+    public boolean isUTF16ExplodeAstralSymbols() {
+        return isBitSet(UTF_16_EXPLODE_ASTRAL_SYMBOLS);
+    }
+
+    /**
+     * Do not generate an actual regular expression matcher, just check the given regular expression
+     * for syntax errors.
+     */
+    public boolean isValidate() {
+        return isBitSet(VALIDATE);
+    }
+
+    /**
+     * Ignore atomic groups (found e.g. in Ruby regular expressions), treat them as regular groups.
+     */
+    public boolean isIgnoreAtomicGroups() {
+        return isBitSet(IGNORE_ATOMIC_GROUPS);
+    }
+
+    /**
+     * Do not return zero-width matches at the beginning of the search string. The matcher must
+     * advance by at least one character by either finding a match of non-zero width or finding a
+     * match after advancing skipping several characters.
+     */
+    public boolean isMustAdvance() {
+        return isBitSet(MUST_ADVANCE);
+    }
+
+    public RegexFlavor getFlavor() {
+        return flavor;
+    }
+
+    public Encodings.Encoding getEncoding() {
+        return encoding;
+    }
+
+    public PythonMethod getPythonMethod() {
+        return pythonMethod;
+    }
+
+    public String getPythonLocale() {
+        return pythonLocale;
+    }
+
+    public RegexOptions withEncoding(Encodings.Encoding newEnc) {
+        return newEnc == encoding ? this : new RegexOptions(options, flavor, newEnc, pythonMethod, pythonLocale);
+    }
+
+    public RegexOptions withoutPythonMethod() {
+        return pythonMethod == null ? this : new RegexOptions(options, flavor, encoding, null, pythonLocale);
+    }
+
+    public RegexOptions withBooleanMatch() {
+        return new RegexOptions(options | BOOLEAN_MATCH, flavor, encoding, pythonMethod, pythonLocale);
+    }
+
+    public RegexOptions withoutBooleanMatch() {
+        return new RegexOptions(options & ~BOOLEAN_MATCH, flavor, encoding, pythonMethod, pythonLocale);
+    }
+
+    @Override
+    public int hashCode() {
+        final int prime = 31;
+        int hash = options;
+        hash = prime * hash + Objects.hashCode(flavor);
+        hash = prime * hash + encoding.hashCode();
+        hash = prime * hash + Objects.hashCode(pythonMethod);
+        hash = prime * hash + Objects.hashCode(pythonLocale);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == this) {
+            return true;
+        }
+   
