@@ -300,4 +300,166 @@ public final class RegexOptions {
         if (obj == this) {
             return true;
         }
-   
+        if (!(obj instanceof RegexOptions)) {
+            return false;
+        }
+        RegexOptions other = (RegexOptions) obj;
+        return this.options == other.options && this.flavor == other.flavor && this.encoding == other.encoding && this.pythonMethod == other.pythonMethod &&
+                        this.pythonLocale.equals(other.pythonLocale);
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        if (isU180EWhitespace()) {
+            sb.append(U180E_WHITESPACE_NAME + "=true,");
+        }
+        if (isRegressionTestMode()) {
+            sb.append(REGRESSION_TEST_MODE_NAME + "=true,");
+        }
+        if (isDumpAutomata()) {
+            sb.append(DUMP_AUTOMATA_NAME + "=true,");
+        }
+        if (isStepExecution()) {
+            sb.append(STEP_EXECUTION_NAME + "=true,");
+        }
+        if (isAlwaysEager()) {
+            sb.append(ALWAYS_EAGER_NAME + "=true,");
+        }
+        if (isUTF16ExplodeAstralSymbols()) {
+            sb.append(UTF_16_EXPLODE_ASTRAL_SYMBOLS_NAME + "=true,");
+        }
+        if (isValidate()) {
+            sb.append(VALIDATE_NAME + "=true,");
+        }
+        if (isIgnoreAtomicGroups()) {
+            sb.append(IGNORE_ATOMIC_GROUPS_NAME + "=true,");
+        }
+        if (isGenerateDFAImmediately()) {
+            sb.append(GENERATE_DFA_IMMEDIATELY_NAME + "=true,");
+        }
+        if (isBooleanMatch()) {
+            sb.append(BOOLEAN_MATCH_NAME + "=true,");
+        }
+        if (isMustAdvance()) {
+            sb.append(MUST_ADVANCE_NAME + "=true,");
+        }
+        if (flavor == PythonFlavor.INSTANCE) {
+            sb.append(FLAVOR_NAME + "=" + FLAVOR_PYTHON + ",");
+        } else if (flavor == RubyFlavor.INSTANCE) {
+            sb.append(FLAVOR_NAME + "=" + FLAVOR_RUBY + ",");
+        }
+        sb.append(ENCODING_NAME + "=" + encoding.getName() + ",");
+        if (pythonMethod == PythonMethod.search) {
+            sb.append(PYTHON_METHOD_NAME + "=" + PYTHON_METHOD_SEARCH + ",");
+        } else if (pythonMethod == PythonMethod.match) {
+            sb.append(PYTHON_METHOD_NAME + "=" + PYTHON_METHOD_MATCH + ",");
+        } else if (pythonMethod == PythonMethod.fullmatch) {
+            sb.append(PYTHON_METHOD_NAME + "=" + PYTHON_METHOD_FULLMATCH + ",");
+        }
+        if (pythonLocale != null) {
+            sb.append(PYTHON_LOCALE_NAME + "=" + pythonLocale + ",");
+        }
+        return sb.toString();
+    }
+
+    public static final class Builder {
+
+        private final Source source;
+        private final String src;
+        private int options;
+        private RegexFlavor flavor;
+        private Encodings.Encoding encoding = Encodings.UTF_16_RAW;
+        private PythonMethod pythonMethod;
+        private String pythonLocale;
+
+        private Builder(Source source, String sourceString) {
+            this.source = source;
+            this.src = sourceString;
+            this.options = 0;
+            this.flavor = ECMAScriptFlavor.INSTANCE;
+        }
+
+        @TruffleBoundary
+        public int parseOptions() throws RegexSyntaxException {
+            int i = 0;
+            while (i < src.length()) {
+                switch (src.charAt(i)) {
+                    case 'A':
+                        i = parseBooleanOption(i, ALWAYS_EAGER_NAME, ALWAYS_EAGER);
+                        break;
+                    case 'B':
+                        i = parseBooleanOption(i, BOOLEAN_MATCH_NAME, BOOLEAN_MATCH);
+                        break;
+                    case 'D':
+                        i = parseBooleanOption(i, DUMP_AUTOMATA_NAME, DUMP_AUTOMATA);
+                        break;
+                    case 'E':
+                        i = parseEncoding(i);
+                        break;
+                    case 'F':
+                        i = parseFlavor(i);
+                        break;
+                    case 'G':
+                        i = parseBooleanOption(i, GENERATE_DFA_IMMEDIATELY_NAME, GENERATE_DFA_IMMEDIATELY);
+                        break;
+                    case 'I':
+                        i = parseBooleanOption(i, IGNORE_ATOMIC_GROUPS_NAME, IGNORE_ATOMIC_GROUPS);
+                        break;
+                    case 'M':
+                        i = parseBooleanOption(i, MUST_ADVANCE_NAME, MUST_ADVANCE);
+                        break;
+                    case 'P':
+                        if (src.regionMatches(i, PYTHON_METHOD_NAME, 0, PYTHON_METHOD_NAME.length())) {
+                            i = parsePythonMethod(i);
+                        } else {
+                            i = parsePythonLocale(i);
+                        }
+                        break;
+                    case 'R':
+                        i = parseBooleanOption(i, REGRESSION_TEST_MODE_NAME, REGRESSION_TEST_MODE);
+                        break;
+                    case 'S':
+                        i = parseBooleanOption(i, STEP_EXECUTION_NAME, STEP_EXECUTION);
+                        break;
+                    case 'U':
+                        if (i + 1 >= src.length()) {
+                            throw optionsSyntaxErrorUnexpectedKey(i);
+                        }
+                        switch (src.charAt(i + 1)) {
+                            case '1':
+                                i = parseBooleanOption(i, U180E_WHITESPACE_NAME, U180E_WHITESPACE);
+                                break;
+                            case 'T':
+                                i = parseBooleanOption(i, UTF_16_EXPLODE_ASTRAL_SYMBOLS_NAME, UTF_16_EXPLODE_ASTRAL_SYMBOLS);
+                                break;
+                            default:
+                                throw optionsSyntaxErrorUnexpectedKey(i);
+                        }
+                        break;
+                    case 'V':
+                        i = parseBooleanOption(i, VALIDATE_NAME, VALIDATE);
+                        break;
+                    case ',':
+                        i++;
+                        break;
+                    case '/':
+                        return i;
+                    default:
+                        throw optionsSyntaxErrorUnexpectedKey(i);
+                }
+            }
+            return i;
+        }
+
+        private int expectOptionName(int i, String key) {
+            if (!src.regionMatches(i, key, 0, key.length()) || src.charAt(i + key.length()) != '=') {
+                throw optionsSyntaxErrorUnexpectedKey(i);
+            }
+            return i + key.length() + 1;
+        }
+
+        private int expectValue(int i, String value, String... expected) {
+            if (!src.regionMatches(i, value, 0, value.length())) {
+                throw optionsSyntaxErrorUnexpectedValue(i, expected);
+            }
