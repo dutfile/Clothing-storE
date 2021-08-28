@@ -463,3 +463,158 @@ public final class RegexOptions {
             if (!src.regionMatches(i, value, 0, value.length())) {
                 throw optionsSyntaxErrorUnexpectedValue(i, expected);
             }
+            return i + value.length();
+        }
+
+        private int parseBooleanOption(int i, String key, int flag) throws RegexSyntaxException {
+            int iVal = expectOptionName(i, key);
+            if (src.regionMatches(iVal, "true", 0, "true".length())) {
+                options |= flag;
+                return iVal + "true".length();
+            } else if (!src.regionMatches(iVal, "false", 0, "false".length())) {
+                throw optionsSyntaxErrorUnexpectedValue(iVal, "true", "false");
+            }
+            return iVal + "false".length();
+        }
+
+        private int parseFlavor(int i) throws RegexSyntaxException {
+            int iVal = expectOptionName(i, FLAVOR_NAME);
+            if (iVal >= src.length()) {
+                throw optionsSyntaxErrorUnexpectedValue(iVal, FLAVOR_OPTIONS);
+            }
+            switch (src.charAt(iVal)) {
+                case 'E':
+                    flavor = ECMAScriptFlavor.INSTANCE;
+                    return expectValue(iVal, FLAVOR_ECMASCRIPT, FLAVOR_OPTIONS);
+                case 'R':
+                    flavor = RubyFlavor.INSTANCE;
+                    return expectValue(iVal, FLAVOR_RUBY, FLAVOR_OPTIONS);
+                case 'P':
+                    flavor = PythonFlavor.INSTANCE;
+                    return expectValue(iVal, FLAVOR_PYTHON, FLAVOR_OPTIONS);
+                default:
+                    throw optionsSyntaxErrorUnexpectedValue(iVal, FLAVOR_OPTIONS);
+            }
+        }
+
+        private int parseEncoding(int i) throws RegexSyntaxException {
+            int iVal = expectOptionName(i, ENCODING_NAME);
+            if (iVal >= src.length()) {
+                throw optionsSyntaxErrorUnexpectedValue(iVal, Encodings.ALL_NAMES);
+            }
+            switch (src.charAt(iVal)) {
+                case 'A':
+                    encoding = Encodings.ASCII;
+                    return expectValue(iVal, Encodings.ASCII.getName(), Encodings.ALL_NAMES);
+                case 'B':
+                    encoding = Encodings.BYTES;
+                    return expectValue(iVal, "BYTES", Encodings.ALL_NAMES);
+                case 'L':
+                    encoding = Encodings.LATIN_1;
+                    return expectValue(iVal, Encodings.LATIN_1.getName(), Encodings.ALL_NAMES);
+                case 'U':
+                    if (iVal + 4 >= src.length()) {
+                        throw optionsSyntaxErrorUnexpectedValue(iVal, FLAVOR_OPTIONS);
+                    }
+                    switch (src.charAt(iVal + 4)) {
+                        case '8':
+                            encoding = Encodings.UTF_8;
+                            return expectValue(iVal, Encodings.UTF_8.getName(), Encodings.ALL_NAMES);
+                        case '1':
+                            encoding = Encodings.UTF_16;
+                            return expectValue(iVal, Encodings.UTF_16.getName(), Encodings.ALL_NAMES);
+                        case '3':
+                            encoding = Encodings.UTF_32;
+                            return expectValue(iVal, Encodings.UTF_32.getName(), Encodings.ALL_NAMES);
+                        default:
+                            throw optionsSyntaxErrorUnexpectedValue(iVal, Encodings.ALL_NAMES);
+                    }
+                default:
+                    throw optionsSyntaxErrorUnexpectedValue(iVal, Encodings.ALL_NAMES);
+            }
+        }
+
+        private int parsePythonMethod(int i) throws RegexSyntaxException {
+            int iVal = expectOptionName(i, PYTHON_METHOD_NAME);
+            if (iVal >= src.length()) {
+                throw optionsSyntaxErrorUnexpectedValue(iVal, PYTHON_METHOD_OPTIONS);
+            }
+            switch (src.charAt(iVal)) {
+                case 's':
+                    pythonMethod = PythonMethod.search;
+                    return expectValue(iVal, PYTHON_METHOD_SEARCH, PYTHON_METHOD_OPTIONS);
+                case 'm':
+                    pythonMethod = PythonMethod.match;
+                    return expectValue(iVal, PYTHON_METHOD_MATCH, PYTHON_METHOD_OPTIONS);
+                case 'f':
+                    pythonMethod = PythonMethod.fullmatch;
+                    return expectValue(iVal, PYTHON_METHOD_FULLMATCH, PYTHON_METHOD_OPTIONS);
+                default:
+                    throw optionsSyntaxErrorUnexpectedValue(iVal, PYTHON_METHOD_OPTIONS);
+            }
+        }
+
+        private int parsePythonLocale(int i) throws RegexSyntaxException {
+            int iStart = expectOptionName(i, PYTHON_LOCALE_NAME);
+            int iEnd = ArrayUtils.indexOf(src, iStart, src.length(), ',', '/');
+            if (iEnd == -1) {
+                iEnd = src.length();
+            }
+            pythonLocale = src.substring(iStart, iEnd);
+            return iEnd;
+        }
+
+        @TruffleBoundary
+        private RegexSyntaxException optionsSyntaxErrorUnexpectedKey(int i) {
+            int eqlPos = src.indexOf('=', i);
+            return optionsSyntaxError(String.format("unexpected option '%s'", src.substring(i, eqlPos < 0 ? src.length() : eqlPos)), i);
+        }
+
+        @TruffleBoundary
+        private RegexSyntaxException optionsSyntaxErrorUnexpectedValue(int i, String... expected) {
+            int commaPos = src.indexOf(',', i);
+            String value = src.substring(i, commaPos < 0 ? src.length() : commaPos);
+            return optionsSyntaxError(String.format("unexpected value '%s', expected one of %s", value, Arrays.toString(expected)), i);
+        }
+
+        @TruffleBoundary
+        private RegexSyntaxException optionsSyntaxError(String msg, int i) {
+            return RegexSyntaxException.createOptions(source, String.format("Invalid options syntax in '%s': %s", src, msg), i);
+        }
+
+        private boolean isBitSet(int bit) {
+            return (options & bit) != 0;
+        }
+
+        public Builder u180eWhitespace(boolean enabled) {
+            updateOption(enabled, U180E_WHITESPACE);
+            return this;
+        }
+
+        public Builder regressionTestMode(boolean enabled) {
+            updateOption(enabled, REGRESSION_TEST_MODE);
+            return this;
+        }
+
+        public Builder dumpAutomata(boolean enabled) {
+            updateOption(enabled, DUMP_AUTOMATA);
+            return this;
+        }
+
+        public Builder stepExecution(boolean enabled) {
+            updateOption(enabled, STEP_EXECUTION);
+            return this;
+        }
+
+        public Builder alwaysEager(boolean enabled) {
+            updateOption(enabled, ALWAYS_EAGER);
+            return this;
+        }
+
+        public Builder utf16ExplodeAstralSymbols(boolean enabled) {
+            updateOption(enabled, UTF_16_EXPLODE_ASTRAL_SYMBOLS);
+            return this;
+        }
+
+        public boolean isUtf16ExplodeAstralSymbols() {
+            return
