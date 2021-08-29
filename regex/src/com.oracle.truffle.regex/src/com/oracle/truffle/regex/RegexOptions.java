@@ -617,4 +617,80 @@ public final class RegexOptions {
         }
 
         public boolean isUtf16ExplodeAstralSymbols() {
-            return
+            return isBitSet(UTF_16_EXPLODE_ASTRAL_SYMBOLS);
+        }
+
+        public Builder validate(boolean enabled) {
+            updateOption(enabled, VALIDATE);
+            return this;
+        }
+
+        public Builder ignoreAtomicGroups(boolean enabled) {
+            updateOption(enabled, IGNORE_ATOMIC_GROUPS);
+            return this;
+        }
+
+        public Builder generateDFAImmediately(boolean enabled) {
+            updateOption(enabled, GENERATE_DFA_IMMEDIATELY);
+            return this;
+        }
+
+        public Builder booleanMatch(boolean enabled) {
+            updateOption(enabled, BOOLEAN_MATCH);
+            return this;
+        }
+
+        public Builder mustAdvance(boolean enabled) {
+            updateOption(enabled, MUST_ADVANCE);
+            return this;
+        }
+
+        public Builder flavor(@SuppressWarnings("hiding") RegexFlavor flavor) {
+            this.flavor = flavor;
+            return this;
+        }
+
+        public RegexFlavor getFlavor() {
+            return flavor;
+        }
+
+        public Builder encoding(@SuppressWarnings("hiding") Encodings.Encoding encoding) {
+            this.encoding = encoding;
+            return this;
+        }
+
+        public Encodings.Encoding getEncoding() {
+            return encoding;
+        }
+
+        public Builder pythonMethod(@SuppressWarnings("hiding") PythonMethod pythonMethod) {
+            this.pythonMethod = pythonMethod;
+            return this;
+        }
+
+        public PythonMethod getPythonMethod() {
+            return pythonMethod;
+        }
+
+        public Builder pythonLocale(@SuppressWarnings("hiding") String pythonLocale) {
+            this.pythonLocale = pythonLocale;
+            return this;
+        }
+
+        public String getPythonLocale() {
+            return pythonLocale;
+        }
+
+        public RegexOptions build() {
+            return new RegexOptions(this.options, this.flavor, this.encoding, this.pythonMethod, this.pythonLocale);
+        }
+
+        private void updateOption(boolean enabled, int bitMask) {
+            if (enabled) {
+                this.options |= bitMask;
+            } else {
+                this.options &= ~bitMask;
+            }
+        }
+    }
+}
