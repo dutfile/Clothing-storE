@@ -77,4 +77,152 @@ public final class MarkBasePointersPhase extends AllocationPhase {
 
             @Override
             public Marker.BasePointersSet copy() {
-                return new Ba
+                return new BasePointersSet(this);
+            }
+
+            // Verify that there is no base includes derivedRef already.
+            // The single derivedRef maps to multiple bases case can not happen.
+            private boolean verifyDerivedRefs(Value derivedRef, int base) {
+                for (Map.Entry<Integer, Set<Value>> entry : baseDerivedRefs.entrySet()) {
+                    Set<Value> s = entry.getValue();
+                    if (s.contains(derivedRef) && base != entry.getKey()) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            @Override
+            public void put(Value v) {
+                Variable base = asVariable(v.getValueKind(LIRKind.class).getDerivedReferenceBase());
+                assert !base.getValueKind(LIRKind.class).isValue();
+
+                Set<Value> derivedRefs = baseDerivedRefs.get(base.index);
+                assert verifyDerivedRefs(v, base.index);
+                if (derivedRefs == null) {
+                    HashSet<Value> s = new HashSet<>();
+                    s.add(v);
+                    baseDerivedRefs.put(base.index, s);
+                } else {
+                    derivedRefs.add(v);
+                }
+            }
+
+            @Override
+            public void putAll(BasePointersSet v) {
+                for (Map.Entry<Integer, Set<Value>> entry : v.baseDerivedRefs.entrySet()) {
+                    Integer k = entry.getKey();
+                    Set<Value> derivedRefsOther = entry.getValue();
+                    Set<Value> derivedRefs = baseDerivedRefs.get(k);
+                    if (derivedRefs == null) {
+                        // Deep copy.
+                        Set<Value> s = new HashSet<>(derivedRefsOther);
+                        baseDerivedRefs.put(k, s);
+                    } else {
+                        derivedRefs.addAll(derivedRefsOther);
+                    }
+                }
+            }
+
+            @Override
+            public void remove(Value v) {
+                Variable base = asVariable(v.getValueKind(LIRKind.class).getDerivedReferenceBase());
+                assert !base.getValueKind(LIRKind.class).isValue();
+                Set<Value> derivedRefs = baseDerivedRefs.get(base.index);
+                // Just mark the base pointer as null if no derived references exist.
+                if (derivedRefs == null) {
+                    return;
+                }
+
+                // Remove the value from the derived reference set if the set exists.
+                if (derivedRefs.contains(v)) {
+                    derivedRefs.remove(v);
+                    if (derivedRefs.isEmpty()) {
+                        baseDerivedRefs.remove(base.index);
+                    }
+                }
+            }
+
+            private IndexedValueMap getMap() {
+                IndexedValueMap result = new IndexedValueMap();
+                for (Set<Value> entry : baseDerivedRefs.values()) {
+                    if (entry.isEmpty()) {
+                        continue;
+                    }
+                    Value v = entry.iterator().next();
+                    Variable base = asVariable(v.getValueKind(LIRKind.class).getDerivedReferenceBase());
+                    result.put(base.index, base);
+                }
+                return result;
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                if (obj instanceof Marker.BasePointersSet) {
+                    BasePointersSet other = (BasePointersSet) obj;
+                    return baseDerivedRefs.equals(other.baseDerivedRefs);
+                } else {
+                    return false;
+                }
+            }
+
+            @Override
+            public int hashCode() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String toString() {
+                StringBuilder sb = new StringBuilder();
+                sb.append("[BasePointersSet] baseDerivedRefs map: {");
+
+                boolean mapHaveElement = false;
+                for (Map.Entry<Integer, Set<Value>> entry : baseDerivedRefs.entrySet()) {
+                    sb.append(entry.getKey());
+                    sb.append(": (");
+
+                    boolean setHaveElement = false;
+                    for (Value v : entry.getValue()) {
+                        sb.append(v + ",");
+                        setHaveElement = true;
+                    }
+                    if (setHaveElement) {
+                        sb.deleteCharAt(sb.length() - 1);
+                    }
+                    sb.append("),");
+                    mapHaveElement = true;
+                }
+                if (mapHaveElement) {
+                    sb.deleteCharAt(sb.length() - 1);
+                }
+                sb.append("}");
+                return sb.toString();
+            }
+        }
+
+        private Marker(LIR lir, FrameMap frameMap) {
+            super(lir, frameMap);
+        }
+
+        @Override
+        protected Marker.BasePointersSet newLiveValueSet() {
+            return new BasePointersSet();
+        }
+
+        @Override
+        protected boolean shouldProcessValue(Value operand) {
+            ValueKind<?> kind = operand.getValueKind();
+            if (kind instanceof LIRKind) {
+                return ((LIRKind) kind).isDerivedReference();
+            } else {
+                return false;
+            }
+        }
+
+        @Override
+        protected void processState(LIRInstruction op, LIRFrameState info, BasePointersSet values) {
+            info.setLiveBasePointers(values.getMap());
+        }
+
+    }
+}
