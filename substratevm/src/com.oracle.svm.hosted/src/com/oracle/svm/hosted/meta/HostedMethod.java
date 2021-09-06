@@ -144,4 +144,240 @@ public final class HostedMethod extends HostedElement implements SharedMethod, W
         Function<Integer, Pair<String, String>> nameGenerator = (collisionCount) -> {
             String name = wrapped.wrapped.getName(); // want name w/o any multimethodkey suffix
             if (key != ORIGINAL_METHOD) {
-                name += MULTI_METHOD_KEY_SEPARATOR
+                name += MULTI_METHOD_KEY_SEPARATOR + key;
+            }
+            if (collisionCount > 0) {
+                name = name + METHOD_NAME_COLLISION_SEPARATOR + collisionCount;
+            }
+            String uniqueShortName = SubstrateUtil.uniqueShortName(holder.getJavaClass().getClassLoader(), holder, name, signature, wrapped.isConstructor());
+
+            return Pair.create(name, uniqueShortName);
+        };
+
+        Pair<String, String> names = ImageSingletons.lookup(HostedMethodNameFactory.class).createNames(nameGenerator);
+
+        return new HostedMethod(wrapped, holder, signature, constantPool, handlers, names.getLeft(), names.getRight(), localVariableTable, key, multiMethodMap);
+    }
+
+    private static LocalVariableTable createLocalVariableTable(HostedUniverse universe, AnalysisMethod wrapped) {
+        LocalVariableTable lvt = wrapped.getLocalVariableTable();
+        if (lvt == null) {
+            return null;
+        }
+        try {
+            Local[] origLocals = lvt.getLocals();
+            Local[] newLocals = new Local[origLocals.length];
+            for (int i = 0; i < newLocals.length; ++i) {
+                Local origLocal = origLocals[i];
+                JavaType origType = origLocal.getType();
+                if (!universe.contains(origType)) {
+                    throw new UnsupportedFeatureException("No HostedType for given AnalysisType");
+                }
+                HostedType newType = universe.lookup(origType);
+                newLocals[i] = new Local(origLocal.getName(), newType, origLocal.getStartBCI(), origLocal.getEndBCI(), origLocal.getSlot());
+            }
+            return new LocalVariableTable(newLocals);
+        } catch (UnsupportedFeatureException e) {
+            return null;
+        }
+    }
+
+    private HostedMethod(AnalysisMethod wrapped, HostedType holder, Signature signature, ConstantPool constantPool,
+                    ExceptionHandler[] handlers, String name, String uniqueShortName, LocalVariableTable localVariableTable, MultiMethodKey multiMethodKey,
+                    Map<MultiMethodKey, MultiMethod> multiMethodMap) {
+        this.wrapped = wrapped;
+        this.holder = holder;
+        this.signature = signature;
+        this.constantPool = constantPool;
+        this.handlers = handlers;
+        this.compilationInfo = new CompilationInfo(this);
+        this.localVariableTable = localVariableTable;
+        this.name = name;
+        this.uniqueShortName = uniqueShortName;
+        this.multiMethodKey = multiMethodKey;
+        this.multiMethodMap = multiMethodMap;
+    }
+
+    @Override
+    public HostedMethod[] getImplementations() {
+        return implementations;
+    }
+
+    public String getQualifiedName() {
+        return wrapped.getQualifiedName();
+    }
+
+    public void setCodeAddressOffset(int address) {
+        assert isCompiled();
+        assert !codeAddressOffsetValid;
+
+        codeAddressOffset = address;
+        codeAddressOffsetValid = true;
+    }
+
+    /**
+     * Returns the address offset of the compiled code relative to the code of the first method in
+     * the buffer.
+     */
+    public int getCodeAddressOffset() {
+        if (!codeAddressOffsetValid) {
+            throw VMError.shouldNotReachHere(format("%H.%n(%p)") + ": has no code address offset set.");
+        }
+        return codeAddressOffset;
+    }
+
+    public boolean isCodeAddressOffsetValid() {
+        return codeAddressOffsetValid;
+    }
+
+    public void setCompiled() {
+        this.compiled = true;
+    }
+
+    public boolean isCompiled() {
+        return compiled;
+    }
+
+    public String getUniqueShortName() {
+        return uniqueShortName;
+    }
+
+    /*
+     * Release compilation related information.
+     */
+    public void clear() {
+        compilationInfo.clear();
+        staticAnalysisResults = null;
+    }
+
+    @Override
+    public boolean hasCodeOffsetInImage() {
+        throw unimplemented();
+    }
+
+    @Override
+    public int getCodeOffsetInImage() {
+        throw unimplemented();
+    }
+
+    @Override
+    public int getDeoptOffsetInImage() {
+        int result = 0;
+        HostedMethod deoptTarget = getMultiMethod(DEOPT_TARGET_METHOD);
+        if (deoptTarget != null && deoptTarget.isCodeAddressOffsetValid()) {
+            result = deoptTarget.getCodeAddressOffset();
+            assert result != 0;
+        }
+        return result;
+    }
+
+    @Override
+    public AnalysisMethod getWrapped() {
+        return wrapped;
+    }
+
+    @Override
+    public Parameter[] getParameters() {
+        return wrapped.getParameters();
+    }
+
+    @Override
+    public boolean isDeoptTarget() {
+        return MultiMethod.super.isDeoptTarget();
+    }
+
+    @Override
+    public boolean canDeoptimize() {
+        return compilationInfo.canDeoptForTesting() || multiMethodKey == SubstrateCompilationDirectives.RUNTIME_COMPILED_METHOD;
+    }
+
+    public boolean hasVTableIndex() {
+        return vtableIndex != -1;
+    }
+
+    @Override
+    public int getVTableIndex() {
+        assert vtableIndex != -1;
+        return vtableIndex;
+    }
+
+    @Override
+    public Deoptimizer.StubType getDeoptStubType() {
+        Deoptimizer.DeoptStub stubAnnotation = getAnnotation(Deoptimizer.DeoptStub.class);
+        if (stubAnnotation != null) {
+            return stubAnnotation.stubType();
+        }
+        return Deoptimizer.StubType.NoDeoptStub;
+    }
+
+    /**
+     * Returns true if this method is a native entry point, i.e., called from C code. The method
+     * must not be called from Java code then.
+     */
+    @Override
+    public boolean isEntryPoint() {
+        return wrapped.isEntryPoint();
+    }
+
+    @Override
+    public boolean hasCalleeSavedRegisters() {
+        return StubCallingConvention.Utils.hasStubCallingConvention(this);
+    }
+
+    @Override
+    public String getName() {
+        return name;
+    }
+
+    @Override
+    public Signature getSignature() {
+        return signature;
+    }
+
+    @Override
+    public StructuredGraph buildGraph(DebugContext debug, ResolvedJavaMethod method, HostedProviders providers, Purpose purpose) {
+        return wrapped.buildGraph(debug, method, providers, purpose);
+    }
+
+    @Override
+    public boolean allowRuntimeCompilation() {
+        return wrapped.allowRuntimeCompilation();
+    }
+
+    @Override
+    public byte[] getCode() {
+        return wrapped.getCode();
+    }
+
+    @Override
+    public int getCodeSize() {
+        return wrapped.getCodeSize();
+    }
+
+    @Override
+    public HostedType getDeclaringClass() {
+        return holder;
+    }
+
+    @Override
+    public int getMaxLocals() {
+        return wrapped.getMaxLocals();
+    }
+
+    @Override
+    public int getMaxStackSize() {
+        return wrapped.getMaxStackSize();
+    }
+
+    @Override
+    public int getModifiers() {
+        return wrapped.getModifiers();
+    }
+
+    @Override
+    public boolean isSynthetic() {
+        return wrapped.isSynthetic();
+    }
+
+    @Override
+    public bo
