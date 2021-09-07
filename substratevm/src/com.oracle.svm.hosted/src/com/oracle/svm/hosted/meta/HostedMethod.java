@@ -380,4 +380,213 @@ public final class HostedMethod extends HostedElement implements SharedMethod, W
     }
 
     @Override
-    public bo
+    public boolean isVarArgs() {
+        return wrapped.isVarArgs();
+    }
+
+    @Override
+    public boolean isBridge() {
+        return wrapped.isBridge();
+    }
+
+    @Override
+    public boolean isClassInitializer() {
+        return wrapped.isClassInitializer();
+    }
+
+    @Override
+    public boolean isConstructor() {
+        return wrapped.isConstructor();
+    }
+
+    @Override
+    public boolean canBeStaticallyBound() {
+        return implementations.length == 1 && implementations[0].equals(this);
+    }
+
+    @Override
+    public ExceptionHandler[] getExceptionHandlers() {
+        return handlers;
+    }
+
+    @Override
+    public StackTraceElement asStackTraceElement(int bci) {
+        return wrapped.asStackTraceElement(bci);
+    }
+
+    @Override
+    public StaticAnalysisResults getProfilingInfo() {
+        return staticAnalysisResults;
+    }
+
+    @Override
+    public StaticAnalysisResults getProfilingInfo(boolean includeNormal, boolean includeOSR) {
+        return staticAnalysisResults;
+    }
+
+    @Override
+    public ConstantPool getConstantPool() {
+        return constantPool;
+    }
+
+    @Override
+    public Annotation[][] getParameterAnnotations() {
+        return wrapped.getParameterAnnotations();
+    }
+
+    @Override
+    public Type[] getGenericParameterTypes() {
+        return wrapped.getGenericParameterTypes();
+    }
+
+    @Override
+    public boolean canBeInlined() {
+        return !hasNeverInlineDirective();
+    }
+
+    @Override
+    public boolean hasNeverInlineDirective() {
+        return wrapped.hasNeverInlineDirective();
+    }
+
+    @Override
+    public boolean shouldBeInlined() {
+        return getAnnotation(AlwaysInline.class) != null || getAnnotation(ForceInline.class) != null;
+    }
+
+    @Override
+    public LineNumberTable getLineNumberTable() {
+        return wrapped.getLineNumberTable();
+    }
+
+    @Override
+    public String toString() {
+        return "HostedMethod<" + format("%h.%n") + " -> " + wrapped.toString() + ">";
+    }
+
+    @Override
+    public LocalVariableTable getLocalVariableTable() {
+        return localVariableTable;
+    }
+
+    @Override
+    public void reprofile() {
+        throw unimplemented();
+    }
+
+    @Override
+    public boolean isInVirtualMethodTable(ResolvedJavaType resolved) {
+        return hasVTableIndex();
+    }
+
+    @Override
+    public Constant getEncoding() {
+        return new SubstrateMethodPointerConstant(new MethodPointer(this));
+    }
+
+    @Override
+    public boolean isDefault() {
+        throw unimplemented();
+    }
+
+    @Override
+    public SpeculationLog getSpeculationLog() {
+        throw shouldNotReachHere();
+    }
+
+    @Override
+    public JavaMethod asJavaMethod() {
+        return this;
+    }
+
+    @Override
+    public int hashCode() {
+        return wrapped.hashCode();
+    }
+
+    @Override
+    public Executable getJavaMethod() {
+        return wrapped.getJavaMethod();
+    }
+
+    @Override
+    public MultiMethodKey getMultiMethodKey() {
+        return multiMethodKey;
+    }
+
+    void setMultiMethodMap(ConcurrentHashMap<MultiMethodKey, MultiMethod> newMultiMethodMap) {
+        VMError.guarantee(multiMethodMap == null, "Resetting already initialized multimap");
+        if (!MULTIMETHOD_MAP_UPDATER.compareAndSet(this, null, newMultiMethodMap)) {
+            throw VMError.shouldNotReachHere("unable to set multimeMethodMap");
+        }
+    }
+
+    @Override
+    public HostedMethod getOrCreateMultiMethod(MultiMethodKey key) {
+        if (key == multiMethodKey) {
+            return this;
+        }
+
+        if (multiMethodMap == null) {
+            ConcurrentHashMap<MultiMethodKey, MultiMethod> newMultiMethodMap = new ConcurrentHashMap<>();
+            newMultiMethodMap.put(multiMethodKey, this);
+            MULTIMETHOD_MAP_UPDATER.compareAndSet(this, null, newMultiMethodMap);
+        }
+
+        return (HostedMethod) multiMethodMap.computeIfAbsent(key, (k) -> {
+            HostedMethod newMultiMethod = create0(wrapped, holder, signature, constantPool, handlers, k, multiMethodMap, localVariableTable);
+            newMultiMethod.staticAnalysisResults = staticAnalysisResults;
+            newMultiMethod.implementations = implementations;
+            newMultiMethod.vtableIndex = vtableIndex;
+            return newMultiMethod;
+        });
+    }
+
+    @Override
+    public HostedMethod getMultiMethod(MultiMethodKey key) {
+        if (key == multiMethodKey) {
+            return this;
+        } else if (multiMethodMap == null) {
+            return null;
+        } else {
+            return (HostedMethod) multiMethodMap.get(key);
+        }
+    }
+
+    @Override
+    public Collection<MultiMethod> getAllMultiMethods() {
+        if (multiMethodMap == null) {
+            return Collections.singleton(this);
+        } else {
+            return multiMethodMap.values();
+        }
+    }
+}
+
+@Platforms(Platform.HOSTED_ONLY.class)
+@AutomaticallyRegisteredFeature
+class HostedMethodNameFactory implements InternalFeature {
+    Map<String, Integer> methodNameCount = new ConcurrentHashMap<>();
+    Set<String> uniqueShortNames = ConcurrentHashMap.newKeySet();
+
+    Pair<String, String> createNames(Function<Integer, Pair<String, String>> nameGenerator) {
+        Pair<String, String> result = nameGenerator.apply(0);
+
+        int collisionCount = methodNameCount.merge(result.getRight(), 0, (oldValue, value) -> oldValue + 1);
+
+        if (collisionCount != 0) {
+            result = nameGenerator.apply(collisionCount);
+        }
+
+        boolean added = uniqueShortNames.add(result.getRight());
+        VMError.guarantee(added, "failed to generate uniqueShortName for HostedMethod: %s", result.getRight());
+
+        return result;
+    }
+
+    @Override
+    public void afterCompilation(AfterCompilationAccess access) {
+        methodNameCount = null;
+        uniqueShortNames = null;
+    }
+}
