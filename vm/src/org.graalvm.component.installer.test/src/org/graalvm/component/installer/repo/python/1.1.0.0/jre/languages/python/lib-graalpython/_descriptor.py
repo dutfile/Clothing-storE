@@ -91,4 +91,6 @@ class SimpleNamespace(object):
     def __repr__(self):
         sb = []
         ns = object.__getattribute__(self, "__ns__")
-        for
+        for k,v in ns.items():
+            sb.append("%s='%s'" % (k,v))
+        return "namespace(%s)" % ", ".join(sb)
