@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, Oracle and/or its affiliates.
+ * Copyright (c) 2016, 2021, Oracle and/or its affiliates.
  *
  * All rights reserved.
  *
@@ -27,39 +27,48 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package com.oracle.truffle.llvm.runtime.debug.type;
+package com.oracle.truffle.llvm.runtime.nodes.intrinsics.llvm;
 
-import java.util.List;
+import com.oracle.truffle.api.dsl.NodeChild;
+import com.oracle.truffle.api.dsl.Specialization;
+import com.oracle.truffle.api.nodes.RootNode;
+import com.oracle.truffle.llvm.runtime.LLVMLanguage;
+import com.oracle.truffle.llvm.runtime.nodes.api.LLVMExpressionNode;
 
-public final class LLVMSourceMethodType extends LLVMSourceFunctionType {
+/**
+ * This class is the entry point for every intrinsified (substituted) function.
+ */
+public abstract class LLVMIntrinsicRootNode extends RootNode {
+
     private final String name;
-    private final String linkageName;
-    private final LLVMSourceClassLikeType clazz;
-    private final long virtualIndex;
 
-    public LLVMSourceMethodType(List<LLVMSourceType> types, String name, String linkageName, LLVMSourceClassLikeType clazz, long virtualIndex) {
-        super(types);
+    LLVMIntrinsicRootNode(LLVMLanguage language, String name) {
+        super(language);
         this.name = name;
-        this.linkageName = linkageName;
-        this.clazz = clazz;
-        this.virtualIndex = virtualIndex;
+    }
+
+    public abstract LLVMExpressionNode getNode();
+
+    @Override
+    public boolean isInternal() {
+        return true;
     }
 
     @Override
-    public String getName() {
+    public String toString() {
         return name;
     }
 
-    public String getLinkageName() {
-        return linkageName;
-    }
+    @NodeChild(type = LLVMExpressionNode.class, value = "node")
+    public abstract static class LLVMIntrinsicExpressionNode extends LLVMIntrinsicRootNode {
 
-    public LLVMSourceClassLikeType getClazz() {
-        return clazz;
-    }
+        public LLVMIntrinsicExpressionNode(LLVMLanguage language, String name) {
+            super(language, name);
+        }
 
-    public long getVirtualIndex() {
-        return virtualIndex;
+        @Specialization
+        protected Object doOp(Object val) {
+            return val;
+        }
     }
-
 }
