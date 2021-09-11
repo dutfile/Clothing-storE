@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, 2020, Oracle and/or its affiliates.
+ * Copyright (c) 2017, 2020, Oracle and/or its affiliates.
  *
  * All rights reserved.
  *
@@ -27,9 +27,8 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#include "graalvm/llvm/polyglot.h"
-#include <stdlib.h>
+int arr[2][3][2] = { { { 1, 9 }, { 2, 8 }, { 3, 7 } }, { { 4, 6 }, { 5, 11 }, { 6, 4 } } };
 
-void *identity(void *x) {
-    return x;
+int main() {
+    return arr[0][2][0] + arr[1][1][1] + arr[0][0][0] + arr[0][0][1];
 }
