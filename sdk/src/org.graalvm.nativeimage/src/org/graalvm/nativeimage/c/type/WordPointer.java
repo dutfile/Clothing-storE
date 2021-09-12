@@ -85,4 +85,35 @@ public interface WordPointer extends PointerBase {
      */
     void write(WordBase value);
 
-    
+    /**
+     * Writes the value of the array element with the specified index, treating the pointer as an
+     * array of the C type.
+     *
+     * @since 19.0
+     */
+    void write(int index, WordBase value);
+
+    /**
+     * Writes the value of the array element with the specified index, treating the pointer as an
+     * array of the C type.
+     *
+     * @since 19.0
+     */
+    void write(SignedWord index, WordBase value);
+
+    /**
+     * Computes the address of the array element with the specified index, treating the pointer as
+     * an array of the C type.
+     *
+     * @since 19.0
+     */
+    WordPointer addressOf(int index);
+
+    /**
+     * Computes the address of the array element with the specified index, treating the pointer as
+     * an array of the C type.
+     *
+     * @since 19.0
+     */
+    WordPointer addressOf(SignedWord index);
+}
