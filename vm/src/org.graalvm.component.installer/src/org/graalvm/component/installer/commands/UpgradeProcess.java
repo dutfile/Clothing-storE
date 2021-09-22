@@ -252,4 +252,159 @@ public class UpgradeProcess implements AutoCloseable {
         int cmp = min.compareTo(info.getVersion());
         if ((cmp > 0) || ((editionUpgrade == null) && (cmp == 0))) {
             feedback.message("UPGRADE_NoUpdateLatestVersion", min.displayString());
-    
+            migrated.clear();
+            return false;
+        }
+
+        Path reported = createInstallName(info);
+        // there's a slight chance this will be different from the final name ...
+        feedback.output("UPGRADE_PreparingInstall", info.getVersion().displayString(), reported);
+        failIfDirectotyExistsNotEmpty(reported);
+
+        ComponentParam coreParam = createGraalComponentParam(info);
+        // reuse License logic from the installer command:
+        InstallCommand cmd = new InstallCommand();
+        cmd.init(input, feedback);
+
+        // ask the InstallCommand to process/accept the licenses, if there are any.
+        MetadataLoader ldr = coreParam.createMetaLoader();
+        cmd.addLicenseToAccept(ldr);
+        cmd.acceptLicenses();
+        acceptedLicenseIDs = cmd.getProcessedLicenses();
+
+        // force download
+        ComponentParam param = input.existingFiles().createParam("core", info);
+        metaLoader = param.createFileLoader();
+        ComponentInfo completeInfo = metaLoader.completeMetadata();
+        newInstallPath = createInstallName(completeInfo);
+        newGraalHomePath = newInstallPath;
+        failIfDirectotyExistsNotEmpty(newInstallPath);
+
+        if (!reported.equals(newInstallPath)) {
+            feedback.error("UPGRADE_WarningEditionDifferent", null, info.getVersion().displayString(), newInstallPath);
+        }
+
+        existingComponents.addAll(input.getLocalRegistry().getComponentIDs());
+        existingComponents.remove(BundleConstants.GRAAL_COMPONENT_ID);
+        return true;
+    }
+
+    void failIfDirectotyExistsNotEmpty(Path target) throws IOException {
+        if (!Files.exists(target)) {
+            return;
+        }
+        if (!Files.isDirectory(target)) {
+            throw feedback.failure("UPGRADE_TargetExistsNotDirectory", null, target);
+        }
+        Path ghome = target.resolve(SystemUtils.getGraalVMJDKRoot(input.getLocalRegistry()));
+        Path relFile = ghome.resolve("release");
+        if (Files.isReadable(relFile)) {
+            Version targetVersion = null;
+            try {
+                ComponentRegistry reg = createRegistryFor(ghome);
+                targetVersion = reg.getGraalVersion();
+            } catch (FailedOperationException ex) {
+                // ignore
+            }
+            if (targetVersion != null) {
+                throw feedback.failure("UPGRADE_TargetExistsContainsGraalVM", null, target, targetVersion.displayString());
+            }
+        }
+        if (Files.list(target).findFirst().isPresent()) {
+            throw feedback.failure("UPGRADE_TargetExistsNotEmpty", null, target);
+        }
+    }
+
+    /**
+     * Completes the component info, loads symlinks, permissions. Same as
+     * {@link InstallCommand#createInstaller}.
+     */
+    GraalVMInstaller createGraalVMInstaller(ComponentInfo info) throws IOException {
+        ComponentParam p = createGraalComponentParam(info);
+        MetadataLoader ldr = p.createFileLoader();
+        ldr.loadPaths();
+        if (p.isComplete()) {
+            Archive a;
+            a = ldr.getArchive();
+            a.verifyIntegrity(input);
+        }
+        ComponentInfo completeInfo = ldr.getComponentInfo();
+        targetInfo = completeInfo;
+        metaLoader = ldr;
+        GraalVMInstaller gvmInstaller = new GraalVMInstaller(feedback,
+                        input.getFileOperations(),
+                        input.getLocalRegistry(), completeInfo, catalog,
+                        metaLoader.getArchive());
+        // do not create symlinks if disabled, or target directory is given.
+        boolean disableSymlink = input.hasOption(Commands.OPTION_NO_SYMLINK) ||
+                        input.hasOption(Commands.OPTION_TARGET_DIRECTORY);
+        gvmInstaller.setDisableSymlinks(disableSymlink);
+        // will make registrations for bundled components, too.
+        gvmInstaller.setAllowFilesInComponentDir(true);
+        gvmInstaller.setCurrentInstallPath(input.getGraalHomePath());
+        gvmInstaller.setInstallPath(newInstallPath);
+        gvmInstaller.setPermissions(ldr.loadPermissions());
+        gvmInstaller.setSymlinks(ldr.loadSymlinks());
+        newGraalHomePath = gvmInstaller.getInstalledPath();
+        return gvmInstaller;
+    }
+
+    /**
+     * Cached parameter for the core. It will cache MetaLoader and FileLoader for subsequent
+     * operations.
+     */
+    private ComponentParam graalCoreParam;
+    private GraalVMInstaller coreInstaller;
+
+    ComponentParam createGraalComponentParam(ComponentInfo info) {
+        if (graalCoreParam == null) {
+            graalCoreParam = input.existingFiles().createParam(info.getId(), info);
+        }
+        return graalCoreParam;
+    }
+
+    public boolean installGraalCore(ComponentInfo info) throws IOException {
+        if (!prepareInstall(info)) {
+            return false;
+        }
+
+        GraalVMInstaller gvmInstaller = createGraalVMInstaller(info);
+
+        feedback.output("UPGRADE_InstallingCore", info.getVersion().displayString(), newInstallPath.toString());
+
+        gvmInstaller.install();
+        // allow symlink to be created in close(); the symlink won't obscure paths
+        // that might contain the symlink during installation of components.
+        coreInstaller = gvmInstaller;
+
+        Path installed = gvmInstaller.getInstalledPath();
+        newGraalRegistry = createRegistryFor(installed);
+        migrateLicenses();
+        return true;
+    }
+
+    private ComponentRegistry createRegistryFor(Path home) {
+        DirectoryStorage dst = new DirectoryStorage(
+                        feedback.withBundle(ComponentInstaller.class),
+                        home.resolve(SystemUtils.fromCommonRelative(CommonConstants.PATH_COMPONENT_STORAGE)),
+                        home);
+        dst.setJavaVersion(input.getLocalRegistry().getJavaVersion());
+        return new ComponentRegistry(feedback, dst);
+    }
+
+    /**
+     * Checks if the candidate GraalVM satisfies all dependencies of added components. Added
+     * components are those specified on the commandline;
+     * 
+     * @param candidate candidate GraalVM component
+     * @return broken components
+     */
+    Collection<ComponentInfo> satisfiedAddedComponents(ComponentInfo candidate) throws IOException {
+        List<ComponentInfo> broken = new ArrayList<>();
+        Version gv = candidate.getVersion();
+        Version.Match satisfies = gv.match(Version.Match.Type.COMPATIBLE);
+        for (ComponentParam param : addComponents) {
+            ComponentInfo in = param.createMetaLoader().getComponentInfo();
+            String vs = in.getRequiredGraalValues().get(BundleConstants.GRAAL_VERSION);
+            Version cv = Version.fromString(vs);
+            if (!sat
