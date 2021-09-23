@@ -407,4 +407,155 @@ public class UpgradeProcess implements AutoCloseable {
             ComponentInfo in = param.createMetaLoader().getComponentInfo();
             String vs = in.getRequiredGraalValues().get(BundleConstants.GRAAL_VERSION);
             Version cv = Version.fromString(vs);
-            if (!sat
+            if (!satisfies.test(cv)) {
+                broken.add(in);
+                if (minVersion.compareTo(cv) < 0) {
+                    minVersion = cv;
+                }
+            }
+        }
+        return broken;
+    }
+
+    Set<ComponentInfo> findInstallables(ComponentInfo graal) {
+        Version gv = graal.getVersion();
+        Version.Match satisfies = gv.match(Version.Match.Type.COMPATIBLE);
+        Set<ComponentInfo> ret = new HashSet<>();
+        for (String id : existingComponents) {
+            if (explicitIds.contains(id)) {
+                continue;
+            }
+            Collection<ComponentInfo> cis = catalog.loadComponents(id, satisfies, false);
+            if (cis == null || cis.isEmpty()) {
+                continue;
+            }
+            List<ComponentInfo> versions = new ArrayList<>(cis);
+            ret.add(versions.get(versions.size() - 1));
+        }
+        return ret;
+    }
+
+    public ComponentInfo getTargetInfo() {
+        return targetInfo;
+    }
+
+    private String lowerCaseId(String s) {
+        return s.toLowerCase(Locale.ENGLISH);
+    }
+
+    public ComponentInfo findGraalVersion(Version.Match minimum) throws IOException {
+        Version.Match filter;
+        if (minimum.getType() == Version.Match.Type.MOSTRECENT) {
+            filter = minimum.getVersion().match(Version.Match.Type.INSTALLABLE);
+        } else {
+            filter = minimum;
+        }
+        Collection<ComponentInfo> graals;
+        try {
+            graals = catalog.loadComponents(BundleConstants.GRAAL_COMPONENT_ID,
+                            filter, false);
+            if (graals == null || graals.isEmpty()) {
+                return null;
+            }
+        } catch (UnknownVersionException ex) {
+            // could not find anything to match the user version against
+            if (ex.getCandidate() == null) {
+                throw feedback.failure("UPGRADE_NoSpecificVersion", ex, filter.getVersion().displayString());
+            } else {
+                throw feedback.failure("UPGRADE_NoSpecificVersion2", ex, filter.getVersion().displayString(), ex.getCandidate().displayString());
+            }
+        }
+        List<ComponentInfo> versions = new ArrayList<>(graals);
+        Collections.sort(versions, ComponentInfo.versionComparator().reversed());
+        for (Iterator<ComponentInfo> it = versions.iterator(); it.hasNext();) {
+            ComponentInfo candidate = it.next();
+            Collection<ComponentInfo> broken = satisfiedAddedComponents(candidate);
+            if (!broken.isEmpty()) {
+                it.remove();
+            }
+        }
+        if (versions.isEmpty()) {
+            throw feedback.failure("UPGRADE_NoVersionSatisfiesComponents", null, minVersion.toString());
+        }
+
+        Set<ComponentInfo> installables = null;
+        Set<ComponentInfo> first = null;
+        ComponentInfo result = null;
+        Set<String> toMigrate = existingComponents.stream().filter((id) -> {
+            ComponentInfo ci = input.getLocalRegistry().loadSingleComponent(id, false);
+            return ci.getDistributionType() != DistributionType.BUNDLED;
+        }).map(this::lowerCaseId).collect(Collectors.toSet());
+        toMigrate.removeAll(explicitIds);
+
+        Map<ComponentInfo, Set<ComponentInfo>> missingParts = new HashMap<>();
+        for (Iterator<ComponentInfo> it = versions.iterator(); it.hasNext();) {
+            ComponentInfo candidate = it.next();
+            Set<ComponentInfo> instCandidates = findInstallables(candidate);
+            if (first == null) {
+                first = instCandidates;
+            }
+            Set<String> canMigrate = instCandidates.stream().map(ComponentInfo::getId).map(this::lowerCaseId).collect(Collectors.toSet());
+            if (allowMissing || canMigrate.containsAll(toMigrate)) {
+                installables = instCandidates;
+                result = candidate;
+                break;
+            } else {
+                Set<String> miss = new HashSet<>(toMigrate);
+                miss.removeAll(canMigrate);
+                missingParts.put(candidate, miss.stream().map((id) -> input.getLocalRegistry().findComponent(id)).collect(Collectors.toSet()));
+            }
+        }
+        if (installables == null) {
+            if (!allowMissing) {
+                List<ComponentInfo> reportVersions = new ArrayList<>(missingParts.keySet());
+                for (ComponentInfo core : reportVersions) {
+                    List<ComponentInfo> list = new ArrayList<>(missingParts.get(core));
+                    Collections.sort(list, (a, b) -> a.getId().compareToIgnoreCase(b.getId()));
+
+                    String msg = null;
+                    for (ComponentInfo ci : list) {
+                        String shortId = input.getLocalRegistry().shortenComponentId(ci);
+                        String s = feedback.l10n("UPGRADE_MissingComponentItem", shortId, ci.getName());
+                        if (msg == null) {
+                            msg = s;
+                        } else {
+                            msg = feedback.l10n("UPGRADE_MissingComponentListPart", msg, s);
+                        }
+                    }
+
+                    feedback.error("UPGRADE_MissingComponents", null, core.getName(), core.getVersion().displayString(), msg);
+                }
+                if (editionUpgrade != null) {
+                    throw feedback.failure("UPGRADE_ComponentsMissingFromEdition", null, editionUpgrade);
+                } else {
+                    throw feedback.failure("UPGRADE_ComponentsCannotMigrate", null);
+                }
+            }
+            if (versions.isEmpty()) {
+                throw feedback.failure("UPGRADE_NoVersionSatisfiesComponents", null);
+            }
+            result = versions.get(0);
+            installables = first;
+        }
+        migrated.clear();
+        // if the result GraalVM is identical to current, do not migrate anything.
+        if (result != null && (!input.getLocalRegistry().getGraalVersion().equals(result.getVersion()) ||
+                        input.hasOption(Commands.OPTION_USE_EDITION))) {
+            migrated.addAll(installables);
+            targetInfo = result;
+        }
+        return result;
+    }
+
+    public boolean didUpgrade() {
+        return newGraalRegistry != null;
+    }
+
+    /*
+     * public void identifyMigratedCompoents(ComponentInfo target) { if
+     * (!satisfiedAddedComponents(target)) { throw
+     * feedback.failure("UPGRADE_NoVersionSatisfiesComponents", null); } this.targetInfo = target;
+     * this.addComponents.addAll(findInstallables(target)); }
+     */
+
+    p
