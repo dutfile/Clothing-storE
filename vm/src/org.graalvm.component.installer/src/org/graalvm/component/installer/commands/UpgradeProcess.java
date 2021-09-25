@@ -558,4 +558,191 @@ public class UpgradeProcess implements AutoCloseable {
      * this.addComponents.addAll(findInstallables(target)); }
      */
 
-    p
+    public void migrateLicenses() {
+        if (!SystemUtils.isLicenseTrackingEnabled()) {
+            return;
+        }
+        feedback.output("UPGRADE_MigratingLicenses", input.getLocalRegistry().getGraalVersion().displayString(),
+                        targetInfo.getVersion().displayString());
+        for (Map.Entry<String, Collection<String>> e : input.getLocalRegistry().getAcceptedLicenses().entrySet()) {
+            String licId = e.getKey();
+
+            for (String compId : e.getValue()) {
+                try {
+                    String t = input.getLocalRegistry().licenseText(licId);
+                    ComponentInfo info = input.getLocalRegistry().findComponent(compId);
+                    Date d = input.getLocalRegistry().isLicenseAccepted(info, licId);
+                    newGraalRegistry.acceptLicense(info, licId, t, d);
+                } catch (FailedOperationException ex) {
+                    feedback.error("UPGRADE_CannotMigrateLicense", ex, compId, licId);
+                }
+            }
+        }
+        // dirty way how to migrate GDS settings:
+        Path gdsSettings = SystemUtils.resolveRelative(
+                        input.getGraalHomePath(),
+                        CommonConstants.PATH_COMPONENT_STORAGE + "/gds");
+        if (Files.isDirectory(gdsSettings)) {
+            Path targetGdsSettings = SystemUtils.resolveRelative(
+                            newInstallPath.resolve(SystemUtils.getGraalVMJDKRoot(newGraalRegistry)),
+                            CommonConstants.PATH_COMPONENT_STORAGE + "/gds");
+            try {
+                SystemUtils.copySubtree(gdsSettings, targetGdsSettings);
+            } catch (IOException ex) {
+                feedback.error("UPGRADE_CannotMigrateGDS", ex, ex.getLocalizedMessage());
+            }
+        }
+    }
+
+    protected InstallCommand configureInstallCommand(InstallCommand instCommand) throws IOException {
+        List<ComponentParam> params = new ArrayList<>();
+        // add migrated components
+        params.addAll(allComponents());
+        if (params.isEmpty()) {
+            return null;
+        }
+        instCommand.init(new InputDelegate(params), feedback);
+        instCommand.setAllowUpgrades(true);
+        instCommand.setForce(true);
+        instCommand.markLicensesProcessed(acceptedLicenseIDs);
+        return instCommand;
+    }
+
+    public void installAddedComponents() throws IOException {
+        // install all the components
+        InstallCommand ic = configureInstallCommand(new InstallCommand());
+        if (ic != null) {
+            ic.execute();
+        }
+    }
+
+    @Override
+    public void close() throws IOException {
+        if (coreInstaller != null) {
+            coreInstaller.createSymlink();
+        }
+        for (ComponentParam p : allComponents()) {
+            p.close();
+        }
+        if (metaLoader != null) {
+            metaLoader.close();
+        }
+    }
+
+    /**
+     * The class provides a new local registry in the new installation, and a new component
+     * registry, for the target graalvm version.
+     */
+    class InputDelegate implements CommandInput {
+        private final List<ComponentParam> params;
+        private int index;
+        private ComponentCatalog remoteRegistry;
+
+        InputDelegate(List<ComponentParam> params) {
+            this.params = params;
+        }
+
+        @Override
+        public FileOperations getFileOperations() {
+            return input.getFileOperations();
+        }
+
+        @Override
+        public CatalogFactory getCatalogFactory() {
+            return input.getCatalogFactory();
+        }
+
+        @Override
+        public ComponentIterable existingFiles() throws FailedOperationException {
+            return new ComponentIterable() {
+                @Override
+                public void setVerifyJars(boolean verify) {
+                    input.existingFiles().setVerifyJars(verify);
+                }
+
+                @Override
+                public ComponentParam createParam(String cmdString, ComponentInfo info) {
+                    return new CatalogIterable.CatalogItemParam(
+                                    getRegistry().getDownloadInterceptor(),
+                                    info,
+                                    info.getName(),
+                                    cmdString,
+                                    feedback,
+                                    input.optValue(Commands.OPTION_NO_DOWNLOAD_PROGRESS) == null);
+                }
+
+                @Override
+                public Iterator<ComponentParam> iterator() {
+                    return new Iterator<>() {
+                        boolean init;
+
+                        @Override
+                        public boolean hasNext() {
+                            if (!init) {
+                                init = true;
+                                index = 0;
+                            }
+                            return index < params.size();
+                        }
+
+                        @Override
+                        public ComponentParam next() {
+                            if (index >= params.size()) {
+                                throw new NoSuchElementException();
+                            }
+                            return params.get(index++);
+                        }
+
+                    };
+                }
+
+                @Override
+                public ComponentIterable matchVersion(Version.Match m) {
+                    return this;
+                }
+
+                @Override
+                public ComponentIterable allowIncompatible() {
+                    return this;
+                }
+            };
+        }
+
+        @Override
+        public String requiredParameter() throws FailedOperationException {
+            if (index >= params.size()) {
+                throw feedback.failure("UPGRADE_MissingParameter", null);
+            }
+            return nextParameter();
+        }
+
+        @Override
+        public String nextParameter() {
+            if (!hasParameter()) {
+                return null;
+            }
+            return params.get(index++).getSpecification();
+        }
+
+        @Override
+        public String peekParameter() {
+            if (!hasParameter()) {
+                return null;
+            }
+            return params.get(index).getSpecification();
+        }
+
+        @Override
+        public boolean hasParameter() {
+            return params.size() > index;
+        }
+
+        @Override
+        public Path getGraalHomePath() {
+            return didUpgrade() ? newGraalHomePath : input.getGraalHomePath();
+        }
+
+        @Override
+        public ComponentCatalog getRegistry() {
+            if (remoteRegistry == null) {
+                remoteRegistry = input.getCatalogFactory().createCo
