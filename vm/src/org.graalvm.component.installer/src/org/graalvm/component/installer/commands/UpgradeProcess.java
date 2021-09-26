@@ -745,4 +745,33 @@ public class UpgradeProcess implements AutoCloseable {
         @Override
         public ComponentCatalog getRegistry() {
             if (remoteRegistry == null) {
-                remoteRegistry = input.getCatalogFactory().createCo
+                remoteRegistry = input.getCatalogFactory().createComponentCatalog(this);
+            }
+            return remoteRegistry;
+        }
+
+        @Override
+        public ComponentRegistry getLocalRegistry() {
+            if (newGraalRegistry != null) {
+                return newGraalRegistry;
+            } else {
+                return input.getLocalRegistry();
+            }
+        }
+
+        @Override
+        public String optValue(String option) {
+            return input.optValue(option);
+        }
+
+        @Override
+        public String getParameter(String key, boolean cmdLine) {
+            return input.getParameter(key, cmdLine);
+        }
+
+        @Override
+        public Map<String, String> parameters(boolean cmdLine) {
+            return input.parameters(cmdLine);
+        }
+    }
+}
