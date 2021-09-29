@@ -1,5 +1,6 @@
+
 /*
- * Copyright (c) 2017, 2021, Oracle and/or its affiliates.
+ * Copyright (c) 2019, 2020, Oracle and/or its affiliates.
  *
  * All rights reserved.
  *
@@ -27,26 +28,19 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package com.oracle.truffle.llvm.runtime.nodes.api;
 
-import com.oracle.truffle.api.dsl.Cached;
-import com.oracle.truffle.api.dsl.GenerateUncached;
-import com.oracle.truffle.api.dsl.Specialization;
-import com.oracle.truffle.llvm.runtime.nodes.memory.LLVMNativePointerSupport;
-import com.oracle.truffle.llvm.runtime.pointer.LLVMNativePointer;
+#include <graalvm/llvm/toolchain-api.h>
+#include "common.h"
 
-@GenerateUncached
-public abstract class LLVMToNativeNode extends LLVMNode {
-
-    public abstract LLVMNativePointer executeWithTarget(Object object);
-
-    public static LLVMToNativeNode createToNativeWithTarget() {
-        return LLVMToNativeNodeGen.create();
-    }
-
-    @Specialization
-    static LLVMNativePointer doConvert(Object obj,
-                    @Cached LLVMNativePointerSupport.ToNativePointerNode toNativePointer) {
-        return toNativePointer.execute(obj);
-    }
+void *toolchain_api_tool(const void *name) {
+    should_not_reach();
+    return NULL;
+}
+void *toolchain_api_paths(const void *name) {
+    should_not_reach();
+    return NULL;
+}
+void *toolchain_api_identifier(void) {
+    should_not_reach();
+    return NULL;
 }
