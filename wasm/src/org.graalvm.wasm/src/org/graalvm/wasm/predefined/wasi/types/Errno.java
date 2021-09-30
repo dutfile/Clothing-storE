@@ -172,3 +172,126 @@ public enum Errno {
 
     /** 39: Connection aborted by network. */
     Netreset,
+
+    /** 40: Network unreachable. */
+    Netunreach,
+
+    /** 41: Too many files open in system. */
+    Nfile,
+
+    /** 42: No buffer space available. */
+    Nobufs,
+
+    /** 43: No such device. */
+    Nodev,
+
+    /** 44: No such file or directory. */
+    Noent,
+
+    /** 45: Executable file format error. */
+    Noexec,
+
+    /** 46: No locks available. */
+    Nolck,
+
+    /** 47: Reserved. */
+    Nolink,
+
+    /** 48: Not enough space. */
+    Nomem,
+
+    /** 49: No message of the desired type. */
+    Nomsg,
+
+    /** 50: Protocol not available. */
+    Noprotoopt,
+
+    /** 51: No space left on device. */
+    Nospc,
+
+    /** 52: Function not supported. */
+    Nosys,
+
+    /** 53: The socket is not connected. */
+    Notconn,
+
+    /** 54: Not a directory or a symbolic link to a directory. */
+    Notdir,
+
+    /** 55: Directory not empty. */
+    Notempty,
+
+    /** 56: State not recoverable. */
+    Notrecoverable,
+
+    /** 57: Not a socket. */
+    Notsock,
+
+    /** 58: Not supported, or operation not supported on socket. */
+    Notsup,
+
+    /** 59: Inappropriate I/O control operation. */
+    Notty,
+
+    /** 60: No such device or address. */
+    Nxio,
+
+    /** 61: Value too large to be stored in data type. */
+    Overflow,
+
+    /** 62: Previous owner died. */
+    Ownerdead,
+
+    /** 63: Operation not permitted. */
+    Perm,
+
+    /** 64: Broken pipe. */
+    Pipe,
+
+    /** 65: Protocol error. */
+    Proto,
+
+    /** 66: Protocol not supported. */
+    Protonosupport,
+
+    /** 67: Protocol wrong type for socket. */
+    Prototype,
+
+    /** 68: Result too large. */
+    Range,
+
+    /** 69: Read-only file system. */
+    Rofs,
+
+    /** 70: Invalid seek. */
+    Spipe,
+
+    /** 71: No such process. */
+    Srch,
+
+    /** 72: Reserved. */
+    Stale,
+
+    /** 73: Connection timed out. */
+    Timedout,
+
+    /** 74: Text file busy. */
+    Txtbsy,
+
+    /** 75: Cross-device link. */
+    Xdev,
+
+    /** 76: Extension: Capabilities insufficient. */
+    Notcapable;
+
+    /** Converts enum item to primitive. */
+    public short toValue() {
+        return (short) this.ordinal();
+    }
+
+    /** Converts primitive to enum item. */
+    public static Errno fromValue(short value) {
+        return Errno.values()[value];
+    }
+
+}
