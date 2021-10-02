@@ -66,4 +66,17 @@ public final class CallArgument {
     }
 
     /** A primitive value, or <code>null</code>. */
-    public Object getPrimitive
+    public Object getPrimitiveValue() {
+        return value;
+    }
+
+    /** An object ID, or <code>null</code>. */
+    public String getObjectId() {
+        return objectId;
+    }
+
+    /** Whether is represents an undefined value. */
+    public boolean isUndefined() {
+        return undefined;
+    }
+}
