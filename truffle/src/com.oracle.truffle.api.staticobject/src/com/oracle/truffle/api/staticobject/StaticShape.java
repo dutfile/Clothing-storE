@@ -127,4 +127,151 @@ public abstract class StaticShape<T> {
      * @see StaticShape
      * @see StaticProperty
      * @see DefaultStaticProperty
-     * @see DefaultS
+     * @see DefaultStaticObjectFactory
+     * @since 21.3.0
+     */
+    public static Builder newBuilder(TruffleLanguage<?> language) {
+        Objects.requireNonNull(language);
+        return new Builder(language);
+    }
+
+    final void setFactory(T factory) {
+        assert this.factory == null;
+        this.factory = factory;
+    }
+
+    /**
+     * Returns an instance of the {@linkplain Builder#build() default} or the
+     * {@linkplain StaticShape.Builder#build(Class, Class) user-defined} factory interface that must
+     * be used to allocate static objects with the current shape.
+     *
+     * @see StaticShape.Builder#build()
+     * @see StaticShape.Builder#build(StaticShape)
+     * @see StaticShape.Builder#build(Class, Class)
+     * @since 21.3.0
+     */
+    public final T getFactory() {
+        return factory;
+    }
+
+    final Class<?> getStorageClass() {
+        return storageClass;
+    }
+
+    abstract Object getStorage(Object obj, boolean primitive);
+
+    abstract Class<T> getFactoryInterface();
+
+    final <U> U cast(Object obj, Class<U> type, boolean checkCondition) {
+        if (safetyChecks) {
+            return checkedCast(obj, type);
+        } else {
+            assert checkedCast(obj, type) != null;
+            return SomAccessor.RUNTIME.unsafeCast(obj, type, !checkCondition || type.isInstance(obj), false, false);
+        }
+    }
+
+    private static <U> U checkedCast(Object obj, Class<U> type) {
+        try {
+            return type.cast(obj);
+        } catch (ClassCastException e) {
+            throw new IllegalArgumentException("Object '" + obj + "' of class '" + obj.getClass().getName() + "' does not have the expected shape", e);
+        }
+    }
+
+    private static Unsafe getUnsafe() {
+        try {
+            return Unsafe.getUnsafe();
+        } catch (SecurityException e) {
+        }
+        try {
+            Field theUnsafeInstance = Unsafe.class.getDeclaredField("theUnsafe");
+            theUnsafeInstance.setAccessible(true);
+            return (Unsafe) theUnsafeInstance.get(Unsafe.class);
+        } catch (Exception e) {
+            throw new RuntimeException("exception while trying to get Unsafe.theUnsafe via reflection:", e);
+        }
+    }
+
+    /**
+     * Builder class to construct {@link StaticShape} instances. The builder instance is not
+     * thread-safe and must not be used from multiple threads at the same time.
+     *
+     * @see StaticShape#newBuilder(TruffleLanguage)
+     * @since 21.3.0
+     */
+    public static final class Builder {
+        private static final int MAX_NUMBER_OF_PROPERTIES = 65535;
+        private static final int MAX_PROPERTY_ID_BYTE_LENGTH = 65535;
+        private static final String DELIMITER = "$$";
+        private static final AtomicInteger counter = new AtomicInteger();
+        private final String storageClassName;
+        private final HashMap<String, StaticProperty> staticProperties = new LinkedHashMap<>();
+        private final TruffleLanguage<?> language;
+        boolean hasLongPropertyId = false;
+        boolean isActive = true;
+
+        Builder(TruffleLanguage<?> language) {
+            this.language = language;
+            storageClassName = storageClassName();
+        }
+
+        static String storageClassName() {
+            return ShapeGenerator.class.getPackage().getName().replace('.', '/') + "/GeneratedStaticObject" + DELIMITER + counter.incrementAndGet();
+        }
+
+        /**
+         * Adds a {@link StaticProperty} to the static shape to be constructed. The
+         * {@linkplain StaticProperty#getId() property id} cannot be null or an empty String. It is
+         * not allowed to add two {@linkplain StaticProperty properties} with the same
+         * {@linkplain StaticProperty#getId() id} to the same builder, or to add the same
+         * {@linkplain StaticProperty property} to more than one builder. Static shapes that
+         * {@linkplain StaticShape.Builder#build(StaticShape) extend a parent shape} can have
+         * {@linkplain StaticProperty properties} with the same {@linkplain StaticProperty#getId()
+         * id} of those in the parent shape.
+         *
+         * Only property accesses that match the specified type are allowed. Property values can be
+         * optionally stored in a final field. Accesses to such values might be specially optimized
+         * by the compiler. For example, reads might be constant-folded. It is up to the user to
+         * enforce that property values stored as final are not assigned more than once.
+         *
+         * @see DefaultStaticProperty
+         * @param property the {@link StaticProperty} to be added
+         * @param type the type of the {@link StaticProperty} to be added.
+         * @param storeAsFinal if this property value can be stored in a final field
+         * @return the Builder instance
+         * @throws IllegalArgumentException if more than 65535 properties are added, or if the
+         *             {@linkplain StaticProperty#getId() property id} is an empty string or it is
+         *             equal to the id of another static property already registered to this
+         *             builder.
+         * @throws IllegalStateException if this method is invoked after building a static shape
+         * @throws NullPointerException if the {@linkplain StaticProperty#getId() property id} is
+         *             null
+         * @since 21.3.0
+         */
+        public Builder property(StaticProperty property, Class<?> type, boolean storeAsFinal) {
+            CompilerAsserts.neverPartOfCompilation();
+            StaticPropertyValidator.validate(type);
+            checkStatus();
+            property.init(type, storeAsFinal);
+            staticProperties.put(validateAndGetId(property), property);
+            return this;
+        }
+
+        /**
+         * Builds a new {@linkplain StaticShape static shape} using the configuration of this
+         * builder. The factory class returned by {@link StaticShape#getFactory()} implements
+         * {@link DefaultStaticObjectFactory} and static objects extend {@link Object}.
+         *
+         * @see DefaultStaticObjectFactory
+         * @see StaticShape.Builder#build(StaticShape)
+         * @see StaticShape.Builder#build(Class, Class)
+         * @return the new {@link StaticShape}
+         * @throws IllegalStateException if a static property was added to more than one builder or
+         *             multiple times to the same builder, if this method is invoked more than once,
+         *             or if one of the static property types is not visible to the class loader
+         *             that loaded the default factory interface.
+         * @since 21.3.0
+         */
+        public StaticShape<DefaultStaticObjectFactory> build() {
+            return 
