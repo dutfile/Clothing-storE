@@ -274,4 +274,120 @@ public abstract class StaticShape<T> {
          * @since 21.3.0
          */
         public StaticShape<DefaultStaticObjectFactory> build() {
-            return 
+            return build(Object.class, DefaultStaticObjectFactory.class);
+        }
+
+        /**
+         * Builds a new {@linkplain StaticShape static shape} that extends the provided parent
+         * {@link StaticShape}. {@linkplain StaticProperty Static properties} of the parent shape
+         * can be used to access field values of static objects with the child shape. The factory
+         * class returned by {@link StaticShape#getFactory()} extends the one of the parent shape
+         * and static objects extend the static object class allocated by the factory class of the
+         * parent shape.
+         *
+         * @see StaticShape.Builder#build()
+         * @see StaticShape.Builder#build(Class, Class)
+         * @param parentShape the parent {@linkplain StaticShape shape}
+         * @param <T> the generic type of the parent {@linkplain StaticShape shape}
+         * @return the new {@link StaticShape}
+         * @throws IllegalStateException if a static property was added to more than one builder or
+         *             multiple times to the same builder, if this method is invoked more than once,
+         *             or if one of the static property types is not visible to the class loader
+         *             that loaded the default factory interface.
+         * @since 21.3.0
+         */
+        public <T> StaticShape<T> build(StaticShape<T> parentShape) {
+            Objects.requireNonNull(parentShape);
+            GeneratorClassLoader gcl = getOrCreateClassLoader(parentShape.getFactoryInterface());
+            ShapeGenerator<T> sg = ShapeGenerator.getShapeGenerator(language, gcl, parentShape, getStorageStrategy(), storageClassName);
+            return build(sg, parentShape);
+        }
+
+        /**
+         * Builds a new {@linkplain StaticShape static shape} using the configuration of this
+         * builder. The factory class returned by {@link StaticShape#getFactory()} implements
+         * factoryInterface and static objects extend superClass.
+         *
+         * <p>
+         * The following constraints are enforced:
+         * <ul>
+         * <li>factoryInterface must be an interface
+         * <li>the arguments of every method in factoryInterface must match those of a visible
+         * constructor of superClass
+         * <li>the return type of every method in factoryInterface must be assignable from the
+         * superClass
+         * <li>superClass does not have abstract methods
+         * <li>if superClass is {@link Cloneable}, it cannot override {@link Object#clone()} with a
+         * final method
+         * </ul>
+         *
+         * @see StaticShape.Builder#build()
+         * @see StaticShape.Builder#build(StaticShape)
+         * @param superClass the class that static objects must extend
+         * @param factoryInterface the factory interface that the factory class returned by
+         *            {@link StaticShape#getFactory()} must implement
+         * @param <T> the class of the factory interface
+         * @return the new {@link StaticShape}
+         * @throws IllegalArgumentException if factoryInterface is not an interface, if the
+         *             arguments of a method in factoryInterface do not match those of a visible
+         *             constructor in superClass, if the return type of a method in factoryInterface
+         *             is not assignable from superClass, if {@link StaticShape} is not visible to
+         *             the class loader of factoryInterface, if superClass has abstract methods or
+         *             if superClass is {@link Cloneable} and overrides {@link Object#clone()} with
+         *             a final method
+         * @throws IllegalStateException if a static property was added to more than one builder or
+         *             multiple times to the same builder, if this method is invoked more than once,
+         *             or if one of the static property types is not visible to the class loader
+         *             that loaded the factory interface.
+         * @since 21.3.0
+         */
+        public <T> StaticShape<T> build(Class<?> superClass, Class<T> factoryInterface) {
+            validateClasses(superClass, factoryInterface);
+            GeneratorClassLoader gcl = getOrCreateClassLoader(factoryInterface);
+            ShapeGenerator<T> sg = ShapeGenerator.getShapeGenerator(language, gcl, superClass, factoryInterface, getStorageStrategy(), storageClassName);
+            return build(sg, null);
+        }
+
+        private <T> StaticShape<T> build(ShapeGenerator<T> sg, StaticShape<T> parentShape) {
+            CompilerAsserts.neverPartOfCompilation();
+            checkStatus();
+            Map<String, StaticProperty> properties = hasLongPropertyId ? defaultPropertyIds(staticProperties) : staticProperties;
+            boolean safetyChecks = !SomAccessor.ENGINE.areStaticObjectSafetyChecksRelaxed(SomAccessor.LANGUAGE.getPolyglotLanguageInstance(language));
+            StaticShape<T> shape = sg.generateShape(parentShape, properties, safetyChecks, storageClassName);
+            for (StaticProperty staticProperty : properties.values()) {
+                staticProperty.initShape(shape);
+            }
+            setInactive();
+            return shape;
+        }
+
+        private void checkStatus() {
+            if (!isActive) {
+                throw new IllegalStateException("This Builder instance has already built a StaticShape. It is not possible to add static properties or build other shapes");
+            }
+        }
+
+        private void setInactive() {
+            isActive = false;
+        }
+
+        private GeneratorClassLoader getOrCreateClassLoader(Class<?> referenceClass) {
+            ClassLoader cl = SomAccessor.ENGINE.getStaticObjectClassLoader(SomAccessor.LANGUAGE.getPolyglotLanguageInstance(language), referenceClass);
+            if (cl == null) {
+                cl = new GeneratorClassLoader(referenceClass);
+                SomAccessor.ENGINE.setStaticObjectClassLoader(SomAccessor.LANGUAGE.getPolyglotLanguageInstance(language), referenceClass, cl);
+            }
+            if (!GeneratorClassLoader.class.isInstance(cl)) {
+                throw new RuntimeException("The Truffle language instance associated to this Builder returned an unexpected class loader");
+            }
+            return (GeneratorClassLoader) cl;
+        }
+
+        private String validateAndGetId(StaticProperty property) {
+            String id = property.getId();
+            Objects.requireNonNull(id);
+            if (staticProperties.size() == MAX_NUMBER_OF_PROPERTIES) {
+                throw new IllegalArgumentException("This builder already contains the maximum number of properties: " + MAX_NUMBER_OF_PROPERTIES);
+            }
+            if (id.length() == 0) {
+                throw new IllegalArgumentException("The propert
