@@ -390,4 +390,138 @@ public abstract class StaticShape<T> {
                 throw new IllegalArgumentException("This builder already contains the maximum number of properties: " + MAX_NUMBER_OF_PROPERTIES);
             }
             if (id.length() == 0) {
-                throw new IllegalArgumentException("The propert
+                throw new IllegalArgumentException("The property id cannot be an empty string");
+            }
+            // escape chars that are forbidden for field names
+            id = id.replace("_", "__");
+            id = id.replace(".", "_,");
+            id = id.replace(";", "_:");
+            id = id.replace("[", "_]");
+            id = id.replace("/", "_\\");
+            if (staticProperties.containsKey(id)) {
+                throw new IllegalArgumentException("This builder already contains a property with id '" + id + "'");
+            }
+            if (modifiedUtfLength(id) > MAX_PROPERTY_ID_BYTE_LENGTH) {
+                hasLongPropertyId = true;
+            }
+            return id;
+        }
+
+        // Reflectively invoked also from TruffleBaseFeature.StaticObjectSupport
+        private static void validateClasses(Class<?> storageSuperClass, Class<?> storageFactoryInterface) {
+            CompilerAsserts.neverPartOfCompilation();
+            if (!storageFactoryInterface.isInterface()) {
+                throw new IllegalArgumentException(storageFactoryInterface.getName() + " must be an interface.");
+            }
+            // Since methods in the factory interface must have the storage super class as return
+            // type, calling `storageFactoryInterface.getMethods()` also verifies that the class
+            // loader of the factory interface can load the storage super class
+            for (Method m : storageFactoryInterface.getMethods()) {
+                // this also verifies that the class loader of the factory interface is the same or
+                // a child of the class loader of the storage super class
+                if (!m.getReturnType().isAssignableFrom(storageSuperClass)) {
+                    throw new IllegalArgumentException("The return type of '" + m + "' is not assignable from '" + storageSuperClass.getName() + "'");
+                }
+                try {
+                    storageSuperClass.getDeclaredConstructor(m.getParameterTypes());
+                } catch (NoSuchMethodException e) {
+                    throw new IllegalArgumentException("Method '" + m + "' does not match any constructor in '" + storageSuperClass.getName() + "'", e);
+                }
+            }
+            // The array-based storage strategy stores the StaticShape in an extra field of the
+            // generated class. Therefore, the class loader that loads generated classes must have
+            // visibility of StaticShape.
+            if (!isClassVisible(storageFactoryInterface.getClassLoader(), StaticShape.class)) {
+                throw new IllegalArgumentException("The class loader of factory interface '" + storageFactoryInterface.getName() + "' (cl: '" + storageFactoryInterface.getClassLoader() +
+                                "') must have visibility of '" + StaticShape.class.getName() + "' (cl: '" + StaticShape.class.getClassLoader() + "')");
+            }
+            for (Class<?> c = storageSuperClass; c != null; c = c.getSuperclass()) {
+                for (Method m : c.getDeclaredMethods()) {
+                    if (Modifier.isAbstract(m.getModifiers())) {
+                        throw new IllegalArgumentException("'" + storageSuperClass.getName() + "' has abstract methods");
+                    }
+                }
+            }
+            if (Cloneable.class.isAssignableFrom(storageSuperClass)) {
+                Method clone = getCloneMethod(storageSuperClass);
+                if (clone != null && Modifier.isFinal(clone.getModifiers())) {
+                    throw new IllegalArgumentException("'" + storageSuperClass.getName() + "' implements Cloneable and declares a final 'clone()' method");
+                }
+            }
+        }
+
+        private static boolean isClassVisible(ClassLoader cl, Class<?> clazz) {
+            if (cl == null) {
+                return clazz.getClassLoader() == null;
+            } else {
+                try {
+                    cl.loadClass(clazz.getName());
+                    return true;
+                } catch (ClassNotFoundException e) {
+                    // Swallow the exception
+                    return false;
+                }
+            }
+        }
+
+        private static Map<String, StaticProperty> defaultPropertyIds(Map<String, StaticProperty> staticProperties) {
+            Map<String, StaticProperty> newStaticProperties = new LinkedHashMap<>();
+            int idx = 0;
+            for (StaticProperty property : staticProperties.values()) {
+                newStaticProperties.put("field" + idx++, property);
+            }
+            return newStaticProperties;
+        }
+
+        private static int modifiedUtfLength(String str) {
+            int strlen = str.length();
+            int utflen = 0;
+
+            /* use charAt instead of copying String to char array */
+            for (int i = 0; i < strlen; i++) {
+                int c = str.charAt(i);
+                if ((c >= 0x0001) && (c <= 0x007F)) {
+                    utflen++;
+                } else if (c > 0x07FF) {
+                    utflen += 3;
+                } else {
+                    utflen += 2;
+                }
+            }
+            return utflen;
+        }
+
+        private static Method getCloneMethod(Class<?> c) {
+            for (Class<?> clazz = c; clazz != null; clazz = clazz.getSuperclass()) {
+                try {
+                    return clazz.getDeclaredMethod("clone");
+                } catch (NoSuchMethodException e) {
+                    // Swallow the error, check the super class
+                }
+            }
+            return null;
+        }
+
+        private StorageStrategy getStorageStrategy() {
+            String strategy = SomAccessor.ENGINE.getStaticObjectStorageStrategy(SomAccessor.LANGUAGE.getPolyglotLanguageInstance(language));
+            switch (strategy) {
+                case "DEFAULT":
+                    if (ImageInfo.inImageCode()) {
+                        return StorageStrategy.ARRAY_BASED;
+                    } else {
+                        return StorageStrategy.FIELD_BASED;
+                    }
+                case "FIELD_BASED":
+                    if (ImageInfo.inImageCode()) {
+                        return StorageStrategy.POD_BASED;
+                    } else {
+                        return StorageStrategy.FIELD_BASED;
+                    }
+                case "ARRAY_BASED":
+                    return StorageStrategy.ARRAY_BASED;
+                default:
+                    throw new IllegalArgumentException("Should not reach here. Unexpected storage strategy: " + strategy);
+            }
+        }
+    }
+}
