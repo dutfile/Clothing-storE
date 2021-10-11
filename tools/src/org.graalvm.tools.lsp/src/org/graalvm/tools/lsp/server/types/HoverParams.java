@@ -63,4 +63,30 @@ public class HoverParams extends TextDocumentPositionParams {
         if (!Objects.equals(this.getWorkDoneToken(), other.getWorkDoneToken())) {
             return false;
         }
-        if (!Objects.equal
+        if (!Objects.equals(this.getTextDocument(), other.getTextDocument())) {
+            return false;
+        }
+        if (!Objects.equals(this.getPosition(), other.getPosition())) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = 7;
+        if (this.getWorkDoneToken() != null) {
+            hash = 59 * hash + Objects.hashCode(this.getWorkDoneToken());
+        }
+        hash = 59 * hash + Objects.hashCode(this.getTextDocument());
+        hash = 59 * hash + Objects.hashCode(this.getPosition());
+        return hash;
+    }
+
+    public static HoverParams create(TextDocumentIdentifier textDocument, Position position) {
+        final JSONObject json = new JSONObject();
+        json.put("textDocument", textDocument.jsonData);
+        json.put("position", position.jsonData);
+        return new HoverParams(json);
+    }
+}
