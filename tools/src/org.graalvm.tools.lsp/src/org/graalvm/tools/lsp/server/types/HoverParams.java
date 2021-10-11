@@ -28,11 +28,11 @@ import com.oracle.truffle.tools.utils.json.JSONObject;
 import java.util.Objects;
 
 /**
- * Parameters for a [DocumentHighlightRequest](#DocumentHighlightRequest).
+ * Parameters for a [HoverRequest](#HoverRequest).
  */
-public class DocumentHighlightParams extends TextDocumentPositionParams {
+public class HoverParams extends TextDocumentPositionParams {
 
-    DocumentHighlightParams(JSONObject jsonData) {
+    HoverParams(JSONObject jsonData) {
         super(jsonData);
     }
 
@@ -43,21 +43,8 @@ public class DocumentHighlightParams extends TextDocumentPositionParams {
         return jsonData.opt("workDoneToken");
     }
 
-    public DocumentHighlightParams setWorkDoneToken(Object workDoneToken) {
+    public HoverParams setWorkDoneToken(Object workDoneToken) {
         jsonData.putOpt("workDoneToken", workDoneToken);
-        return this;
-    }
-
-    /**
-     * An optional token that a server can use to report partial results (e.g. streaming) to the
-     * client.
-     */
-    public Object getPartialResultToken() {
-        return jsonData.opt("partialResultToken");
-    }
-
-    public DocumentHighlightParams setPartialResultToken(Object partialResultToken) {
-        jsonData.putOpt("partialResultToken", partialResultToken);
         return this;
     }
 
@@ -72,40 +59,8 @@ public class DocumentHighlightParams extends TextDocumentPositionParams {
         if (this.getClass() != obj.getClass()) {
             return false;
         }
-        DocumentHighlightParams other = (DocumentHighlightParams) obj;
+        HoverParams other = (HoverParams) obj;
         if (!Objects.equals(this.getWorkDoneToken(), other.getWorkDoneToken())) {
             return false;
         }
-        if (!Objects.equals(this.getPartialResultToken(), other.getPartialResultToken())) {
-            return false;
-        }
-        if (!Objects.equals(this.getTextDocument(), other.getTextDocument())) {
-            return false;
-        }
-        if (!Objects.equals(this.getPosition(), other.getPosition())) {
-            return false;
-        }
-        return true;
-    }
-
-    @Override
-    public int hashCode() {
-        int hash = 5;
-        if (this.getWorkDoneToken() != null) {
-            hash = 29 * hash + Objects.hashCode(this.getWorkDoneToken());
-        }
-        if (this.getPartialResultToken() != null) {
-            hash = 29 * hash + Objects.hashCode(this.getPartialResultToken());
-        }
-        hash = 29 * hash + Objects.hashCode(this.getTextDocument());
-        hash = 29 * hash + Objects.hashCode(this.getPosition());
-        return hash;
-    }
-
-    public static DocumentHighlightParams create(TextDocumentIdentifier textDocument, Position position) {
-        final JSONObject json = new JSONObject();
-        json.put("textDocument", textDocument.jsonData);
-        json.put("position", position.jsonData);
-        return new DocumentHighlightParams(json);
-    }
-}
+        if (!Objects.equal
