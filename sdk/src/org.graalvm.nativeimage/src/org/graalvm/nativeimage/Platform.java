@@ -31,4 +31,236 @@
  * portions of the Software.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLU
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+package org.graalvm.nativeimage;
+
+import org.graalvm.nativeimage.impl.InternalPlatform;
+
+/**
+ * Root of the interface hierarchy for architectures, OS, and supported combinations of them.
+ * <p>
+ * A platform group (e.g., an architecture or OS) is an interface extending {@link Platform}. A leaf
+ * platform, e.g., a supported architecture-OS-combination, is a class that implements all the
+ * groups that it belongs to. A leaf platform class must be non-abstract and must have a no-argument
+ * constructor. It is good practice to make leaf platform classes {@code final} (to prevent
+ * accidental subclassing) and to avoid state (i.e., no fields).
+ * <p>
+ * The annotation {@link Platforms} restricts a type, method, or field to certain platform groups or
+ * leaf platforms.
+ * <p>
+ * This system makes the set of platform groups and leaf platforms extensible. Some standard
+ * platforms are defined as inner classes.
+ *
+ * @since 19.0
+ */
+public interface Platform {
+
+    /**
+     * The system property name that specifies the fully qualified name of the {@link Platform}
+     * implementation class that should be used. If the property is not specified, the platform
+     * class is inferred from the standard architectures and operating systems specified in this
+     * file, i.e., in most cases it is not necessary to use this property.
+     *
+     * @since 19.0
+     */
+    String PLATFORM_PROPERTY_NAME = "svm.platform";
+
+    /**
+     * Returns true if the current platform (the platform that the native image is built for) is
+     * included in the provided platform group.
+     * <p>
+     * The platformGroup must be a compile-time constant, so that the call to this method can be
+     * replaced with the constant boolean result.
+     *
+     * @since 19.0
+     */
+    static boolean includedIn(Class<? extends Platform> platformGroup) {
+        return platformGroup.isInstance(ImageSingletons.lookup(Platform.class));
+    }
+
+    /**
+     * Returns the string representing Platform's OS name.
+     * <p>
+     * This method should be implemented either in a final class or as default method in respective
+     * OS interface.
+     *
+     * @since 21.0
+     */
+    default String getOS() {
+        throw new UnsupportedOperationException("Platform `" + this.getClass().getCanonicalName() + "`, doesn't implement getOS");
+    }
+
+    /**
+     * Returns the string representing Platform's architecture name. This value should be the same
+     * as desired os.arch system property.
+     * <p>
+     * This method should be implemented either in final class or as default method in respective
+     * architecture interface.
+     *
+     * @since 21.0
+     */
+    default String getArchitecture() {
+        throw new UnsupportedOperationException("Platform `" + this.getClass().getCanonicalName() + "`, doesn't implement getArchitecture");
+    }
+
+    /*
+     * The standard architectures that are supported.
+     */
+    /**
+     * Supported architecture: x86 64-bit.
+     *
+     * @since 19.0
+     */
+    interface AMD64 extends Platform, InternalPlatform.NATIVE_ONLY {
+
+        /**
+         * Returns string representing AMD64 architecture.
+         *
+         * @since 21.0
+         */
+        default String getArchitecture() {
+            return "amd64";
+        }
+    }
+
+    /**
+     * Supported architecture: ARMv8 64-bit.
+     *
+     * @since 19.0
+     */
+    interface AARCH64 extends Platform, InternalPlatform.NATIVE_ONLY {
+
+        /**
+         * Returns string representing AARCH64 architecture.
+         *
+         * @since 21.0
+         */
+        default String getArchitecture() {
+            return "aarch64";
+        }
+    }
+
+    /**
+     * Supported architecture: RISC-V 64-bit.
+     *
+     * @since 22.2
+     */
+    interface RISCV64 extends Platform {
+
+        /**
+         * Returns string representing RISCV64 architecture.
+         *
+         * @since 22.2
+         */
+        default String getArchitecture() {
+            return "riscv64";
+        }
+    }
+
+    /*
+     * The standard operating systems that are supported.
+     */
+    /**
+     * Supported operating system: Linux.
+     *
+     * @since 19.0
+     */
+    interface LINUX extends InternalPlatform.PLATFORM_JNI, InternalPlatform.NATIVE_ONLY {
+
+        /**
+         * Returns string representing LINUX OS.
+         *
+         * @since 21.0
+         */
+        default String getOS() {
+            return LINUX.class.getSimpleName().toLowerCase();
+        }
+    }
+
+    /**
+     * Supported operating system: Android.
+     *
+     * @since 21.0
+     */
+    interface ANDROID extends LINUX {
+
+        /**
+         * Returns string representing ANDROID OS.
+         *
+         * @since 21.0
+         */
+        default String getOS() {
+            return ANDROID.class.getSimpleName().toLowerCase();
+        }
+    }
+
+    /**
+     * Basis for all Apple operating systems (MacOS and iOS).
+     *
+     * @since 19.0
+     */
+    interface DARWIN extends InternalPlatform.PLATFORM_JNI, InternalPlatform.NATIVE_ONLY {
+    }
+
+    /**
+     * Supported operating system: iOS.
+     *
+     * @since 21.0
+     */
+    interface IOS extends DARWIN {
+
+        /**
+         * Returns string representing iOS OS.
+         *
+         * @since 21.0
+         */
+        default String getOS() {
+            return IOS.class.getSimpleName().toLowerCase();
+        }
+    }
+
+    /**
+     * Supported operating system: MacOS.
+     *
+     * @since 22.1
+     */
+    interface MACOS extends DARWIN {
+
+        /**
+         * Returns string representing MACOS OS.
+         *
+         * @since 21.0
+         */
+        default String getOS() {
+            return "darwin";
+        }
+    }
+
+    /**
+     * Supported operating system: Windows.
+     *
+     * @since 19.0
+     */
+    interface WINDOWS extends InternalPlatform.PLATFORM_JNI, InternalPlatform.NATIVE_ONLY {
+
+        /**
+         * Returns string representing WINDOWS OS.
+         *
+         * @since 21.0
+         */
+        default String getOS() {
+            return WINDOWS.class.getSimpleName().toLowerCase();
+        }
+    }
+
+    /**
+     * Basis for all Linux operating systems on AMD64 (LINUX_AMD64).
+     *
+     * @since 22.1
+  
