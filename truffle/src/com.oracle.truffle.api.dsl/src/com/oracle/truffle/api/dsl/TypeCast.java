@@ -34,3 +34,43 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+package com.oracle.truffle.api.dsl;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+/**
+ * Overrides the standard way of casting a certain type in a {@link TypeSystem}. This is useful for
+ * types where the guest language specific type cast can be implemented more efficiently than a
+ * direct cast. The annotated method must be contained in a {@link TypeSystem} annotated class. Type
+ * checks must conform to the following signature: <code>public static Type as{TypeName}(Object
+ * value)</code>. The casted type must be a type declared in the {@link TypeSystem}.
+ *
+ * <p>
+ * If no {@link TypeCast} is declared then the type system implicitly uses a type cast that can be
+ * declared as follows:
+ *
+ * <pre>
+ * {@literal @}TypeCast(Type.class)
+ * public static Type asType(Object value) {
+ *         return (Type) value;
+ * }
+ * </pre>
+ *
+ * @see TypeCheck
+ * @since 0.8 or earlier
+ */
+@Retention(RetentionPolicy.CLASS)
+@Target({ElementType.METHOD})
+public @interface TypeCast {
+    /** @since 0.8 or earlier */
+    Class<?> value();
+
+}
