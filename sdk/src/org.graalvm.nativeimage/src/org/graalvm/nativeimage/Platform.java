@@ -263,4 +263,212 @@ public interface Platform {
      * Basis for all Linux operating systems on AMD64 (LINUX_AMD64).
      *
      * @since 22.1
-  
+     */
+    interface LINUX_AMD64_BASE extends LINUX, AMD64 {
+    }
+
+    /**
+     * Basis for all Linux operating systems on AARCH64 (LINUX_AARCH64 & ANDROID_AARCH64).
+     *
+     * @since 22.1
+     */
+    interface LINUX_AARCH64_BASE extends LINUX, AARCH64 {
+    }
+
+    /**
+     * Basis for all Apple operating systems on AMD64 (MACOS_AMD64 & IOS_AMD64).
+     *
+     * @since 22.1
+     */
+    interface DARWIN_AMD64 extends DARWIN, AMD64 {
+    }
+
+    /**
+     * Basis for all Apple operating systems on AMD64 (MACOS_AMD64 & IOS_AMD64).
+     *
+     * @since 22.1
+     */
+    interface DARWIN_AARCH64 extends DARWIN, AARCH64 {
+    }
+
+    /*
+     * The standard leaf platforms, i.e., OS-architecture combinations that we support.
+     */
+    /**
+     * Supported leaf platform: Linux on x86 64-bit.
+     *
+     * @since 19.0
+     */
+    class LINUX_AMD64 implements LINUX, LINUX_AMD64_BASE {
+
+        /**
+         * Instantiates a marker instance of this platform.
+         *
+         * @since 19.0
+         */
+        public LINUX_AMD64() {
+        }
+
+    }
+
+    /**
+     * Supported leaf platform: Linux on AArch64 64-bit.
+     *
+     * @since 19.0
+     */
+    final class LINUX_AARCH64 implements LINUX, LINUX_AARCH64_BASE {
+
+        /**
+         * Instantiates a marker instance of this platform.
+         *
+         * @since 19.0
+         */
+        public LINUX_AARCH64() {
+        }
+
+    }
+
+    /**
+     * Supported leaf platform: Linux on RISC-V 64-bit.
+     *
+     * @since 22.2
+     */
+    final class LINUX_RISCV64 implements LINUX, RISCV64 {
+
+        /**
+         * Instantiates a marker instance of this platform.
+         *
+         * @since 22.2
+         */
+        public LINUX_RISCV64() {
+        }
+
+    }
+
+    /**
+     * Supported leaf platform: Android on AArch64 64-bit.
+     *
+     * @since 21.0
+     */
+    final class ANDROID_AARCH64 implements ANDROID, LINUX_AARCH64_BASE {
+
+        /**
+         * Instantiates a marker instance of this platform.
+         *
+         * @since 21.0
+         */
+        public ANDROID_AARCH64() {
+        }
+
+    }
+
+    /**
+     * Supported leaf platform: iOS on x86 64-bit.
+     *
+     * @since 21.3
+     */
+    final class IOS_AMD64 implements IOS, DARWIN_AMD64 {
+
+        /**
+         * Instantiates a marker instance of this platform.
+         *
+         * @since 21.3
+         */
+        public IOS_AMD64() {
+        }
+    }
+
+    /**
+     * Supported leaf platform: iOS on AArch 64-bit.
+     *
+     * @since 21.0
+     */
+    final class IOS_AARCH64 implements IOS, DARWIN_AARCH64 {
+
+        /**
+         * Instantiates a marker instance of this platform.
+         *
+         * @since 21.0
+         */
+        public IOS_AARCH64() {
+        }
+    }
+
+    /**
+     * Supported leaf platform: MacOS on x86 64-bit.
+     *
+     * @since 22.1
+     */
+    final class MACOS_AMD64 implements MACOS, DARWIN_AMD64 {
+
+        /**
+         * Instantiates a marker instance of this platform.
+         *
+         * @since 22.1
+         */
+        public MACOS_AMD64() {
+        }
+    }
+
+    /**
+     * Supported leaf platform: MacOS on AArch 64-bit.
+     *
+     * @since 22.1
+     */
+    final class MACOS_AARCH64 implements MACOS, DARWIN_AARCH64 {
+
+        /**
+         * Instantiates a marker instance of this platform.
+         *
+         * @since 22.1
+         */
+        public MACOS_AARCH64() {
+        }
+    }
+
+    /**
+     * Supported leaf platform: Windows on x86 64-bit.
+     *
+     * @since 19.0
+     */
+    final class WINDOWS_AMD64 implements WINDOWS, AMD64 {
+
+        /**
+         * Instantiates a marker instance of this platform.
+         *
+         * @since 19.0
+         */
+        public WINDOWS_AMD64() {
+        }
+
+    }
+
+    /**
+     * Supported leaf platform: Windows on AArch 64-bit.
+     *
+     * @since 22.0
+     */
+    final class WINDOWS_AARCH64 implements WINDOWS, AARCH64 {
+
+        /**
+         * Instantiates a marker instance of this platform.
+         *
+         * @since 22.0
+         */
+        public WINDOWS_AARCH64() {
+        }
+
+    }
+
+    /**
+     * Marker for elements (types, methods, or fields) that are only visible during native image
+     * generation and cannot be used at run time, regardless of the actual platform.
+     *
+     * @since 19.0
+     */
+    final class HOSTED_ONLY implements Platform {
+        private HOSTED_ONLY() {
+        }
+    }
+
+}
