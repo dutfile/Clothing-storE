@@ -212,4 +212,169 @@ public class AMD64Move {
         @Override
         public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
             AMD64Kind backupKind = (AMD64Kind) backupSlot.getPlatformKind();
-   
+            if (backupKind.isXMM()) {
+                // graal doesn't use vector values, so it's safe to backup using DOUBLE
+                backupKind = AMD64Kind.DOUBLE;
+            }
+
+            // backup scratch register
+            reg2stack(backupKind, crb, masm, backupSlot, scratch);
+            // move stack slot
+            stack2reg((AMD64Kind) getInput().getPlatformKind(), crb, masm, scratch, getInput());
+            reg2stack((AMD64Kind) getResult().getPlatformKind(), crb, masm, getResult(), scratch);
+            // restore scratch register
+            stack2reg(backupKind, crb, masm, scratch, backupSlot);
+        }
+    }
+
+    @Opcode("MULTISTACKMOVE")
+    public static final class AMD64MultiStackMove extends AMD64LIRInstruction {
+        public static final LIRInstructionClass<AMD64MultiStackMove> TYPE = LIRInstructionClass.create(AMD64MultiStackMove.class);
+
+        @Def({STACK}) protected AllocatableValue[] results;
+        @Use({STACK}) protected Value[] inputs;
+        @Alive({OperandFlag.STACK, OperandFlag.UNINITIALIZED}) private AllocatableValue backupSlot;
+
+        private Register scratch;
+
+        public AMD64MultiStackMove(AllocatableValue[] results, Value[] inputs, Register scratch, AllocatableValue backupSlot) {
+            super(TYPE);
+            this.results = results;
+            this.inputs = inputs;
+            this.backupSlot = backupSlot;
+            this.scratch = scratch;
+        }
+
+        @Override
+        public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
+            AMD64Kind backupKind = (AMD64Kind) backupSlot.getPlatformKind();
+            if (backupKind.isXMM()) {
+                // graal doesn't use vector values, so it's safe to backup using DOUBLE
+                backupKind = AMD64Kind.DOUBLE;
+            }
+
+            // backup scratch register
+            move(backupKind, crb, masm, backupSlot, scratch.asValue(backupSlot.getValueKind()));
+            for (int i = 0; i < results.length; i++) {
+                Value input = inputs[i];
+                AllocatableValue result = results[i];
+                // move stack slot
+                move((AMD64Kind) input.getPlatformKind(), crb, masm, scratch.asValue(input.getValueKind()), input);
+                move((AMD64Kind) result.getPlatformKind(), crb, masm, result, scratch.asValue(result.getValueKind()));
+            }
+            // restore scratch register
+            move(backupKind, crb, masm, scratch.asValue(backupSlot.getValueKind()), backupSlot);
+        }
+    }
+
+    @Opcode("STACKMOVE")
+    public static final class AMD64PushPopStackMove extends AMD64LIRInstruction implements ValueMoveOp {
+        public static final LIRInstructionClass<AMD64PushPopStackMove> TYPE = LIRInstructionClass.create(AMD64PushPopStackMove.class);
+
+        @Def({STACK}) protected AllocatableValue result;
+        @Use({STACK, HINT}) protected AllocatableValue input;
+        private final OperandSize size;
+
+        public AMD64PushPopStackMove(OperandSize size, AllocatableValue result, AllocatableValue input) {
+            super(TYPE);
+            this.result = result;
+            this.input = input;
+            this.size = size;
+        }
+
+        @Override
+        public AllocatableValue getInput() {
+            return input;
+        }
+
+        @Override
+        public AllocatableValue getResult() {
+            return result;
+        }
+
+        @Override
+        public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
+            AMD64MOp.PUSH.emit(masm, size, (AMD64Address) crb.asAddress(input));
+            AMD64MOp.POP.emit(masm, size, (AMD64Address) crb.asAddress(result));
+        }
+    }
+
+    public static final class LeaOp extends AMD64LIRInstruction {
+        public static final LIRInstructionClass<LeaOp> TYPE = LIRInstructionClass.create(LeaOp.class);
+
+        @Def({REG}) protected AllocatableValue result;
+        @Use({COMPOSITE, UNINITIALIZED}) protected AMD64AddressValue address;
+        private final OperandSize size;
+
+        public LeaOp(AllocatableValue result, AMD64AddressValue address, OperandSize size) {
+            super(TYPE);
+            this.result = result;
+            this.address = address;
+            this.size = size;
+        }
+
+        @Override
+        public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
+            if (size == OperandSize.QWORD) {
+                masm.leaq(asRegister(result, AMD64Kind.QWORD), address.toAddress());
+            } else {
+                assert size == OperandSize.DWORD;
+                masm.lead(asRegister(result, AMD64Kind.DWORD), address.toAddress());
+            }
+        }
+    }
+
+    public static final class LeaDataOp extends AMD64LIRInstruction {
+        public static final LIRInstructionClass<LeaDataOp> TYPE = LIRInstructionClass.create(LeaDataOp.class);
+
+        @Def({REG}) protected AllocatableValue result;
+        private final DataPointerConstant data;
+
+        public LeaDataOp(AllocatableValue result, DataPointerConstant data) {
+            super(TYPE);
+            this.result = result;
+            this.data = data;
+        }
+
+        @Override
+        public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
+            masm.leaq(asRegister(result), (AMD64Address) crb.recordDataReferenceInCode(data));
+        }
+    }
+
+    public static final class StackLeaOp extends AMD64LIRInstruction {
+        public static final LIRInstructionClass<StackLeaOp> TYPE = LIRInstructionClass.create(StackLeaOp.class);
+
+        @Def({REG}) protected AllocatableValue result;
+        @Use({STACK, UNINITIALIZED}) protected AllocatableValue slot;
+
+        public StackLeaOp(AllocatableValue result, AllocatableValue slot) {
+            super(TYPE);
+            this.result = result;
+            this.slot = slot;
+            assert slot instanceof VirtualStackSlot || slot instanceof StackSlot;
+        }
+
+        @Override
+        public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
+            masm.leaq(asRegister(result, AMD64Kind.QWORD), (AMD64Address) crb.asAddress(slot));
+        }
+    }
+
+    public static final class MembarOp extends AMD64LIRInstruction {
+        public static final LIRInstructionClass<MembarOp> TYPE = LIRInstructionClass.create(MembarOp.class);
+
+        private final int barriers;
+
+        public MembarOp(final int barriers) {
+            super(TYPE);
+            this.barriers = barriers;
+        }
+
+        @Override
+        public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
+            masm.membar(barriers);
+        }
+    }
+
+    public static final class NullCheckOp exten
