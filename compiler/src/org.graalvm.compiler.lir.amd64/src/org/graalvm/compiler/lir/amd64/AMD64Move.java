@@ -377,4 +377,173 @@ public class AMD64Move {
         }
     }
 
-    public static final class NullCheckOp exten
+    public static final class NullCheckOp extends AMD64LIRInstruction implements NullCheck {
+        public static final LIRInstructionClass<NullCheckOp> TYPE = LIRInstructionClass.create(NullCheckOp.class);
+
+        @Use({COMPOSITE}) protected AMD64AddressValue address;
+        @State protected LIRFrameState state;
+
+        public NullCheckOp(AMD64AddressValue address, LIRFrameState state) {
+            super(TYPE);
+            this.address = address;
+            this.state = state;
+        }
+
+        @Override
+        public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
+            crb.recordImplicitException(masm.position(), state);
+            masm.nullCheck(address.toAddress());
+        }
+
+        @Override
+        public Value getCheckedValue() {
+            return address.base;
+        }
+
+        @Override
+        public LIRFrameState getState() {
+            return state;
+        }
+    }
+
+    @Opcode("CAS")
+    public static final class CompareAndSwapOp extends AMD64LIRInstruction {
+        public static final LIRInstructionClass<CompareAndSwapOp> TYPE = LIRInstructionClass.create(CompareAndSwapOp.class);
+
+        private final AMD64Kind accessKind;
+
+        @Def protected AllocatableValue result;
+        @Use({COMPOSITE}) protected AMD64AddressValue address;
+        @Use protected AllocatableValue cmpValue;
+        @Use protected AllocatableValue newValue;
+
+        public CompareAndSwapOp(AMD64Kind accessKind, AllocatableValue result, AMD64AddressValue address, AllocatableValue cmpValue, AllocatableValue newValue) {
+            super(TYPE);
+            this.accessKind = accessKind;
+            this.result = result;
+            this.address = address;
+            this.cmpValue = cmpValue;
+            this.newValue = newValue;
+        }
+
+        @Override
+        public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
+            assert asRegister(cmpValue).equals(AMD64.rax) && asRegister(result).equals(AMD64.rax);
+
+            if (crb.target.isMP) {
+                masm.lock();
+            }
+            switch (accessKind) {
+                case BYTE:
+                    masm.cmpxchgb(asRegister(newValue), address.toAddress());
+                    break;
+                case WORD:
+                    masm.cmpxchgw(asRegister(newValue), address.toAddress());
+                    break;
+                case DWORD:
+                    masm.cmpxchgl(asRegister(newValue), address.toAddress());
+                    break;
+                case QWORD:
+                    masm.cmpxchgq(asRegister(newValue), address.toAddress());
+                    break;
+                default:
+                    throw GraalError.shouldNotReachHere(); // ExcludeFromJacocoGeneratedReport
+            }
+        }
+    }
+
+    @Opcode("ATOMIC_READ_AND_ADD")
+    public static final class AtomicReadAndAddOp extends AMD64LIRInstruction {
+        public static final LIRInstructionClass<AtomicReadAndAddOp> TYPE = LIRInstructionClass.create(AtomicReadAndAddOp.class);
+
+        private final AMD64Kind accessKind;
+
+        @Def protected AllocatableValue result;
+        @Alive({COMPOSITE}) protected AMD64AddressValue address;
+        @Use protected AllocatableValue delta;
+
+        public AtomicReadAndAddOp(AMD64Kind accessKind, AllocatableValue result, AMD64AddressValue address, AllocatableValue delta) {
+            super(TYPE);
+            this.accessKind = accessKind;
+            this.result = result;
+            this.address = address;
+            this.delta = delta;
+        }
+
+        @Override
+        public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
+            move(accessKind, crb, masm, result, delta);
+            if (crb.target.isMP) {
+                masm.lock();
+            }
+            switch (accessKind) {
+                case BYTE:
+                    masm.xaddb(address.toAddress(), asRegister(result));
+                    break;
+                case WORD:
+                    masm.xaddw(address.toAddress(), asRegister(result));
+                    break;
+                case DWORD:
+                    masm.xaddl(address.toAddress(), asRegister(result));
+                    break;
+                case QWORD:
+                    masm.xaddq(address.toAddress(), asRegister(result));
+                    break;
+                default:
+                    throw GraalError.shouldNotReachHere(); // ExcludeFromJacocoGeneratedReport
+            }
+        }
+    }
+
+    @Opcode("ATOMIC_READ_AND_WRITE")
+    public static final class AtomicReadAndWriteOp extends AMD64LIRInstruction {
+        public static final LIRInstructionClass<AtomicReadAndWriteOp> TYPE = LIRInstructionClass.create(AtomicReadAndWriteOp.class);
+
+        private final AMD64Kind accessKind;
+
+        @Def protected AllocatableValue result;
+        @Alive({COMPOSITE}) protected AMD64AddressValue address;
+        @Use protected AllocatableValue newValue;
+
+        public AtomicReadAndWriteOp(AMD64Kind accessKind, AllocatableValue result, AMD64AddressValue address, AllocatableValue newValue) {
+            super(TYPE);
+            this.accessKind = accessKind;
+            this.result = result;
+            this.address = address;
+            this.newValue = newValue;
+        }
+
+        @Override
+        public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
+            move(accessKind, crb, masm, result, newValue);
+            switch (accessKind) {
+                case BYTE:
+                    masm.xchgb(asRegister(result), address.toAddress());
+                    break;
+                case WORD:
+                    masm.xchgw(asRegister(result), address.toAddress());
+                    break;
+                case DWORD:
+                    masm.xchgl(asRegister(result), address.toAddress());
+                    break;
+                case QWORD:
+                    masm.xchgq(asRegister(result), address.toAddress());
+                    break;
+                default:
+                    throw GraalError.shouldNotReachHere(); // ExcludeFromJacocoGeneratedReport
+            }
+        }
+    }
+
+    public static void move(CompilationResultBuilder crb, AMD64MacroAssembler masm, Value result, Value input) {
+        move((AMD64Kind) result.getPlatformKind(), crb, masm, result, input);
+    }
+
+    private static void move(AMD64Kind moveKind, CompilationResultBuilder crb, AMD64MacroAssembler masm, Value result, Value input) {
+        if (isRegister(input)) {
+            if (isRegister(result)) {
+                reg2reg(moveKind, masm, result, input);
+                return;
+            } else if (isStackSlot(result)) {
+                reg2stack(moveKind, crb, masm, result, asRegister(input));
+          
