@@ -546,4 +546,182 @@ public class AMD64Move {
                 return;
             } else if (isStackSlot(result)) {
                 reg2stack(moveKind, crb, masm, result, asRegister(input));
-          
+                return;
+            }
+        } else if (isStackSlot(input)) {
+            if (isRegister(result)) {
+                stack2reg(moveKind, crb, masm, asRegister(result), input);
+                return;
+            }
+        } else if (isJavaConstant(input)) {
+            if (isRegister(result)) {
+                const2reg(crb, masm, asRegister(result), asJavaConstant(input), moveKind);
+                return;
+            } else if (isStackSlot(result)) {
+                const2stack(crb, masm, result, asJavaConstant(input));
+                return;
+            }
+        }
+        throw GraalError.shouldNotReachHere("input=" + input + " input.class=" + input.getClass().getName() + " " + "result=" + result + " result.class=" + result.getClass().getName()); // ExcludeFromJacocoGeneratedReport
+    }
+
+    private static void reg2reg(AMD64Kind kind, AMD64MacroAssembler masm, Value result, Value input) {
+        if (asRegister(input).equals(asRegister(result))) {
+            return;
+        }
+        if (!kind.isMask()) {
+            /*
+             * Non-mask moves are only allowed within a category. Mask moves are also allowed
+             * between a mask register and a CPU register (but not between two CPU registers). The
+             * definitions of the kmov[bwdq] instructions check all those constraints on mask moves.
+             */
+            assert asRegister(result).getRegisterCategory().equals(asRegister(input).getRegisterCategory());
+        }
+        switch (kind) {
+            case BYTE:
+            case WORD:
+            case DWORD:
+                masm.movl(asRegister(result), asRegister(input));
+                break;
+            case QWORD:
+                masm.movq(asRegister(result), asRegister(input));
+                break;
+            case SINGLE:
+                masm.movflt(asRegister(result, AMD64Kind.SINGLE), asRegister(input, AMD64Kind.SINGLE));
+                break;
+            case DOUBLE:
+                masm.movdbl(asRegister(result, AMD64Kind.DOUBLE), asRegister(input, AMD64Kind.DOUBLE));
+                break;
+            case MASK8:
+                masm.kmovb(asRegister(result), asRegister(input));
+                break;
+            case MASK16:
+                masm.kmovw(asRegister(result), asRegister(input));
+                break;
+            case MASK32:
+                masm.kmovd(asRegister(result), asRegister(input));
+                break;
+            case MASK64:
+                masm.kmovq(asRegister(result), asRegister(input));
+                break;
+            default:
+                throw GraalError.shouldNotReachHere("kind=" + kind + " input=" + input + " result=" + result); // ExcludeFromJacocoGeneratedReport
+        }
+    }
+
+    public static void reg2stack(AMD64Kind kind, CompilationResultBuilder crb, AMD64MacroAssembler masm, Value result, Register input) {
+        AMD64Address dest = (AMD64Address) crb.asAddress(result);
+        switch (kind) {
+            case BYTE:
+                masm.movb(dest, input);
+                break;
+            case WORD:
+                masm.movw(dest, input);
+                break;
+            case DWORD:
+                masm.movl(dest, input);
+                break;
+            case QWORD:
+                masm.movq(dest, input);
+                break;
+            case SINGLE:
+                masm.movflt(dest, input);
+                break;
+            case DOUBLE:
+                masm.movsd(dest, input);
+                break;
+            case V128_QWORD:
+                masm.movdqu(dest, input);
+                break;
+            case V256_QWORD:
+                masm.vmovdqu(dest, input);
+                break;
+            case V512_QWORD:
+                masm.vmovdqu64(dest, input);
+                break;
+            case MASK8:
+                masm.kmovb(dest, input);
+                break;
+            case MASK16:
+                masm.kmovw(dest, input);
+                break;
+            case MASK32:
+                masm.kmovd(dest, input);
+                break;
+            case MASK64:
+                masm.kmovq(dest, input);
+                break;
+            default:
+                throw GraalError.shouldNotReachHere("kind=" + kind + " input=" + input + " result=" + result); // ExcludeFromJacocoGeneratedReport
+        }
+    }
+
+    public static void stack2reg(AMD64Kind kind, CompilationResultBuilder crb, AMD64MacroAssembler masm, Register result, Value input) {
+        AMD64Address src = (AMD64Address) crb.asAddress(input);
+        /*
+         * Mask moves from memory can't target CPU registers directly. If such a move is needed, use
+         * a general purpose move instead. Note that mask moves have zero extending semantics.
+         */
+        boolean isMaskToCPU = kind.isMask() && !result.getRegisterCategory().equals(AMD64.MASK);
+        switch (kind) {
+            case BYTE:
+                masm.movsbl(result, src);
+                break;
+            case WORD:
+                masm.movswl(result, src);
+                break;
+            case DWORD:
+                masm.movl(result, src);
+                break;
+            case QWORD:
+                masm.movq(result, src);
+                break;
+            case SINGLE:
+                masm.movflt(result, src);
+                break;
+            case DOUBLE:
+                masm.movdbl(result, src);
+                break;
+            case V128_QWORD:
+                masm.movdqu(result, src);
+                break;
+            case V256_QWORD:
+                masm.vmovdqu(result, src);
+                break;
+            case V512_QWORD:
+                masm.vmovdqu64(result, src);
+                break;
+            case MASK8:
+                if (isMaskToCPU) {
+                    masm.movzbl(result, src);
+                } else {
+                    masm.kmovb(result, src);
+                }
+                break;
+            case MASK16:
+                if (isMaskToCPU) {
+                    masm.movzwl(result, src);
+                } else {
+                    masm.kmovw(result, src);
+                }
+                break;
+            case MASK32:
+                if (isMaskToCPU) {
+                    masm.movl(result, src);
+                } else {
+                    masm.kmovd(result, src);
+                }
+                break;
+            case MASK64:
+                if (isMaskToCPU) {
+                    masm.movq(result, src);
+                } else {
+                    masm.kmovq(result, src);
+                }
+                break;
+            default:
+                throw GraalError.shouldNotReachHere("kind=" + kind + " input=" + input + " result=" + result); // ExcludeFromJacocoGeneratedReport
+        }
+    }
+
+    public static void const2reg(CompilationResult
