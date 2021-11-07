@@ -724,4 +724,147 @@ public class AMD64Move {
         }
     }
 
-    public static void const2reg(CompilationResult
+    public static void const2reg(CompilationResultBuilder crb, AMD64MacroAssembler masm, Register result, JavaConstant input, AMD64Kind moveKind) {
+        /*
+         * Note: we use the kind of the input operand (and not the kind of the result operand)
+         * because they don't match in all cases. For example, an object constant can be loaded to a
+         * long register when unsafe casts occurred (e.g., for a write barrier where arithmetic
+         * operations are then performed on the pointer).
+         */
+        assert !result.getRegisterCategory().equals(AMD64.MASK) : "no general const-to-mask moves supported";
+        switch (input.getJavaKind().getStackKind()) {
+            case Int:
+                // Do not optimize with an XOR as this instruction may be between
+                // a CMP and a Jcc in which case the XOR will modify the condition
+                // flags and interfere with the Jcc.
+                masm.movl(result, input.asInt());
+
+                break;
+            case Long:
+                // Do not optimize with an XOR as this instruction may be between
+                // a CMP and a Jcc in which case the XOR will modify the condition
+                // flags and interfere with the Jcc.
+                if (input.asLong() == (int) input.asLong()) {
+                    // Sign extended to long
+                    masm.movslq(result, (int) input.asLong());
+                } else if ((input.asLong() & 0xFFFFFFFFL) == input.asLong()) {
+                    // Zero extended to long
+                    masm.movl(result, (int) input.asLong());
+                } else {
+                    masm.movq(result, input.asLong());
+                }
+                break;
+            case Float:
+                // This is *not* the same as 'constant == 0.0f' in the case where constant is -0.0f
+                if (Float.floatToRawIntBits(input.asFloat()) == Float.floatToRawIntBits(0.0f)) {
+                    masm.xorps(result, result);
+                } else {
+                    masm.movflt(result, (AMD64Address) crb.asFloatConstRef(input));
+                }
+                break;
+            case Double:
+                // This is *not* the same as 'constant == 0.0d' in the case where constant is -0.0d
+                if (Double.doubleToRawLongBits(input.asDouble()) == Double.doubleToRawLongBits(0.0d)) {
+                    masm.xorpd(result, result);
+                } else {
+                    masm.movdbl(result, (AMD64Address) crb.asDoubleConstRef(input));
+                }
+                break;
+            case Object:
+                assert moveKind != null : "a nun-null moveKind is required for loading an object constant";
+                // Do not optimize with an XOR as this instruction may be between
+                // a CMP and a Jcc in which case the XOR will modify the condition
+                // flags and interfere with the Jcc.
+                if (input.isNull()) {
+                    if (moveKind == AMD64Kind.QWORD && crb.mustReplaceWithUncompressedNullRegister(input)) {
+                        masm.movq(result, crb.uncompressedNullRegister);
+                    } else {
+                        // Upper bits will be zeroed so this also works for narrow oops
+                        masm.movslq(result, 0);
+                    }
+                } else {
+                    if (crb.target.inlineObjects) {
+                        crb.recordInlineDataInCode(input);
+                        if (moveKind == AMD64Kind.DWORD) {
+                            // Support for narrow oops
+                            masm.movl(result, 0xDEADDEAD, true);
+                        } else {
+                            masm.movq(result, 0xDEADDEADDEADDEADL, true);
+                        }
+                    } else {
+                        if (moveKind == AMD64Kind.DWORD) {
+                            // Support for narrow oops
+                            masm.movl(result, (AMD64Address) crb.recordDataReferenceInCode(input, 0));
+                        } else {
+                            masm.movq(result, (AMD64Address) crb.recordDataReferenceInCode(input, 0));
+                        }
+                    }
+                }
+                break;
+            default:
+                throw GraalError.shouldNotReachHere(); // ExcludeFromJacocoGeneratedReport
+        }
+    }
+
+    public static boolean canMoveConst2Stack(JavaConstant input) {
+        switch (input.getJavaKind().getStackKind()) {
+            case Int:
+                break;
+            case Long:
+                break;
+            case Float:
+                break;
+            case Double:
+                break;
+            case Object:
+                if (input.isNull()) {
+                    return true;
+                } else {
+                    return false;
+                }
+            default:
+                return false;
+        }
+        return true;
+    }
+
+    public static void const2stack(CompilationResultBuilder crb, AMD64MacroAssembler masm, Value result, JavaConstant input) {
+        AMD64Address dest = (AMD64Address) crb.asAddress(result);
+        final long imm;
+        switch (input.getJavaKind().getStackKind()) {
+            case Int:
+                imm = input.asInt();
+                break;
+            case Long:
+                imm = input.asLong();
+                break;
+            case Float:
+                imm = floatToRawIntBits(input.asFloat());
+                break;
+            case Double:
+                imm = doubleToRawLongBits(input.asDouble());
+                break;
+            case Object:
+                if (input.isNull()) {
+                    if (crb.mustReplaceWithUncompressedNullRegister(input)) {
+                        masm.movq(dest, crb.uncompressedNullRegister);
+                        return;
+                    }
+                    imm = 0;
+                } else {
+                    throw GraalError.shouldNotReachHere("Non-null object constants must be in a register"); // ExcludeFromJacocoGeneratedReport
+                }
+                break;
+            default:
+                throw GraalError.shouldNotReachHere(); // ExcludeFromJacocoGeneratedReport
+        }
+
+        switch ((AMD64Kind) result.getPlatformKind()) {
+            case BYTE:
+                assert NumUtil.isByte(imm) : "Is not in byte range: " + imm;
+                AMD64MIOp.MOVB.emit(masm, OperandSize.BYTE, dest, (int) imm);
+                break;
+            case WORD:
+                assert NumUtil.isShort(imm) : "Is not in short range: " + imm;
+                AMD64MIOp.MOV.emit(masm, OperandSize.WORD, dest, (int) imm);
+                
