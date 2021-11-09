@@ -1018,4 +1018,105 @@ public class AMD64Move {
         }
 
         @Override
-        public void em
+        public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
+            Register baseReg = getBaseRegister();
+            int shift = getShift();
+            Register resReg = getResultRegister();
+            if (nonNull && !baseReg.equals(Register.None) && getInput() instanceof RegisterValue) {
+                Register inputReg = ((RegisterValue) getInput()).getRegister();
+                if (!inputReg.equals(resReg)) {
+                    emitUncompressWithBaseRegister(masm, resReg, baseReg, inputReg, shift, false);
+                    return;
+                }
+            }
+            move(lirKindTool.getNarrowOopKind(), crb, masm);
+            emitUncompressCode(masm, resReg, shift, baseReg, nonNull);
+        }
+
+        public static void emitUncompressCode(AMD64MacroAssembler masm, Register resReg, int shift, Register baseReg, boolean nonNull) {
+            if (nonNull) {
+                if (!baseReg.equals(Register.None)) {
+                    emitUncompressWithBaseRegister(masm, resReg, baseReg, shift, false);
+                } else if (shift != 0) {
+                    masm.shlq(resReg, shift);
+                }
+            } else {
+                if (shift != 0) {
+                    masm.shlq(resReg, shift);
+                }
+
+                if (!baseReg.equals(Register.None)) {
+                    if (shift == 0) {
+                        // if encoding.shift != 0, the flags are already set by the shlq
+                        masm.testq(resReg, resReg);
+                    }
+
+                    Label done = new Label();
+                    masm.jccb(Equal, done);
+                    masm.addq(resReg, baseReg);
+                    masm.bind(done);
+                }
+            }
+        }
+    }
+
+    private abstract static class ZeroNullConversionOp extends AMD64LIRInstruction {
+        @Def({REG, HINT}) protected AllocatableValue result;
+        @Use({REG}) protected AllocatableValue input;
+
+        protected ZeroNullConversionOp(LIRInstructionClass<? extends ZeroNullConversionOp> type, AllocatableValue result, AllocatableValue input) {
+            super(type);
+            this.result = result;
+            this.input = input;
+        }
+
+        @Override
+        public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
+            Register nullRegister = crb.uncompressedNullRegister;
+            if (!nullRegister.equals(Register.None)) {
+                emitConversion(asRegister(result), asRegister(input), nullRegister, masm);
+            }
+        }
+
+        protected abstract void emitConversion(Register resultRegister, Register inputRegister, Register nullRegister, AMD64MacroAssembler masm);
+    }
+
+    public static class ConvertNullToZeroOp extends ZeroNullConversionOp {
+        public static final LIRInstructionClass<ConvertNullToZeroOp> TYPE = LIRInstructionClass.create(ConvertNullToZeroOp.class);
+
+        public ConvertNullToZeroOp(AllocatableValue result, AllocatableValue input) {
+            super(TYPE, result, input);
+        }
+
+        @Override
+        protected final void emitConversion(Register resultRegister, Register inputRegister, Register nullRegister, AMD64MacroAssembler masm) {
+            if (inputRegister.equals(resultRegister)) {
+                Label done = new Label();
+                masm.subqAndJcc(inputRegister, nullRegister, Equal, done, true);
+                masm.addq(inputRegister, nullRegister);
+                masm.bind(done);
+            } else {
+                masm.subq(resultRegister, resultRegister);
+                masm.cmpq(inputRegister, nullRegister);
+                masm.cmovq(NotEqual, resultRegister, inputRegister);
+            }
+        }
+    }
+
+    public static class ConvertZeroToNullOp extends ZeroNullConversionOp {
+        public static final LIRInstructionClass<ConvertZeroToNullOp> TYPE = LIRInstructionClass.create(ConvertZeroToNullOp.class);
+
+        public ConvertZeroToNullOp(AllocatableValue result, AllocatableValue input) {
+            super(TYPE, result, input);
+        }
+
+        @Override
+        protected final void emitConversion(Register resultRegister, Register inputRegister, Register nullRegister, AMD64MacroAssembler masm) {
+            if (!inputRegister.equals(resultRegister)) {
+                masm.movq(resultRegister, inputRegister);
+            }
+            masm.testq(inputRegister, inputRegister);
+            masm.cmovq(Equal, resultRegister, nullRegister);
+        }
+    }
+}
