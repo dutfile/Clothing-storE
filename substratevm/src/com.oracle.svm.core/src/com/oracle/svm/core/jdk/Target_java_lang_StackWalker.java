@@ -109,4 +109,161 @@ final class Target_java_lang_StackWalker {
     }
 
     /*
-     * NOTE: this impl
+     * NOTE: this implementation could be optimized by an intrinsic constant-folding operation in
+     * case deep enough method inlining has happened.
+     */
+    @Substitute
+    @NeverInline("Starting a stack walk in the caller frame")
+    @SuppressWarnings("static-method")
+    private Class<?> getCallerClass() {
+        if (!retainClassRef) {
+            throw new UnsupportedOperationException("This stack walker does not have RETAIN_CLASS_REFERENCE access");
+        }
+
+        /*
+         * It is intentional that the StackWalker.options is ignored. The specification JavaDoc of
+         * StackWalker.getCallerClass states:
+         *
+         * This method filters reflection frames, MethodHandle, and hidden frames regardless of the
+         * SHOW_REFLECT_FRAMES and SHOW_HIDDEN_FRAMES options this StackWalker has been configured
+         * with.
+         */
+
+        Class<?> result = StackTraceUtils.getCallerClass(KnownIntrinsics.readCallerStackPointer(), false);
+        if (result == null) {
+            throw new IllegalCallerException("No calling frame");
+        }
+        return result;
+    }
+
+    @Substitute
+    @NeverInline("Starting a stack walk in the caller frame")
+    private <T> T walk(Function<? super Stream<StackFrame>, ? extends T> function) {
+        JavaStackWalk walk = UnsafeStackValue.get(JavaStackWalk.class);
+        AbstractStackFrameSpliterator spliterator;
+        if (LoomSupport.isEnabled() && continuation != null) {
+            // walking a yielded continuation
+            spliterator = new ContinuationSpliterator(walk, contScope, continuation);
+        } else {
+            // walking a platform thread or mounted continuation
+            Pointer sp = KnownIntrinsics.readCallerStackPointer();
+            if (LoomSupport.isEnabled() && (contScope != null || JavaThreads.isCurrentThreadVirtual())) {
+                var scope = (contScope != null) ? contScope : Target_java_lang_VirtualThread.continuationScope();
+                var top = Target_jdk_internal_vm_Continuation.getCurrentContinuation(scope);
+                if (top != null) { // has a delimitation scope
+                    JavaStackWalker.initWalk(walk, sp, LoomSupport.getInternalContinuation(top).getBaseSP());
+                } else { // scope is not present in current continuation chain or null
+                    JavaStackWalker.initWalk(walk, sp);
+                }
+            } else { // walking a platform thread
+                JavaStackWalker.initWalk(walk, sp);
+            }
+            spliterator = new StackFrameSpliterator(walk, Thread.currentThread());
+        }
+
+        try {
+            return function.apply(StreamSupport.stream(spliterator, false));
+        } finally {
+            spliterator.invalidate();
+        }
+    }
+
+    private abstract class AbstractStackFrameSpliterator implements Spliterator<StackFrame> {
+        @Override
+        public Spliterator<StackFrame> trySplit() {
+            return null;
+        }
+
+        @Override
+        public long estimateSize() {
+            return Long.MAX_VALUE;
+        }
+
+        @Override
+        public int characteristics() {
+            return Spliterator.IMMUTABLE | Spliterator.NONNULL | Spliterator.ORDERED;
+        }
+
+        @Uninterruptible(reason = "Wraps the now safe call to query frame information.", calleeMustBe = false)
+        protected FrameInfoQueryResult queryFrameInfo(CodeInfo info, CodePointer ip) {
+            return CodeInfoTable.lookupCodeInfoQueryResult(info, ip).getFrameInfo();
+        }
+
+        protected DeoptimizedFrame.VirtualFrame curDeoptimizedFrame;
+        protected FrameInfoQueryResult curRegularFrame;
+
+        @Override
+        public boolean tryAdvance(Consumer<? super StackFrame> action) {
+            checkState();
+
+            boolean showHiddenFrames = options.contains(StackWalker.Option.SHOW_HIDDEN_FRAMES);
+            boolean showReflectFrames = options.contains(StackWalker.Option.SHOW_REFLECT_FRAMES);
+
+            while (true) {
+                /* Check if we have pending virtual frames to process. */
+                if (curDeoptimizedFrame != null) {
+                    FrameInfoQueryResult frameInfo = curDeoptimizedFrame.getFrameInfo();
+                    curDeoptimizedFrame = curDeoptimizedFrame.getCaller();
+
+                    if (shouldShowFrame(frameInfo, showHiddenFrames, showReflectFrames, showHiddenFrames)) {
+                        action.accept(new StackFrameImpl(frameInfo));
+                        return true;
+                    }
+
+                } else if (curRegularFrame != null) {
+                    FrameInfoQueryResult frameInfo = curRegularFrame;
+                    curRegularFrame = curRegularFrame.getCaller();
+
+                    if (shouldShowFrame(frameInfo, showHiddenFrames, showReflectFrames, showHiddenFrames)) {
+                        action.accept(new StackFrameImpl(frameInfo));
+                        return true;
+                    }
+
+                } else if (haveMoreFrames()) {
+                    /* No more virtual frames, but we have more physical frames. */
+                    advancePhysically();
+                } else {
+                    /* No more physical frames, we are done. */
+                    return false;
+                }
+            }
+        }
+
+        protected boolean shouldShowFrame(FrameInfoQueryResult frameInfo, boolean showLambdaFrames, boolean showReflectFrames, boolean showHiddenFrames) {
+            return StackTraceUtils.shouldShowFrame(frameInfo, showLambdaFrames, showReflectFrames, showHiddenFrames);
+        }
+
+        protected void invalidate() {
+        }
+
+        protected void checkState() {
+        }
+
+        protected abstract boolean haveMoreFrames();
+
+        protected abstract void advancePhysically();
+    }
+
+    final class ContinuationSpliterator extends AbstractStackFrameSpliterator {
+        private final Target_jdk_internal_vm_ContinuationScope contScope;
+        private JavaStackWalk walk;
+
+        private Target_jdk_internal_vm_Continuation continuation;
+        private StoredContinuation stored;
+
+        /**
+         * Because we are interruptible in between walking frames, pointers into the stack become
+         * invalid if a garbage collection happens and moves the continuation object, so we store
+         * stack pointers as an offset relative to {@link StoredContinuationAccess#getFramesStart}.
+         */
+        private UnsignedWord spOffset;
+        private UnsignedWord endSpOffset;
+
+        ContinuationSpliterator(JavaStackWalk walk, Target_jdk_internal_vm_ContinuationScope contScope, Target_jdk_internal_vm_Continuation continuation) {
+            walk.setPossiblyStaleIP(WordFactory.nullPointer());
+            this.walk = walk;
+            this.contScope = contScope;
+            this.continuation = continuation;
+        }
+
+        @Uninterruptible(reason = 
