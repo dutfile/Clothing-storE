@@ -45,4 +45,11 @@ public class InvocationPluginContext {
      */
     public final ResolvedJavaMethod targetMethod;
 
-    public Invo
+    public InvocationPluginContext(CallTargetNode.InvokeKind invokeKind, ValueNode[] args, ResolvedJavaMethod targetMethod, JavaKind resultType, InvocationPlugin plugin) {
+        this.invokeKind = invokeKind;
+        this.args = args;
+        this.resultType = resultType;
+        this.plugin = plugin;
+        this.targetMethod = targetMethod;
+    }
+}
