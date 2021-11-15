@@ -436,4 +436,69 @@ final class Target_java_lang_StackWalker {
         private final FrameInfoQueryResult frameInfo;
         private StackTraceElement ste;
 
-        StackFrameImpl(FrameInfoQueryResult frameInf
+        StackFrameImpl(FrameInfoQueryResult frameInfo) {
+            this.frameInfo = frameInfo;
+        }
+
+        @Override
+        public String getClassName() {
+            return frameInfo.getSourceClassName();
+        }
+
+        @Override
+        public String getMethodName() {
+            return frameInfo.getSourceMethodName();
+        }
+
+        @Override
+        public Class<?> getDeclaringClass() {
+            if (!retainClassRef) {
+                throw new UnsupportedOperationException("This stack walker does not have RETAIN_CLASS_REFERENCE access");
+            }
+            return frameInfo.getSourceClass();
+        }
+
+        @Override
+        public int getByteCodeIndex() {
+            return frameInfo.getBci();
+        }
+
+        @Override
+        public String getFileName() {
+            return frameInfo.getSourceFileName();
+        }
+
+        @Override
+        public int getLineNumber() {
+            return frameInfo.getSourceLineNumber();
+        }
+
+        @Override
+        public boolean isNativeMethod() {
+            return frameInfo.isNativeMethod();
+        }
+
+        @Override
+        public StackTraceElement toStackTraceElement() {
+            if (ste == null) {
+                ste = frameInfo.getSourceReference();
+            }
+            return ste;
+        }
+
+        @Override
+        public String toString() {
+            return toStackTraceElement().toString();
+        }
+    }
+}
+
+@TargetClass(className = "java.lang.StackFrameInfo")
+@Delete
+final class Target_java_lang_StackFrameInfo {
+}
+
+@TargetClass(className = "java.lang.StackStreamFactory")
+@Delete
+final class Target_java_lang_StackStreamFactory {
+}
