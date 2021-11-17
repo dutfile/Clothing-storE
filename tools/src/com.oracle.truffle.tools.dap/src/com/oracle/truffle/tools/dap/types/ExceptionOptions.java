@@ -114,4 +114,6 @@ public class ExceptionOptions extends JSONBase {
     public static ExceptionOptions create(String breakMode) {
         final JSONObject json = new JSONObject();
         json.put("breakMode", breakMode);
-        return new ExceptionO
+        return new ExceptionOptions(json);
+    }
+}
