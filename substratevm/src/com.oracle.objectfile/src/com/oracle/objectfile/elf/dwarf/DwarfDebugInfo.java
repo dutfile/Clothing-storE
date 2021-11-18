@@ -182,4 +182,156 @@ public class DwarfDebugInfo extends DebugInfoBase {
     public static final int DW_FORM_data2 = 0x05;
     public static final int DW_FORM_data4 = 0x6;
     @SuppressWarnings("unused") public static final int DW_FORM_data8 = 0x7;
-    @SuppressWarnings("unuse
+    @SuppressWarnings("unused") private static final int DW_FORM_string = 0x8;
+    @SuppressWarnings("unused") public static final int DW_FORM_block1 = 0x0a;
+    public static final int DW_FORM_ref_addr = 0x10;
+    @SuppressWarnings("unused") public static final int DW_FORM_ref1 = 0x11;
+    @SuppressWarnings("unused") public static final int DW_FORM_ref2 = 0x12;
+    @SuppressWarnings("unused") public static final int DW_FORM_ref4 = 0x13;
+    @SuppressWarnings("unused") public static final int DW_FORM_ref8 = 0x14;
+    public static final int DW_FORM_sec_offset = 0x17;
+    public static final int DW_FORM_data1 = 0x0b;
+    public static final int DW_FORM_flag = 0xc;
+    public static final int DW_FORM_strp = 0xe;
+    public static final int DW_FORM_expr_loc = 0x18;
+
+    /*
+     * Define specific attribute values for given attribute or form types.
+     */
+    /*
+     * DIE header has_children attribute values.
+     */
+    public static final byte DW_CHILDREN_no = 0;
+    public static final byte DW_CHILDREN_yes = 1;
+    /*
+     * DW_FORM_flag attribute values.
+     */
+    @SuppressWarnings("unused") public static final byte DW_FLAG_false = 0;
+    public static final byte DW_FLAG_true = 1;
+    /*
+     * Value for DW_AT_language attribute with form DATA1.
+     */
+    public static final byte DW_LANG_Java = 0xb;
+    /**
+     * This field defines the value used for the DW_AT_language attribute of compile units.
+     *
+     */
+    public static final byte LANG_ENCODING = DW_LANG_Java;
+    /*
+     * Values for {@link DW_AT_inline} attribute with form DATA1.
+     */
+    @SuppressWarnings("unused") public static final byte DW_INL_not_inlined = 0;
+    public static final byte DW_INL_inlined = 1;
+    @SuppressWarnings("unused") public static final byte DW_INL_declared_not_inlined = 2;
+    @SuppressWarnings("unused") public static final byte DW_INL_declared_inlined = 3;
+
+    /*
+     * DW_AT_Accessibility attribute values.
+     *
+     * These are not needed until we make functions members.
+     */
+    @SuppressWarnings("unused") public static final byte DW_ACCESS_public = 1;
+    @SuppressWarnings("unused") public static final byte DW_ACCESS_protected = 2;
+    @SuppressWarnings("unused") public static final byte DW_ACCESS_private = 3;
+
+    /*
+     * DW_AT_encoding attribute values
+     */
+    public static final byte DW_ATE_address = 0x1;
+    public static final byte DW_ATE_boolean = 0x2;
+    public static final byte DW_ATE_float = 0x4;
+    public static final byte DW_ATE_signed = 0x5;
+    public static final byte DW_ATE_signed_char = 0x6;
+    public static final byte DW_ATE_unsigned = 0x7;
+
+    /*
+     * CIE and FDE entries.
+     */
+
+    /* Full byte/word values. */
+    public static final int DW_CFA_CIE_id = -1;
+    @SuppressWarnings("unused") public static final int DW_CFA_FDE_id = 0;
+
+    public static final byte DW_CFA_CIE_version = 1;
+
+    /* Values encoded in high 2 bits. */
+    public static final byte DW_CFA_advance_loc = 0x1;
+    public static final byte DW_CFA_offset = 0x2;
+    public static final byte DW_CFA_restore = 0x3;
+
+    /* Values encoded in low 6 bits. */
+    public static final byte DW_CFA_nop = 0x0;
+    @SuppressWarnings("unused") public static final byte DW_CFA_set_loc1 = 0x1;
+    public static final byte DW_CFA_advance_loc1 = 0x2;
+    public static final byte DW_CFA_advance_loc2 = 0x3;
+    public static final byte DW_CFA_advance_loc4 = 0x4;
+    @SuppressWarnings("unused") public static final byte DW_CFA_offset_extended = 0x5;
+    @SuppressWarnings("unused") public static final byte DW_CFA_restore_extended = 0x6;
+    @SuppressWarnings("unused") public static final byte DW_CFA_undefined = 0x7;
+    @SuppressWarnings("unused") public static final byte DW_CFA_same_value = 0x8;
+    public static final byte DW_CFA_register = 0x9;
+    public static final byte DW_CFA_def_cfa = 0xc;
+    @SuppressWarnings("unused") public static final byte DW_CFA_def_cfa_register = 0xd;
+    public static final byte DW_CFA_def_cfa_offset = 0xe;
+
+    /*
+     * Values used to build DWARF expressions and locations
+     */
+    public static final byte DW_OP_addr = 0x03;
+    @SuppressWarnings("unused") public static final byte DW_OP_deref = 0x06;
+    public static final byte DW_OP_dup = 0x12;
+    public static final byte DW_OP_and = 0x1a;
+    public static final byte DW_OP_not = 0x20;
+    public static final byte DW_OP_plus = 0x22;
+    public static final byte DW_OP_shl = 0x24;
+    public static final byte DW_OP_shr = 0x25;
+    public static final byte DW_OP_bra = 0x28;
+    public static final byte DW_OP_eq = 0x29;
+    public static final byte DW_OP_lit0 = 0x30;
+    public static final byte DW_OP_reg0 = 0x50;
+    public static final byte DW_OP_breg0 = 0x70;
+    public static final byte DW_OP_regx = (byte) 0x90;
+    public static final byte DW_OP_bregx = (byte) 0x92;
+    public static final byte DW_OP_push_object_address = (byte) 0x97;
+    public static final byte DW_OP_implicit_value = (byte) 0x9e;
+    public static final byte DW_OP_stack_value = (byte) 0x9f;
+
+    /* Register constants for AArch64. */
+    public static final byte rheapbase_aarch64 = (byte) 27;
+    public static final byte rthread_aarch64 = (byte) 28;
+    /* Register constants for x86. */
+    public static final byte rheapbase_x86 = (byte) 14;
+    public static final byte rthread_x86 = (byte) 15;
+
+    /*
+     * A prefix used to label indirect types used to ensure gdb performs oop reference --> raw
+     * address translation
+     */
+    public static final String INDIRECT_PREFIX = "_z_.";
+    /*
+     * The name of the type for header field hub which needs special case processing to remove tag
+     * bits
+     */
+    public static final String HUB_TYPE_NAME = "java.lang.Class";
+
+    private DwarfStrSectionImpl dwarfStrSection;
+    private DwarfAbbrevSectionImpl dwarfAbbrevSection;
+    private DwarfInfoSectionImpl dwarfInfoSection;
+    private DwarfLocSectionImpl dwarfLocSection;
+    private DwarfARangesSectionImpl dwarfARangesSection;
+    private DwarfLineSectionImpl dwarfLineSection;
+    private DwarfFrameSectionImpl dwarfFameSection;
+    public final ELFMachine elfMachine;
+    /**
+     * Register used to hold the heap base.
+     */
+    private byte heapbaseRegister;
+    /**
+     * Register used to hold the current thread.
+     */
+    private byte threadRegister;
+
+    /**
+     * A collection of properties associated with each generated type record indexed by type name.
+     * n.b. this collection includes entries for the structure types used to define the object and
+     * array headers which do not have an ass
