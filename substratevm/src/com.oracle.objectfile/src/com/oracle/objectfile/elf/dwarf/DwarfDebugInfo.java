@@ -334,4 +334,194 @@ public class DwarfDebugInfo extends DebugInfoBase {
     /**
      * A collection of properties associated with each generated type record indexed by type name.
      * n.b. this collection includes entries for the structure types used to define the object and
-     * array headers which do not have an ass
+     * array headers which do not have an associated TypeEntry.
+     */
+    private final EconomicMap<TypeEntry, DwarfTypeProperties> typePropertiesIndex = EconomicMap.create();
+
+    /**
+     * A collection of method properties associated with each generated method record.
+     */
+    private final EconomicMap<MethodEntry, DwarfMethodProperties> methodPropertiesIndex = EconomicMap.create();
+
+    /**
+     * A collection of local variable properties associated with a generated method record,
+     * potentially including a method which is abstract (hence why it is not indexed off the primary
+     * range).
+     */
+
+    private final EconomicMap<MethodEntry, DwarfLocalProperties> methodLocalPropertiesIndex = EconomicMap.create();
+
+    /**
+     * A collection of local variable properties associated with an inlined subrange.
+     */
+    private final EconomicMap<Range, DwarfLocalProperties> rangeLocalPropertiesIndex = EconomicMap.create();
+
+    public DwarfDebugInfo(ELFMachine elfMachine, ByteOrder byteOrder) {
+        super(byteOrder);
+        this.elfMachine = elfMachine;
+        dwarfStrSection = new DwarfStrSectionImpl(this);
+        dwarfAbbrevSection = new DwarfAbbrevSectionImpl(this);
+        dwarfInfoSection = new DwarfInfoSectionImpl(this);
+        dwarfLocSection = new DwarfLocSectionImpl(this);
+        dwarfARangesSection = new DwarfARangesSectionImpl(this);
+        dwarfLineSection = new DwarfLineSectionImpl(this);
+
+        if (elfMachine == ELFMachine.AArch64) {
+            dwarfFameSection = new DwarfFrameSectionImplAArch64(this);
+            this.heapbaseRegister = rheapbase_aarch64;
+            this.threadRegister = rthread_aarch64;
+        } else {
+            dwarfFameSection = new DwarfFrameSectionImplX86_64(this);
+            this.heapbaseRegister = rheapbase_x86;
+            this.threadRegister = rthread_x86;
+        }
+    }
+
+    public DwarfStrSectionImpl getStrSectionImpl() {
+        return dwarfStrSection;
+    }
+
+    public DwarfAbbrevSectionImpl getAbbrevSectionImpl() {
+        return dwarfAbbrevSection;
+    }
+
+    public DwarfFrameSectionImpl getFrameSectionImpl() {
+        return dwarfFameSection;
+    }
+
+    public DwarfInfoSectionImpl getInfoSectionImpl() {
+        return dwarfInfoSection;
+    }
+
+    public DwarfLocSectionImpl getLocSectionImpl() {
+        return dwarfLocSection;
+    }
+
+    public DwarfARangesSectionImpl getARangesSectionImpl() {
+        return dwarfARangesSection;
+    }
+
+    public DwarfLineSectionImpl getLineSectionImpl() {
+        return dwarfLineSection;
+    }
+
+    public byte getHeapbaseRegister() {
+        return heapbaseRegister;
+    }
+
+    public byte getThreadRegister() {
+        return threadRegister;
+    }
+
+    /**
+     * A class used to associate properties with a specific type, the most important one being its
+     * index in the info section.
+     */
+    static class DwarfTypeProperties {
+        /**
+         * Index in debug_info section of type declaration for this class.
+         */
+        private int typeInfoIndex;
+        /**
+         * Index in debug_info section of indirect type declaration for this class.
+         *
+         * this is normally just the same as the index of the normal type declaration, however, when
+         * oops are stored in static and instance fields as offsets from the heapbase register gdb
+         * needs to be told how to convert these oops to raw addresses and this requires attaching a
+         * data_location address translation expression to an indirect type that wraps the object
+         * layout type. so, with that encoding this field will identify the wrapper type whenever
+         * the original type is an object, interface or array layout. primitive types and header
+         * types do not need translating.
+         */
+        private int indirectTypeInfoIndex;
+        /**
+         * The type entry with which these properties are associated.
+         */
+        private final TypeEntry typeEntry;
+
+        public int getTypeInfoIndex() {
+            return typeInfoIndex;
+        }
+
+        public void setTypeInfoIndex(int typeInfoIndex) {
+            this.typeInfoIndex = typeInfoIndex;
+        }
+
+        public int getIndirectTypeInfoIndex() {
+            return indirectTypeInfoIndex;
+        }
+
+        public void setIndirectTypeInfoIndex(int typeInfoIndex) {
+            this.indirectTypeInfoIndex = typeInfoIndex;
+        }
+
+        public TypeEntry getTypeEntry() {
+            return typeEntry;
+        }
+
+        DwarfTypeProperties(TypeEntry typeEntry) {
+            this.typeEntry = typeEntry;
+            this.typeInfoIndex = -1;
+            this.indirectTypeInfoIndex = -1;
+        }
+
+    }
+
+    /**
+     * A class used to associate extra properties with an instance class type.
+     */
+
+    static class DwarfClassProperties extends DwarfTypeProperties {
+        /**
+         * Index of debug_info section compilation unit for this class.
+         */
+        private int cuIndex;
+        /**
+         * index of debug_info section compilation unit for deopt target methods.
+         */
+        private int deoptCUIndex;
+        /**
+         * Index of the class entry's class_layout DIE in the debug_info section.
+         */
+        private int layoutIndex;
+        /**
+         * Index of the class entry's indirect layout DIE in the debug_info section.
+         */
+        private int indirectLayoutIndex;
+        /**
+         * Index into debug_line section for associated compilation unit.
+         */
+        private int lineIndex;
+        /**
+         * Size of line number info prologue region for associated compilation unit.
+         */
+        private int linePrologueSize;
+        /**
+         * Total size of line number info region for associated compilation unit.
+         */
+        private int lineSectionSize;
+        /**
+         * Map from field names to info section index for the field declaration.
+         */
+        private EconomicMap<String, Integer> fieldDeclarationIndex;
+        /**
+         * Map from method entries to associated abstract inline method index.
+         */
+        private EconomicMap<MethodEntry, Integer> abstractInlineMethodIndex;
+
+        /**
+         * Map from method entries to associated method local properties index.
+         */
+        private EconomicMap<MethodEntry, DwarfLocalProperties> methodLocalPropertiesIndex;
+
+        DwarfClassProperties(StructureTypeEntry entry) {
+            super(entry);
+            this.cuIndex = -1;
+            this.deoptCUIndex = -1;
+            this.layoutIndex = -1;
+            this.indirectLayoutIndex = -1;
+            this.lineIndex = -1;
+            this.linePrologueSize = -1;
+            this.lineSectionSize = -1;
+            fieldDeclarationIndex = null;
+            abstractInlineMethodIndex =
