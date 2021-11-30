@@ -524,4 +524,167 @@ public class DwarfDebugInfo extends DebugInfoBase {
             this.linePrologueSize = -1;
             this.lineSectionSize = -1;
             fieldDeclarationIndex = null;
-            abstractInlineMethodIndex =
+            abstractInlineMethodIndex = null;
+            methodLocalPropertiesIndex = null;
+        }
+    }
+
+    /**
+     * A class used to associate properties with a specific method.
+     */
+    static class DwarfMethodProperties {
+        /**
+         * The index in the info section at which the method's declaration resides.
+         */
+        private int methodDeclarationIndex;
+        /**
+         * The index in the info section at which the method's abstract inline declaration resides.
+         */
+        private int abstractInlineMethodIndex;
+
+        DwarfMethodProperties() {
+            methodDeclarationIndex = -1;
+            abstractInlineMethodIndex = -1;
+        }
+
+        public int getMethodDeclarationIndex() {
+            assert methodDeclarationIndex >= 0 : "unset declaration index";
+            return methodDeclarationIndex;
+        }
+
+        public int getAbstractInlineMethodIndex() {
+            assert abstractInlineMethodIndex >= 0 : "unset inline index";
+            return abstractInlineMethodIndex;
+        }
+
+        public void setMethodDeclarationIndex(int pos) {
+            assert methodDeclarationIndex == -1 || methodDeclarationIndex == pos : "bad declaration index";
+            methodDeclarationIndex = pos;
+        }
+
+        public void setAbstractInlineMethodIndex(int pos) {
+            assert abstractInlineMethodIndex == -1 || abstractInlineMethodIndex == pos : "bad inline index";
+            abstractInlineMethodIndex = pos;
+        }
+    }
+
+    private DwarfTypeProperties addTypeProperties(TypeEntry typeEntry) {
+        assert typeEntry != null;
+        assert !typeEntry.isClass();
+        assert typePropertiesIndex.get(typeEntry) == null;
+        DwarfTypeProperties typeProperties = new DwarfTypeProperties(typeEntry);
+        this.typePropertiesIndex.put(typeEntry, typeProperties);
+        return typeProperties;
+    }
+
+    private DwarfClassProperties addClassProperties(StructureTypeEntry entry) {
+        assert typePropertiesIndex.get(entry) == null;
+        DwarfClassProperties classProperties = new DwarfClassProperties(entry);
+        this.typePropertiesIndex.put(entry, classProperties);
+        return classProperties;
+    }
+
+    private DwarfMethodProperties addMethodProperties(MethodEntry methodEntry) {
+        assert methodPropertiesIndex.get(methodEntry) == null;
+        DwarfMethodProperties methodProperties = new DwarfMethodProperties();
+        this.methodPropertiesIndex.put(methodEntry, methodProperties);
+        return methodProperties;
+    }
+
+    private DwarfTypeProperties lookupTypeProperties(TypeEntry typeEntry) {
+        if (typeEntry instanceof ClassEntry) {
+            return lookupClassProperties((ClassEntry) typeEntry);
+        } else {
+            DwarfTypeProperties typeProperties = typePropertiesIndex.get(typeEntry);
+            if (typeProperties == null) {
+                typeProperties = addTypeProperties(typeEntry);
+            }
+            return typeProperties;
+        }
+    }
+
+    private DwarfClassProperties lookupClassProperties(StructureTypeEntry entry) {
+        DwarfTypeProperties typeProperties = typePropertiesIndex.get(entry);
+        assert typeProperties == null || typeProperties instanceof DwarfClassProperties;
+        DwarfClassProperties classProperties = (DwarfClassProperties) typeProperties;
+        if (classProperties == null) {
+            classProperties = addClassProperties(entry);
+        }
+        return classProperties;
+    }
+
+    private DwarfMethodProperties lookupMethodProperties(MethodEntry methodEntry) {
+        DwarfMethodProperties methodProperties = methodPropertiesIndex.get(methodEntry);
+        if (methodProperties == null) {
+            methodProperties = addMethodProperties(methodEntry);
+        }
+        return methodProperties;
+    }
+
+    void setTypeIndex(TypeEntry typeEntry, int idx) {
+        DwarfTypeProperties typeProperties = lookupTypeProperties(typeEntry);
+        assert typeProperties.getTypeInfoIndex() == -1 || typeProperties.getTypeInfoIndex() == idx;
+        typeProperties.setTypeInfoIndex(idx);
+    }
+
+    int getTypeIndex(TypeEntry typeEntry) {
+        DwarfTypeProperties typeProperties = lookupTypeProperties(typeEntry);
+        return getTypeIndex(typeProperties);
+    }
+
+    int getTypeIndex(DwarfTypeProperties typeProperties) {
+        assert typeProperties.getTypeInfoIndex() >= 0;
+        return typeProperties.getTypeInfoIndex();
+    }
+
+    void setIndirectTypeIndex(TypeEntry typeEntry, int idx) {
+        DwarfTypeProperties typeProperties = lookupTypeProperties(typeEntry);
+        assert typeProperties.getIndirectTypeInfoIndex() == -1 || typeProperties.getIndirectTypeInfoIndex() == idx;
+        typeProperties.setIndirectTypeInfoIndex(idx);
+    }
+
+    int getIndirectTypeIndex(TypeEntry typeEntry) {
+        DwarfTypeProperties typeProperties = lookupTypeProperties(typeEntry);
+        return getIndirectTypeIndex(typeProperties);
+    }
+
+    int getIndirectTypeIndex(DwarfTypeProperties typeProperties) {
+        assert typeProperties.getIndirectTypeInfoIndex() >= 0;
+        return typeProperties.getIndirectTypeInfoIndex();
+    }
+
+    void setCUIndex(ClassEntry classEntry, int idx) {
+        DwarfClassProperties classProperties = lookupClassProperties(classEntry);
+        assert classProperties.getTypeEntry() == classEntry;
+        assert classProperties.cuIndex == -1 || classProperties.cuIndex == idx;
+        classProperties.cuIndex = idx;
+    }
+
+    int getCUIndex(ClassEntry classEntry) {
+        DwarfClassProperties classProperties;
+        classProperties = lookupClassProperties(classEntry);
+        assert classProperties.getTypeEntry() == classEntry;
+        assert classProperties.cuIndex >= 0;
+        return classProperties.cuIndex;
+    }
+
+    void setDeoptCUIndex(ClassEntry classEntry, int idx) {
+        DwarfClassProperties classProperties;
+        classProperties = lookupClassProperties(classEntry);
+        assert classProperties.getTypeEntry() == classEntry;
+        assert (classProperties.deoptCUIndex == -1 || classProperties.deoptCUIndex == idx);
+        classProperties.deoptCUIndex = idx;
+    }
+
+    int getDeoptCUIndex(ClassEntry classEntry) {
+        DwarfClassProperties classProperties;
+        classProperties = lookupClassProperties(classEntry);
+        assert classProperties.getTypeEntry() == classEntry;
+        assert classProperties.deoptCUIndex >= 0;
+        return classProperties.deoptCUIndex;
+    }
+
+    void setLayoutIndex(ClassEntry classEntry, int idx) {
+        DwarfClassProperties classProperties = lookupClassProperties(classEntry);
+        assert classProperties.getTypeEntry() == classEntry;
+        assert classPropert
