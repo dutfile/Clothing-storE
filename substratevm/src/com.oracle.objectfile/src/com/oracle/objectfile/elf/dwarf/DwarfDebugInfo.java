@@ -687,4 +687,144 @@ public class DwarfDebugInfo extends DebugInfoBase {
     void setLayoutIndex(ClassEntry classEntry, int idx) {
         DwarfClassProperties classProperties = lookupClassProperties(classEntry);
         assert classProperties.getTypeEntry() == classEntry;
-        assert classPropert
+        assert classProperties.layoutIndex == -1 || classProperties.layoutIndex == idx;
+        classProperties.layoutIndex = idx;
+    }
+
+    int getLayoutIndex(ClassEntry classEntry) {
+        DwarfClassProperties classProperties;
+        classProperties = lookupClassProperties(classEntry);
+        assert classProperties.getTypeEntry() == classEntry;
+        assert classProperties.layoutIndex >= 0;
+        return classProperties.layoutIndex;
+    }
+
+    void setIndirectLayoutIndex(ClassEntry classEntry, int idx) {
+        DwarfClassProperties classProperties = lookupClassProperties(classEntry);
+        assert classProperties.getTypeEntry() == classEntry;
+        assert classProperties.indirectLayoutIndex == -1 || classProperties.indirectLayoutIndex == idx;
+        classProperties.indirectLayoutIndex = idx;
+    }
+
+    int getIndirectLayoutIndex(ClassEntry classEntry) {
+        DwarfClassProperties classProperties;
+        classProperties = lookupClassProperties(classEntry);
+        assert classProperties.getTypeEntry() == classEntry;
+        assert classProperties.indirectLayoutIndex >= 0;
+        return classProperties.indirectLayoutIndex;
+    }
+
+    void setLineIndex(ClassEntry classEntry, int idx) {
+        DwarfClassProperties classProperties;
+        classProperties = lookupClassProperties(classEntry);
+        assert classProperties.getTypeEntry() == classEntry;
+        assert (classProperties.lineIndex == -1 || classProperties.lineIndex == idx);
+        classProperties.lineIndex = idx;
+    }
+
+    public int getLineIndex(ClassEntry classEntry) {
+        DwarfClassProperties classProperties;
+        classProperties = lookupClassProperties(classEntry);
+        assert classProperties.getTypeEntry() == classEntry;
+        /* line index may be fetched without being set */
+        assert classProperties.lineIndex >= -1;
+        return classProperties.lineIndex;
+    }
+
+    public void setLinePrologueSize(ClassEntry classEntry, int prologueSize) {
+        DwarfClassProperties classProperties;
+        classProperties = lookupClassProperties(classEntry);
+        assert classProperties.getTypeEntry() == classEntry;
+        assert (classProperties.linePrologueSize == -1 || classProperties.linePrologueSize == prologueSize);
+        classProperties.linePrologueSize = prologueSize;
+    }
+
+    public int getLinePrologueSize(ClassEntry classEntry) {
+        DwarfClassProperties classProperties;
+        classProperties = lookupClassProperties(classEntry);
+        assert classProperties.getTypeEntry() == classEntry;
+        assert classProperties.linePrologueSize >= 0;
+        return classProperties.linePrologueSize;
+    }
+
+    public void setLineSectionSize(ClassEntry classEntry, int totalSize) {
+        DwarfClassProperties classProperties;
+        classProperties = lookupClassProperties(classEntry);
+        assert classProperties.getTypeEntry() == classEntry;
+        assert (classProperties.lineSectionSize == -1 || classProperties.lineSectionSize == totalSize);
+        classProperties.lineSectionSize = totalSize;
+    }
+
+    public int getLineSectionSize(ClassEntry classEntry) {
+        DwarfClassProperties classProperties;
+        classProperties = lookupClassProperties(classEntry);
+        assert classProperties.getTypeEntry() == classEntry;
+        assert classProperties.lineSectionSize >= 0;
+        return classProperties.lineSectionSize;
+    }
+
+    public void setFieldDeclarationIndex(StructureTypeEntry entry, String fieldName, int pos) {
+        DwarfClassProperties classProperties;
+        classProperties = lookupClassProperties(entry);
+        assert classProperties.getTypeEntry() == entry;
+        EconomicMap<String, Integer> fieldDeclarationIndex = classProperties.fieldDeclarationIndex;
+        if (fieldDeclarationIndex == null) {
+            classProperties.fieldDeclarationIndex = fieldDeclarationIndex = EconomicMap.create();
+        }
+        if (fieldDeclarationIndex.get(fieldName) != null) {
+            assert fieldDeclarationIndex.get(fieldName) == pos : entry.getTypeName() + fieldName;
+        } else {
+            fieldDeclarationIndex.put(fieldName, pos);
+        }
+    }
+
+    public int getFieldDeclarationIndex(StructureTypeEntry entry, String fieldName) {
+        DwarfClassProperties classProperties;
+        classProperties = lookupClassProperties(entry);
+        assert classProperties.getTypeEntry() == entry;
+        EconomicMap<String, Integer> fieldDeclarationIndex = classProperties.fieldDeclarationIndex;
+        assert fieldDeclarationIndex != null : fieldName;
+        assert fieldDeclarationIndex.get(fieldName) != null : entry.getTypeName() + fieldName;
+        return fieldDeclarationIndex.get(fieldName);
+    }
+
+    public void setMethodDeclarationIndex(MethodEntry methodEntry, int pos) {
+        DwarfMethodProperties methodProperties = lookupMethodProperties(methodEntry);
+        methodProperties.setMethodDeclarationIndex(pos);
+    }
+
+    public int getMethodDeclarationIndex(MethodEntry methodEntry) {
+        DwarfMethodProperties methodProperties = lookupMethodProperties(methodEntry);
+        return methodProperties.getMethodDeclarationIndex();
+    }
+
+    public void setAbstractInlineMethodIndex(ClassEntry classEntry, MethodEntry methodEntry, int pos) {
+        DwarfClassProperties classProperties = lookupClassProperties(classEntry);
+        assert classProperties.getTypeEntry() == classEntry;
+        EconomicMap<MethodEntry, Integer> abstractInlineMethodIndex = classProperties.abstractInlineMethodIndex;
+        if (abstractInlineMethodIndex == null) {
+            classProperties.abstractInlineMethodIndex = abstractInlineMethodIndex = EconomicMap.create();
+        }
+        if (abstractInlineMethodIndex.get(methodEntry) != null) {
+            assert abstractInlineMethodIndex.get(methodEntry) == pos : classEntry.getTypeName() + " & " + methodEntry.getSymbolName();
+        } else {
+            abstractInlineMethodIndex.put(methodEntry, pos);
+        }
+    }
+
+    public int getAbstractInlineMethodIndex(ClassEntry classEntry, MethodEntry methodEntry) {
+        DwarfClassProperties classProperties = lookupClassProperties(classEntry);
+        assert classProperties.getTypeEntry() == classEntry;
+        EconomicMap<MethodEntry, Integer> abstractInlineMethodIndex = classProperties.abstractInlineMethodIndex;
+        assert abstractInlineMethodIndex != null : classEntry.getTypeName() + " & " + methodEntry.getSymbolName();
+        assert abstractInlineMethodIndex.get(methodEntry) != null : classEntry.getTypeName() + " & " + methodEntry.getSymbolName();
+        return abstractInlineMethodIndex.get(methodEntry);
+    }
+
+    /**
+     * A class used to associate properties with a specific param or local whether top level or
+     * inline.
+     */
+
+    static final class DwarfLocalProperties {
+        private EconomicMap<Deb
