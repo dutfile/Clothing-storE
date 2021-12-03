@@ -40,4 +40,142 @@
  */
 package com.oracle.truffle.api.test.polyglot;
 
-imp
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.function.Function;
+
+import org.graalvm.polyglot.Context;
+import org.junit.Test;
+import org.junit.runners.Parameterized.Parameters;
+
+import com.oracle.truffle.api.TruffleLanguage;
+import com.oracle.truffle.api.interop.InteropLibrary;
+import com.oracle.truffle.api.interop.TruffleObject;
+import com.oracle.truffle.api.interop.UnsupportedMessageException;
+import com.oracle.truffle.api.library.ExportLibrary;
+import com.oracle.truffle.api.library.ExportMessage;
+import com.oracle.truffle.api.nodes.LanguageInfo;
+import com.oracle.truffle.api.test.AbstractParametrizedLibraryTest;
+
+public class LanguageViewTest extends AbstractParametrizedLibraryTest {
+
+    @Parameters(name = "{0}")
+    public static List<TestRun> data() {
+        return Arrays.asList(TestRun.CACHED, TestRun.UNCACHED, TestRun.DISPATCHED_CACHED, TestRun.DISPATCHED_UNCACHED);
+    }
+
+    @ExportLibrary(InteropLibrary.class)
+    static class ProxyLanguageObject implements TruffleObject {
+
+        @ExportMessage
+        boolean hasLanguage() {
+            return true;
+        }
+
+        @ExportMessage
+        Class<? extends TruffleLanguage<?>> getLanguage() {
+            return ProxyLanguage.class;
+        }
+
+        @SuppressWarnings("static-method")
+        @ExportMessage
+        final Object toDisplayString(@SuppressWarnings("unused") boolean allowSideEffects) {
+            return "42";
+        }
+
+    }
+
+    @ExportLibrary(InteropLibrary.class)
+    static class OtherLanguageObject implements TruffleObject {
+
+        @ExportMessage
+        boolean hasLanguage() {
+            return true;
+        }
+
+        @ExportMessage
+        Class<? extends TruffleLanguage<?>> getLanguage() {
+            return OtherTestLanguage.class;
+        }
+
+        @SuppressWarnings("static-method")
+        @ExportMessage
+        final Object toDisplayString(@SuppressWarnings("unused") boolean allowSideEffects) {
+            return "other";
+        }
+
+    }
+
+    public LanguageViewTest() {
+        needsInstrumentEnv = true;
+    }
+
+    @Test
+    public void testDefaultLanguageView() throws UnsupportedMessageException {
+        setupEnv(Context.create(), new ProxyLanguage() {
+        });
+        LanguageInfo l = instrumentEnv.getLanguages().get(ProxyLanguage.ID);
+
+        // test primitive
+        Object view = instrumentEnv.getLanguageView(l, "42");
+        InteropLibrary viewLib = createLibrary(InteropLibrary.class, view);
+        assertTrue(viewLib.hasLanguage(view));
+        assertFalse(viewLib.hasMetaObject(view));
+        assertFalse(viewLib.hasSourceLocation(view));
+        assertEquals("42", viewLib.toDisplayString(view));
+
+        // test value of the current language
+        Object o = new ProxyLanguageObject();
+        view = instrumentEnv.getLanguageView(l, o);
+        assertSame(view, o);
+        viewLib = createLibrary(InteropLibrary.class, view);
+        assertTrue(viewLib.hasLanguage(view));
+        assertSame(ProxyLanguage.class, viewLib.getLanguage(view));
+        assertFalse(viewLib.hasMetaObject(view));
+        assertFalse(viewLib.hasSourceLocation(view));
+        assertEquals("42", viewLib.toDisplayString(view));
+
+        // test value of a foreign language
+        o = new OtherLanguageObject();
+        view = instrumentEnv.getLanguageView(l, o);
+        assertNotSame(view, o);
+        viewLib = createLibrary(InteropLibrary.class, view);
+        assertTrue(viewLib.hasLanguage(view));
+        assertSame(ProxyLanguage.class, viewLib.getLanguage(view));
+        assertFalse(viewLib.hasMetaObject(view));
+        assertFalse(viewLib.hasSourceLocation(view));
+        assertEquals("other", viewLib.toDisplayString(view));
+    }
+
+    Function<Object, Object> getLanguageView;
+
+    @Test
+    public void testLanguageViewAssertions() {
+        setupEnv(Context.create(), new ProxyLanguage() {
+            @Override
+            protected Object getLanguageView(LanguageContext c, Object value) {
+                return getLanguageView.apply(value);
+            }
+        });
+        LanguageInfo l = instrumentEnv.getLanguages().get(ProxyLanguage.ID);
+
+        getLanguageView = (v) -> "";
+        assertAssertionError(() -> instrumentEnv.getLanguageView(l, "42"));
+        getLanguageView = (v) -> new OtherLanguageObject();
+        assertAssertionError(() -> instrumentEnv.getLanguageView(l, "42"));
+
+        getLanguageView = (v) -> new ProxyLanguageObject();
+        instrumentEnv.getLanguageView(l, "42"); // allowed
+
+        assertFails(() -> instrumentEnv.getLanguageView(l, null), NullPointerException.class);
+        assertFails(() -> instrumentEnv.getLanguageView(l, new Object()), ClassCastException.class);
+        assertFails(() -> instrumentEnv.getLanguageView(null, ""), NullPointerException.class);
+    }
+
+}
