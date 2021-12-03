@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, 2021, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2018, 2022, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -38,48 +38,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package org.graalvm.wasm.predefined.wasi;
+package com.oracle.truffle.api.test.polyglot;
 
-import org.graalvm.wasm.WasmContext;
-import org.graalvm.wasm.WasmInstance;
-import org.graalvm.wasm.WasmLanguage;
-import org.graalvm.wasm.memory.WasmMemory;
-import org.graalvm.wasm.predefined.WasmBuiltinRootNode;
-import org.graalvm.wasm.predefined.wasi.types.Errno;
-
-import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
-import com.oracle.truffle.api.frame.VirtualFrame;
-
-public final class WasiArgsSizesGetNode extends WasmBuiltinRootNode {
-
-    public WasiArgsSizesGetNode(WasmLanguage language, WasmInstance module) {
-        super(language, module);
-    }
-
-    @Override
-    public Object executeWithContext(VirtualFrame frame, WasmContext context) {
-        final Object[] args = frame.getArguments();
-        return argsSizesGet((int) args[0], (int) args[1]);
-    }
-
-    @TruffleBoundary
-    private int argsSizesGet(int argcAddress, int argvBufSizeAddress) {
-        final String[] arguments = getContext().environment().getApplicationArguments();
-        final int argc = arguments.length;
-        int argvBufSize = 0;
-        for (final String argument : arguments) {
-            argvBufSize += WasmMemory.encodedStringLength(argument);
-            argvBufSize += 1; // extra byte needed for the trailing null character
-        }
-
-        memory().store_i32(this, argcAddress, argc);
-        memory().store_i32(this, argvBufSizeAddress, argvBufSize);
-        return Errno.Success.ordinal();
-    }
-
-    @Override
-    public String builtinNodeName() {
-        return "__wasi_args_sizes_get";
-    }
-
-}
+imp
