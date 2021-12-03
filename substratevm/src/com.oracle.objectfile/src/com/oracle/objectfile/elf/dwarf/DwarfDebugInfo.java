@@ -827,4 +827,77 @@ public class DwarfDebugInfo extends DebugInfoBase {
      */
 
     static final class DwarfLocalProperties {
-        private EconomicMap<Deb
+        private EconomicMap<DebugLocalInfo, Integer> locals;
+
+        private DwarfLocalProperties() {
+            locals = EconomicMap.create();
+        }
+
+        int getIndex(DebugLocalInfo localInfo) {
+            return locals.get(localInfo);
+        }
+
+        void setIndex(DebugLocalInfo localInfo, int index) {
+            if (locals.get(localInfo) != null) {
+                assert locals.get(localInfo) == index;
+            } else {
+                locals.put(localInfo, index);
+            }
+        }
+    }
+
+    private DwarfLocalProperties addRangeLocalProperties(Range range) {
+        DwarfLocalProperties localProperties = new DwarfLocalProperties();
+        rangeLocalPropertiesIndex.put(range, localProperties);
+        return localProperties;
+    }
+
+    public DwarfLocalProperties lookupLocalProperties(ClassEntry classEntry, MethodEntry methodEntry) {
+        EconomicMap<MethodEntry, DwarfLocalProperties> map;
+        if (classEntry == null) {
+            map = methodLocalPropertiesIndex;
+        } else {
+            DwarfClassProperties classProperties = lookupClassProperties(classEntry);
+            assert classProperties != null;
+            map = classProperties.methodLocalPropertiesIndex;
+            if (map == null) {
+                map = classProperties.methodLocalPropertiesIndex = EconomicMap.create();
+            }
+        }
+        DwarfLocalProperties localProperties = map.get(methodEntry);
+        if (localProperties == null) {
+            localProperties = new DwarfLocalProperties();
+            map.put(methodEntry, localProperties);
+        }
+        return localProperties;
+    }
+
+    public void setMethodLocalIndex(ClassEntry classEntry, MethodEntry methodEntry, DebugLocalInfo localInfo, int index) {
+        DwarfLocalProperties localProperties = lookupLocalProperties(classEntry, methodEntry);
+        localProperties.setIndex(localInfo, index);
+    }
+
+    public int getMethodLocalIndex(ClassEntry classEntry, MethodEntry methodEntry, DebugLocalInfo localinfo) {
+        DwarfLocalProperties localProperties = lookupLocalProperties(classEntry, methodEntry);
+        assert localProperties != null : "get of non-existent local index";
+        int index = localProperties.getIndex(localinfo);
+        assert index >= 0 : "get of local index before it was set";
+        return index;
+    }
+
+    public void setRangeLocalIndex(Range range, DebugLocalInfo localInfo, int index) {
+        DwarfLocalProperties rangeProperties = rangeLocalPropertiesIndex.get(range);
+        if (rangeProperties == null) {
+            rangeProperties = addRangeLocalProperties(range);
+        }
+        rangeProperties.setIndex(localInfo, index);
+    }
+
+    public int getRangeLocalIndex(Range range, DebugLocalInfo localinfo) {
+        DwarfLocalProperties rangeProperties = rangeLocalPropertiesIndex.get(range);
+        assert rangeProperties != null : "get of non-existent local index";
+        int index = rangeProperties.getIndex(localinfo);
+        assert index >= 0 : "get of local index before it was set";
+        return index;
+    }
+}
