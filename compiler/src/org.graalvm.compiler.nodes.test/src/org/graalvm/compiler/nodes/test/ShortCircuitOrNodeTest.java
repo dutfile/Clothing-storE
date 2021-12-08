@@ -308,4 +308,89 @@ public class ShortCircuitOrNodeTest extends GraalCompilerTest {
         return shortCircuitOr(!a, !shortCircuitOr(!b, !a));
     }
 
-    public static boolean testCas
+    public static boolean testCascadeSnippet49(Boolean a, Boolean b) {
+        return shortCircuitOr(shortCircuitOr(a, !b), !a);
+    }
+
+    public static boolean testCascadeSnippet50(Boolean a, Boolean b) {
+        return shortCircuitOr(shortCircuitOr(b, !a), !a);
+    }
+
+    public static boolean testCascadeSnippet51(Boolean a, Boolean b) {
+        return shortCircuitOr(a, shortCircuitOr(!a, !b));
+    }
+
+    public static boolean testCascadeSnippet52(Boolean a, Boolean b) {
+        return shortCircuitOr(a, shortCircuitOr(!b, !a));
+    }
+
+    public static boolean testCascadeSnippet53(Boolean a, Boolean b) {
+        return shortCircuitOr(!shortCircuitOr(a, !b), !a);
+    }
+
+    public static boolean testCascadeSnippet54(Boolean a, Boolean b) {
+        return shortCircuitOr(!shortCircuitOr(b, !a), !a);
+    }
+
+    public static boolean testCascadeSnippet55(Boolean a, Boolean b) {
+        return shortCircuitOr(!a, shortCircuitOr(!a, !b));
+    }
+
+    public static boolean testCascadeSnippet56(Boolean a, Boolean b) {
+        return shortCircuitOr(!a, shortCircuitOr(!b, !a));
+    }
+
+    public static boolean testCascadeSnippet57(Boolean a, Boolean b) {
+        return shortCircuitOr(shortCircuitOr(!a, !b), !a);
+    }
+
+    public static boolean testCascadeSnippet58(Boolean a, Boolean b) {
+        return shortCircuitOr(shortCircuitOr(!b, !a), !a);
+    }
+
+    public static boolean testCascadeSnippet59(Boolean a, Boolean b) {
+        return shortCircuitOr(a, !shortCircuitOr(!a, !b));
+    }
+
+    public static boolean testCascadeSnippet60(Boolean a, Boolean b) {
+        return shortCircuitOr(a, !shortCircuitOr(!b, !a));
+    }
+
+    public static boolean testCascadeSnippet61(Boolean a, Boolean b) {
+        return shortCircuitOr(!shortCircuitOr(!a, !b), !a);
+    }
+
+    public static boolean testCascadeSnippet62(Boolean a, Boolean b) {
+        return shortCircuitOr(!shortCircuitOr(!b, !a), !a);
+    }
+
+    public static boolean testCascadeSnippet63(Boolean a, Boolean b) {
+        return shortCircuitOr(!a, !shortCircuitOr(!a, !b));
+    }
+
+    public static boolean testCascadeSnippet64(Boolean a, Boolean b) {
+        return shortCircuitOr(!a, !shortCircuitOr(!b, !a));
+    }
+
+    @Test
+    public void testCascade() {
+        for (int i = 1; i <= 64; ++i) {
+            String snippet = "testCascadeSnippet" + i;
+            StructuredGraph graph = parseEager(snippet, AllowAssumptions.YES);
+            Suites s = super.createSuites(getInitialOptions());
+            s.getHighTier().apply(graph, getDefaultHighTierContext());
+            s.getMidTier().apply(graph, getDefaultMidTierContext());
+            int shortCircuitCount = graph.getNodes(ShortCircuitOrNode.TYPE).count();
+
+            int trueCount = testInputCombinations(snippet);
+
+            if (trueCount % 2 == 0) {
+                // No ShortCircuitOrNode expected in the graph.
+                Assert.assertEquals(0, shortCircuitCount);
+            } else {
+                // Only a single ShortCircuitOrNode expected in the graph.
+                Assert.assertEquals(1, shortCircuitCount);
+            }
+        }
+    }
+}
