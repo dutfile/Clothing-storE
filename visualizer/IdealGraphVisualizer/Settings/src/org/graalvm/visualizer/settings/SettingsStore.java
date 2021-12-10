@@ -245,4 +245,160 @@ public abstract class SettingsStore<S extends SettingsStore<S, B>, B extends Set
                     m.entrySet().forEach((e) -> mapper.save(prefs, e));
                 }
             });
-   
+        }
+
+        @Override
+        public <T> T set(String propertyName, T val) {
+            if (val == null) {
+                val = store.getDefault(propertyName);
+                if (val == null) {
+                    return null;
+                }
+            }
+            Map<String, Object> tmap = settings.get(val.getClass());
+            if (tmap != null && tmap.containsKey(propertyName)) {
+                return (T) tmap.put(propertyName, val);
+            }
+            return null;
+        }
+
+        @Override
+        public <T> T get(Class<T> type, String propertyName) {
+            return (T) settings.getOrDefault(type, Collections.EMPTY_MAP).get(propertyName);
+        }
+
+        @Override
+        public <T> T get(String propertyName) {
+            for (Map<String, Object> map : settings.values()) {
+                Object val = map.get(propertyName);
+                if (val != null) {
+                    return (T) val;
+                }
+            }
+            return null;
+        }
+
+        @Override
+        public void fireChanged() {
+            store.fireChanged((B) this);
+        }
+
+        @Override
+        public int hashCode() {
+            return 97 * settings.hashCode();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            final SettingsBean other = (SettingsBean) obj;
+            return settings.equals(other.settings);
+        }
+    }
+
+    private static class WeakeningChangeListenerList extends EventListenerList {
+
+        private final WeakHashMap<ChangeListener, ChangeListener> weakListenersMapping = new WeakHashMap<>();
+
+        public void removeChangeListener(ChangeListener l) {
+            ChangeListener wL = weakListenersMapping.get(l);
+            if (wL != null) {
+                weakListenersMapping.remove(l);
+                remove(ChangeListener.class, wL);
+            } else {
+                remove(ChangeListener.class, l);
+            }
+        }
+
+        public void addWeakChangeListener(ChangeListener l) {
+            if (!weakListenersMapping.containsKey(l)) {
+                ChangeListener wL = WeakListeners.change(l, this);
+                weakListenersMapping.put(l, wL);
+                add(ChangeListener.class, wL);
+            }
+        }
+
+        public void addChangeListener(ChangeListener l) {
+            if (!weakListenersMapping.containsKey(l)) {
+                add(ChangeListener.class, l);
+                weakListenersMapping.put(l, l);
+            }
+        }
+
+        public void fire(ChangeEvent event) {
+            for (ChangeListener l : getListeners(ChangeListener.class)) {
+                l.stateChanged(event);
+            }
+        }
+    }
+    private final WeakeningChangeListenerList LISTENERS = new WeakeningChangeListenerList();
+
+    public void addWeakChangeListener(ChangeListener l) {
+        LISTENERS.addWeakChangeListener(l);
+    }
+
+    public void addChangeListener(ChangeListener l) {
+        LISTENERS.addChangeListener(l);
+    }
+
+    public void removeChangeListener(ChangeListener l) {
+        LISTENERS.removeChangeListener(l);
+    }
+
+    public void addPreferenceChangeListener(PreferenceChangeListener l) {
+        PREFERENCES.addPreferenceChangeListener(l);
+    }
+
+    public void removePreferenceChangeListener(PreferenceChangeListener l) {
+        PREFERENCES.removePreferenceChangeListener(l);
+    }
+
+    @Override
+    public void fireChanged() {
+        fireChanged(bean);
+    }
+
+    void fireChanged(B bean) {
+        LISTENERS.fire(new ChangeEvent(bean.copy()));
+    }
+
+    private static class SettingsHolder {
+
+        private SettingsHolder() {
+        }
+        private static Map<Class<? extends SettingsStore>, WeakReference<? extends SettingsStore>> hold = new HashMap<>();
+
+        private synchronized static void register(SettingsStore store) {
+            Class<? extends SettingsStore> type = store.getClass();
+            WeakReference<? extends SettingsStore> wk = hold.get(type);
+            if (wk != null && wk.get() != null) {
+                throw new IllegalStateException("Can't instanciate more than one " + store.getClass());
+            }
+            hold.put(type, new WeakReference<>(store));
+        }
+
+        private synchronized static <S extends SettingsStore<S, B>, B extends SettingsBean<S, B>> S obtain(Class<S> type) {
+            WeakReference<? extends SettingsStore> wk = hold.get(type);
+            if (wk == null) {
+                return null;
+            }
+            return (S) wk.get();
+        }
+
+        private synchronized static <S extends SettingsStore<S, B>, B extends SettingsBean<S, B>> S obtain(Class<S> type, Supplier<S> get) {
+            S settings = obtain(type);
+            if (settings == null) {
+                settings = get.get();
+            }
+            return settings;
+        }
+    }
+}
