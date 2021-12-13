@@ -280,4 +280,65 @@ public class RemoteStorageTest extends TestBase {
         String os = ci.getRequiredGraalValues().get(CommonConstants.CAP_OS_NAME);
         String arch = ci.getRequiredGraalValues().get(CommonConstants.CAP_OS_ARCH);
 
-        St
+        String nos = SystemUtils.normalizeOSName(os, arch);
+        String narch = SystemUtils.normalizeArchitecture(os, arch);
+
+        assertEquals(nos, os);
+        assertEquals(narch, arch);
+    }
+
+    private void assertAllComponentsLoaded() throws IOException {
+        Set<String> ids = remStorage.listComponentIDs();
+        assertEquals(2, ids.size());
+        assertTrue(ids.contains("ruby"));
+        assertTrue(ids.contains("r"));
+
+        // assertComponentHasNormalizedValues("ruby");
+        assertComponentHasNormalizedValues("r");
+    }
+
+    @Test
+    public void testMixedLinuxArchitetures() throws Exception {
+        storage.graalInfo.put(CommonConstants.CAP_GRAALVM_VERSION, "0.33-dev");
+        // selector is opposite to what's in the catalog file.
+        setSelector("linux", null, "x86_64");
+        forceLoadCatalog("catalogWithDifferentOsArch.properties");
+        assertAllComponentsLoaded();
+
+        setSelector("linux", "musl", "x86_64");
+        forceLoadCatalog("catalogWithDifferentOsArch.properties");
+        assertAllComponentsLoaded();
+
+        graalVersion = "0.34-dev";
+        setSelector("Linux", null, "amd64");
+        forceLoadCatalog("catalogWithDifferentOsArch.properties");
+        assertAllComponentsLoaded();
+
+        setSelector("Linux", "musl", "amd64");
+        forceLoadCatalog("catalogWithDifferentOsArch.properties");
+        assertAllComponentsLoaded();
+
+        graalVersion = "0.35-dev";
+        setSelector("Darwin", null, "amd64");
+        forceLoadCatalog("catalogWithDifferentOsArch.properties");
+        assertAllComponentsLoaded();
+
+        storage.graalInfo.put(CommonConstants.CAP_GRAALVM_VERSION, "0.35-dev");
+        setSelector("macos", null, "x86_64");
+        forceLoadCatalog("catalogWithDifferentOsArch.properties");
+        assertAllComponentsLoaded();
+    }
+
+    static int compare(String a, String b) {
+        if (a == b) {
+            return 0;
+        }
+        if (a == null) {
+            return -1;
+        } else if (b == null) {
+            return 1;
+        }
+        return a.compareTo(b);
+    }
+
+}
