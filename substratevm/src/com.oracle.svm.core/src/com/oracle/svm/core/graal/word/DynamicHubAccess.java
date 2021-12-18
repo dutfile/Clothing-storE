@@ -1,5 +1,6 @@
+
 /*
- * Copyright (c) 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012, 2021, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,35 +23,15 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package org.graalvm.nativebridge;
+package com.oracle.svm.core.graal.word;
 
-final class DefaultStackTraceMarshaller implements BinaryMarshaller<StackTraceElement[]> {
+import org.graalvm.compiler.nodes.extended.GuardingNode;
+import org.graalvm.word.LocationIdentity;
 
-    static final DefaultStackTraceMarshaller INSTANCE = new DefaultStackTraceMarshaller();
+import com.oracle.svm.core.graal.word.SubstrateOperation.SubstrateOpcode;
 
-    private DefaultStackTraceMarshaller() {
-    }
+public final class DynamicHubAccess {
 
-    @Override
-    public StackTraceElement[] read(BinaryInput in) {
-        int len = in.readInt();
-        StackTraceElement[] res = new StackTraceElement[len];
-        for (int i = 0; i < len; i++) {
-            res[i] = StackTraceElementMarshaller.INSTANCE.read(in);
-        }
-        return res;
-    }
-
-    @Override
-    public void write(BinaryOutput out, StackTraceElement[] stack) {
-        out.writeInt(stack.length);
-        for (StackTraceElement stackTraceElement : stack) {
-            StackTraceElementMarshaller.INSTANCE.write(out, stackTraceElement);
-        }
-    }
-
-    @Override
-    public int inferSize(StackTraceElement[] object) {
-        return object.length == 0 ? 0 : object.length * StackTraceElementMarshaller.INSTANCE.inferSize(object[0]);
-    }
+    @SubstrateOperation(opcode = SubstrateOpcode.READ_FROM_HUB)
+    public static native short readShort(Object object, int offset, LocationIdentity identity, GuardingNode guard);
 }
