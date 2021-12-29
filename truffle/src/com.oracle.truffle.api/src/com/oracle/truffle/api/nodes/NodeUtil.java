@@ -474,4 +474,216 @@ public final class NodeUtil {
                 if (child != null) {
                     if (!visitor.visit((Node) child)) {
                         return false;
-   
+                    }
+                }
+            } else if (nodeClass.isChildrenField(field)) {
+                Object arrayObject = nodeClass.getFieldObject(field, parent);
+                if (arrayObject != null) {
+                    Object[] array = (Object[]) arrayObject;
+                    for (int i = 0; i < array.length; i++) {
+                        Object child = array[i];
+                        if (child != null) {
+                            if (!visitor.visit((Node) child)) {
+                                return false;
+                            }
+                        }
+                    }
+                }
+            } else if (nodeClass.nodeFieldsOrderedByKind()) {
+                break;
+            }
+        }
+
+        return true;
+    }
+
+    static boolean forEachChildRecursive(Node parent, NodeVisitor visitor) {
+        NodeClass nodeClass = parent.getNodeClass();
+
+        for (Object field : nodeClass.getNodeFieldArray()) {
+            if (nodeClass.isChildField(field)) {
+                if (!visitChild((Node) nodeClass.getFieldObject(field, parent), visitor)) {
+                    return false;
+                }
+            } else if (nodeClass.isChildrenField(field)) {
+                Object arrayObject = nodeClass.getFieldObject(field, parent);
+                if (arrayObject == null) {
+                    continue;
+                }
+                Object[] array = (Object[]) arrayObject;
+                for (int i = 0; i < array.length; i++) {
+                    if (!visitChild((Node) array[i], visitor)) {
+                        return false;
+                    }
+                }
+            } else if (nodeClass.nodeFieldsOrderedByKind()) {
+                break;
+            }
+        }
+
+        return true;
+    }
+
+    private static boolean visitChild(Node child, NodeVisitor visitor) {
+        if (child == null) {
+            return true;
+        }
+        if (!visitor.visit(child)) {
+            return false;
+        }
+        if (!forEachChildRecursive(child, visitor)) {
+            return false;
+        }
+        return true;
+    }
+
+    /** @since 0.8 or earlier */
+    public static <T> T[] concat(T[] first, T[] second) {
+        T[] result = Arrays.copyOf(first, first.length + second.length);
+        System.arraycopy(second, 0, result, first.length, second.length);
+        return result;
+    }
+
+    /**
+     * Get the nth parent of a node, where the 0th parent is the node itself. Returns null if there
+     * are less than n ancestors.
+     *
+     * @since 0.8 or earlier
+     */
+    public static Node getNthParent(Node node, int n) {
+        Node parent = node;
+
+        for (int i = 0; i < n; i++) {
+            parent = parent.getParent();
+
+            if (parent == null) {
+                return null;
+            }
+        }
+
+        return parent;
+    }
+
+    /**
+     * Find annotation in class/interface hierarchy.
+     *
+     * @since 0.8 or earlier
+     */
+    public static <T extends Annotation> T findAnnotation(Class<?> clazz, Class<T> annotationClass) {
+        if (clazz.getAnnotation(annotationClass) != null) {
+            return clazz.getAnnotation(annotationClass);
+        } else {
+            if (!TruffleOptions.AOT) {
+                for (Class<?> intf : clazz.getInterfaces()) {
+                    if (intf.getAnnotation(annotationClass) != null) {
+                        return intf.getAnnotation(annotationClass);
+                    }
+                }
+            }
+            if (clazz.getSuperclass() != null) {
+                return findAnnotation(clazz.getSuperclass(), annotationClass);
+            }
+        }
+        return null;
+    }
+
+    /** @since 0.8 or earlier */
+    public static <T> T findParent(Node start, Class<T> clazz) {
+        Node parent = start.getParent();
+        if (parent == null) {
+            return null;
+        } else if (clazz.isInstance(parent)) {
+            return clazz.cast(parent);
+        } else {
+            return findParent(parent, clazz);
+        }
+    }
+
+    /** @since 0.8 or earlier */
+    public static <T> List<T> findAllParents(Node start, Class<T> clazz) {
+        List<T> parents = new ArrayList<>();
+        T parent = findParent(start, clazz);
+        while (parent != null) {
+            parents.add(parent);
+            parent = findParent((Node) parent, clazz);
+        }
+        return parents;
+    }
+
+    /** @since 0.8 or earlier */
+    public static List<Node> collectNodes(Node parent, Node child) {
+        List<Node> nodes = new ArrayList<>();
+        Node current = child;
+        while (current != null) {
+            nodes.add(current);
+            if (current == parent) {
+                return nodes;
+            }
+            current = current.getParent();
+        }
+        throw new IllegalArgumentException("Node " + parent + " is not a parent of " + child + ".");
+    }
+
+    /** @since 0.8 or earlier */
+    public static <T> T findFirstNodeInstance(Node root, Class<T> clazz) {
+        if (clazz.isInstance(root)) {
+            return clazz.cast(root);
+        }
+        for (Node child : root.getChildren()) {
+            T node = findFirstNodeInstance(child, clazz);
+            if (node != null) {
+                return node;
+            }
+        }
+        return null;
+    }
+
+    /** @since 0.8 or earlier */
+    public static <T> List<T> findAllNodeInstances(final Node root, final Class<T> clazz) {
+        final List<T> nodeList = new ArrayList<>();
+        root.accept(new NodeVisitor() {
+            public boolean visit(Node node) {
+                if (clazz.isInstance(node)) {
+                    nodeList.add(clazz.cast(node));
+                }
+                return true;
+            }
+        });
+        return nodeList;
+    }
+
+    /** @since 0.8 or earlier */
+    public static int countNodes(Node root) {
+        return countNodes(root, NodeCountFilter.NO_FILTER);
+    }
+
+    /** @since 0.8 or earlier */
+    public static int countNodes(Node root, NodeCountFilter filter) {
+        NodeCounter counter = new NodeCounter(filter);
+        root.accept(counter);
+        return counter.count;
+    }
+
+    /** @since 0.8 or earlier */
+    public interface NodeCountFilter {
+        /** @since 0.8 or earlier */
+        NodeCountFilter NO_FILTER = new NodeCountFilter() {
+
+            public boolean isCounted(Node node) {
+                return true;
+            }
+        };
+
+        /** @since 0.8 or earlier */
+        boolean isCounted(Node node);
+
+    }
+
+    /** @since 0.8 or earlier */
+    public static String printCompactTreeToString(Node node) {
+        StringWriter out = new StringWriter();
+        printCompactTree(new PrintWriter(out), null, node, 1);
+        return out.toString();
+    }
+
+    
