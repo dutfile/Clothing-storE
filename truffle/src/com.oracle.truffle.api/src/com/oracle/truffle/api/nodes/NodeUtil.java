@@ -313,4 +313,165 @@ public final class NodeUtil {
     }
 
     /**
-     * Finds the field in a parent node and
+     * Finds the field in a parent node and returns its name. Utility for debugging and tracing
+     * purposes.
+     *
+     * @since 22.2
+     */
+    public static String findChildFieldName(Node parent, Node child) {
+        return getNodeFieldName(parent, child, null);
+    }
+
+    /**
+     * Finds and retrieves all field names of a node class. This is a utility intended for debugging
+     * and tracing purposes.
+     *
+     * @since 22.2
+     */
+    public static List<String> collectFieldNames(Class<? extends Node> clazz) {
+        NodeClass nodeClass = NodeClass.get(clazz);
+        Object[] fields = nodeClass.getNodeFieldArray();
+        String[] fieldNames = new String[fields.length];
+        for (int i = 0; i < fields.length; i++) {
+            fieldNames[i] = nodeClass.getFieldName(fields[i]);
+        }
+        return Arrays.asList(fieldNames);
+    }
+
+    /**
+     * Finds and retrieves all {@link Child} and {@link Children} annotated field names and values.
+     * This is a utility intended for debugging and tracing purposes.
+     *
+     * @since 22.2
+     */
+    public static Map<String, Node> collectNodeChildren(Node node) {
+        LinkedHashMap<String, Node> nodes = new LinkedHashMap<>();
+        NodeClass nodeClass = NodeClass.get(node);
+
+        for (Object field : nodeClass.getNodeFieldArray()) {
+            if (nodeClass.isChildField(field)) {
+                Object value = nodeClass.getFieldObject(field, node);
+                if (value != null) {
+                    nodes.put(nodeClass.getFieldName(field), (Node) value);
+                }
+            } else if (nodeClass.isChildrenField(field)) {
+                Object value = nodeClass.getFieldObject(field, node);
+                if (value != null) {
+                    Object[] children = (Object[]) value;
+                    for (int i = 0; i < children.length; i++) {
+                        if (children[i] != null) {
+                            nodes.put(nodeClass.getFieldName(field) + "[" + i + "]", (Node) children[i]);
+                        }
+                    }
+                }
+            }
+        }
+        return Collections.unmodifiableMap(nodes);
+    }
+
+    /**
+     * Finds and retrieves all properties of a node. Properties of a node are all fields not
+     * annotated with {@link Child} or {@link Children}. This is a utility intended for debugging
+     * and tracing purposes.
+     *
+     * @since 22.2
+     */
+    public static Map<String, Object> collectNodeProperties(Node node) {
+        LinkedHashMap<String, Object> nodes = new LinkedHashMap<>();
+        NodeClass nodeClass = NodeClass.get(node);
+        for (Object field : nodeClass.getNodeFieldArray()) {
+            if (!nodeClass.isChildField(field) && !nodeClass.isChildrenField(field)) {
+                nodes.put(nodeClass.getFieldName(field), nodeClass.getFieldValue(field, node));
+            }
+        }
+        return Collections.unmodifiableMap(nodes);
+    }
+
+    /**
+     * Finds the field in a parent node, if any, that holds a specified child node.
+     *
+     * @return the field (possibly an array) holding the child, {@code null} if not found.
+     * @since 0.8 or earlier
+     */
+    static Object findChildField(Node parent, Node child) {
+        assert child != null;
+        NodeClass parentNodeClass = parent.getNodeClass();
+
+        for (Object field : parentNodeClass.getNodeFieldArray()) {
+            if (parentNodeClass.isChildField(field)) {
+                return field;
+            } else if (parentNodeClass.isChildrenField(field)) {
+                Object arrayObject = parentNodeClass.getFieldValue(field, child);
+                if (arrayObject != null) {
+                    Object[] array = (Object[]) arrayObject;
+                    for (int i = 0; i < array.length; i++) {
+                        if (array[i] == child) {
+                            return field;
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Determines whether a proposed child replacement would be safe: structurally and type.
+     *
+     * @since 0.8 or earlier
+     */
+    public static boolean isReplacementSafe(Node parent, Node oldChild, Node newChild) {
+        if (parent != null) {
+            if (!parent.isAdoptable()) {
+                return false;
+            }
+            NodeClass nodeClass = parent.getNodeClass();
+            for (Object field : nodeClass.getNodeFieldArray()) {
+                if (nodeClass.isChildField(field)) {
+                    if (nodeClass.getFieldObject(field, parent) == oldChild) {
+                        if (!oldChild.getNodeClass().isReplaceAllowed() || !newChild.getNodeClass().isReplaceAllowed()) {
+                            return false;
+                        }
+                        return nodeClass.getFieldType(field).isAssignableFrom(newChild.getClass());
+                    }
+                } else if (nodeClass.isChildrenField(field)) {
+                    Object arrayObject = nodeClass.getFieldObject(field, parent);
+                    if (arrayObject != null) {
+                        Object[] array = (Object[]) arrayObject;
+                        for (int i = 0; i < array.length; i++) {
+                            if (array[i] == oldChild) {
+                                if (!oldChild.getNodeClass().isReplaceAllowed() || !newChild.getNodeClass().isReplaceAllowed()) {
+                                    return false;
+                                }
+                                return nodeClass.getFieldType(field).getComponentType().isAssignableFrom(newChild.getClass());
+                            }
+                        }
+                    }
+                } else if (nodeClass.nodeFieldsOrderedByKind()) {
+                    break;
+                }
+            }
+            return true;
+        }
+        // if a child was not found the replacement can be considered safe.
+        return false;
+    }
+
+    /**
+     * Executes a closure for every non-null child of the parent node.
+     *
+     * @return {@code true} if all children were visited, {@code false} otherwise
+     * @since 0.8 or earlier
+     */
+    public static boolean forEachChild(Node parent, NodeVisitor visitor) {
+        CompilerAsserts.neverPartOfCompilation("do not iterate over Node children from compiled code");
+        Objects.requireNonNull(visitor);
+        NodeClass nodeClass = parent.getNodeClass();
+
+        for (Object field : nodeClass.getNodeFieldArray()) {
+            if (nodeClass.isChildField(field)) {
+                Object child = nodeClass.getFieldObject(field, parent);
+                if (child != null) {
+                    if (!visitor.visit((Node) child)) {
+                        return false;
+   
