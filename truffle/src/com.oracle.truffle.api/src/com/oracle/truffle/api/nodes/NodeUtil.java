@@ -152,4 +152,165 @@ public final class NodeUtil {
     public static List<Node> findNodeChildren(Node node) {
         CompilerAsserts.neverPartOfCompilation("do not call Node.findNodeChildren from compiled code");
         List<Node> nodes = new ArrayList<>();
-        NodeClass nodeClass = node.getNodeClass(
+        NodeClass nodeClass = node.getNodeClass();
+
+        for (Object nodeField : nodeClass.getNodeFieldArray()) {
+            if (nodeClass.isChildField(nodeField)) {
+                Object child = nodeClass.getFieldObject(nodeField, node);
+                if (child != null) {
+                    nodes.add((Node) child);
+                }
+            } else if (nodeClass.isChildrenField(nodeField)) {
+                Object[] children = (Object[]) nodeClass.getFieldObject(nodeField, node);
+                if (children != null) {
+                    for (Object child : children) {
+                        if (child != null) {
+                            nodes.add((Node) child);
+                        }
+                    }
+                }
+            } else if (nodeClass.nodeFieldsOrderedByKind()) {
+                break;
+            }
+        }
+        return nodes;
+    }
+
+    /** @since 0.8 or earlier */
+    public static <T extends Node> T nonAtomicReplace(Node oldNode, T newNode, CharSequence reason) {
+        oldNode.replaceHelper(newNode, reason);
+        return newNode;
+    }
+
+    /** @since 0.8 or earlier */
+    public static boolean replaceChild(Node parent, Node oldChild, Node newChild) {
+        return replaceChild(parent, oldChild, newChild, false);
+    }
+
+    /*
+     * Fast version of child adoption.
+     */
+    static void adoptChildrenHelper(Node currentNode) {
+        NodeClass clazz = currentNode.getNodeClass();
+        for (Object field : clazz.getNodeFieldArray()) {
+            if (clazz.isChildField(field)) {
+                Object child = clazz.getFieldObject(field, currentNode);
+                if (child != null) {
+                    Node node = (Node) child;
+                    if (node.getParent() != currentNode) {
+                        currentNode.adoptHelper(node);
+                    }
+                }
+            } else if (clazz.isChildrenField(field)) {
+                Object arrayObject = clazz.getFieldObject(field, currentNode);
+                if (arrayObject == null) {
+                    continue;
+                }
+                Object[] array = (Object[]) arrayObject;
+                for (int i = 0; i < array.length; i++) {
+                    Object child = array[i];
+                    if (child != null) {
+                        Node node = (Node) child;
+                        if (node.getParent() != currentNode) {
+                            currentNode.adoptHelper(node);
+                        }
+                    }
+                }
+            } else if (clazz.nodeFieldsOrderedByKind()) {
+                break;
+            }
+        }
+
+    }
+
+    /*
+     * Slow version of child adoption. Unlike the adoptChildrenHelper this method traverses (and
+     * counts) all nodes, i.e. including the ones already adopted.
+     */
+    static int adoptChildrenAndCountHelper(Node currentNode) {
+        int count = 0;
+        NodeClass clazz = currentNode.getNodeClass();
+        for (Object field : clazz.getNodeFieldArray()) {
+            if (clazz.isChildField(field)) {
+                Object child = clazz.getFieldObject(field, currentNode);
+                if (child != null) {
+                    Node node = (Node) child;
+                    count += currentNode.adoptAndCountHelper(node);
+                }
+            } else if (clazz.isChildrenField(field)) {
+                Object arrayObject = clazz.getFieldObject(field, currentNode);
+                if (arrayObject == null) {
+                    continue;
+                }
+                Object[] array = (Object[]) arrayObject;
+                for (int i = 0; i < array.length; i++) {
+                    Object child = array[i];
+                    if (child != null) {
+                        Node node = (Node) child;
+                        count += currentNode.adoptAndCountHelper(node);
+                    }
+                }
+            } else if (clazz.nodeFieldsOrderedByKind()) {
+                break;
+            }
+        }
+        return count;
+    }
+
+    static boolean replaceChild(Node parent, Node oldChild, Node newChild, boolean adopt) {
+        CompilerAsserts.neverPartOfCompilation("do not replace Node child from compiled code");
+        NodeClass nodeClass = parent.getNodeClass();
+
+        /*
+         * It is also important to check the old node for replacement, because we exclude non
+         * replaceable nodes from the node subtype analysis in TruffleBaseFeature.
+         */
+        if (!oldChild.getNodeClass().isReplaceAllowed()) {
+            throw new IllegalArgumentException(String.format("Replaced node type '%s' does not allow replacement.", oldChild.getClass().getName()));
+        }
+
+        if (!newChild.getNodeClass().isReplaceAllowed()) {
+            throw new IllegalArgumentException(String.format("Replacing node type '%s' does not allow replacement.", newChild.getClass().getName()));
+        }
+
+        for (Object nodeField : nodeClass.getNodeFieldArray()) {
+            if (nodeClass.isChildField(nodeField)) {
+                if (nodeClass.getFieldObject(nodeField, parent) == oldChild) {
+                    if (adopt) {
+                        parent.adoptHelper(newChild);
+                    }
+                    nodeClass.putFieldObject(nodeField, parent, newChild);
+                    return true;
+                }
+            } else if (nodeClass.isChildrenField(nodeField)) {
+                Object arrayObject = nodeClass.getFieldObject(nodeField, parent);
+                if (arrayObject != null) {
+                    Object[] array = (Object[]) arrayObject;
+                    for (int i = 0; i < array.length; i++) {
+                        if (array[i] == oldChild) {
+                            if (adopt) {
+                                parent.adoptHelper(newChild);
+                            }
+                            try {
+                                array[i] = newChild;
+                            } catch (ArrayStoreException e) {
+                                throw replaceChildIllegalArgumentException(nodeField, array.getClass(), newChild);
+                            }
+                            return true;
+                        }
+                    }
+                }
+            } else if (nodeClass.nodeFieldsOrderedByKind()) {
+                break;
+            }
+        }
+
+        return false;
+    }
+
+    private static IllegalArgumentException replaceChildIllegalArgumentException(Object nodeField, Class<?> fieldType, Node newChild) {
+        return new IllegalArgumentException("Cannot set element of " + fieldType.getName() + " field " + nodeField + " to " + (newChild == null ? "null" : newChild.getClass().getName()));
+    }
+
+    /**
+     * Finds the field in a parent node and
