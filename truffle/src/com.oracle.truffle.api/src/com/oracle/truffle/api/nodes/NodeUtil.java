@@ -686,4 +686,195 @@ public final class NodeUtil {
         return out.toString();
     }
 
-    
+    /** @since 0.8 or earlier */
+    public static void printCompactTree(OutputStream out, Node node) {
+        printCompactTree(new PrintWriter(out), null, node, 1);
+    }
+
+    private static void printCompactTree(PrintWriter p, Node parent, Node node, int level) {
+        if (node == null) {
+            return;
+        }
+        for (int i = 0; i < level; i++) {
+            p.print("  ");
+        }
+        if (parent == null) {
+            p.println(nodeName(node));
+        } else {
+            p.print(getNodeFieldName(parent, node, "unknownField"));
+            p.print(" = ");
+            p.println(nodeName(node));
+        }
+
+        for (Node child : node.getChildren()) {
+            printCompactTree(p, node, child, level + 1);
+        }
+        p.flush();
+    }
+
+    /** @since 0.8 or earlier */
+    public static String printSourceAttributionTree(Node node) {
+        StringWriter out = new StringWriter();
+        printSourceAttributionTree(new PrintWriter(out), null, node, 1);
+        return out.toString();
+    }
+
+    /** @since 0.8 or earlier */
+    public static void printSourceAttributionTree(OutputStream out, Node node) {
+        printSourceAttributionTree(new PrintWriter(out), null, node, 1);
+    }
+
+    /** @since 0.8 or earlier */
+    public static void printSourceAttributionTree(PrintWriter out, Node node) {
+        printSourceAttributionTree(out, null, node, 1);
+    }
+
+    private static void printSourceAttributionTree(PrintWriter p, Node parent, Node node, int level) {
+        if (node == null) {
+            return;
+        }
+        if (parent == null) {
+            // Add some preliminary information before starting with the root node
+            final SourceSection sourceSection = node.getSourceSection();
+            if (sourceSection != null) {
+                final String txt = sourceSection.getSource().getCharacters().toString();
+                p.println("Full source len=(" + txt.length() + ")  ___" + txt + "___");
+                p.println("AST source attribution:");
+            }
+        }
+        final StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < level; i++) {
+            sb.append("| ");
+        }
+
+        if (parent != null) {
+            sb.append(getNodeFieldName(parent, node, ""));
+        }
+
+        sb.append("  (" + node.getClass().getSimpleName() + ")  ");
+
+        sb.append(printSyntaxTags(node));
+
+        sb.append(displaySourceAttribution(node));
+        p.println(sb.toString());
+
+        for (Node child : node.getChildren()) {
+            printSourceAttributionTree(p, node, child, level + 1);
+        }
+        p.flush();
+    }
+
+    private static String getNodeFieldName(Node parent, Node node, String defaultName) {
+        NodeClass nodeClass = parent.getNodeClass();
+        for (Object field : nodeClass.getNodeFieldArray()) {
+            if (nodeClass.isChildField(field)) {
+                if (nodeClass.getFieldObject(field, parent) == node) {
+                    return nodeClass.getFieldName(field);
+                }
+            } else if (nodeClass.isChildrenField(field)) {
+                Object[] arrayNodes = (Object[]) nodeClass.getFieldObject(field, parent);
+                if (arrayNodes != null) {
+                    int index = 0;
+                    for (Object arrayNode : arrayNodes) {
+                        if (arrayNode == node) {
+                            return nodeClass.getFieldName(field) + "[" + index + "]";
+                        }
+                        index++;
+                    }
+                }
+            } else if (nodeClass.nodeFieldsOrderedByKind()) {
+                break;
+            }
+        }
+        return defaultName;
+    }
+
+    /**
+     * Originally returned the <em>tags</em> if any, associated with a node; now unsupported.
+     *
+     * @since 0.8 or earlier
+     */
+    public static String printSyntaxTags(final Object node) {
+        if ((node instanceof Node) && ((Node) node).getSourceSection() != null) {
+            return ((Node) node).getSourceSection().toString();
+        }
+        return "";
+    }
+
+    /**
+     * Prints a human readable form of a {@link Node} AST to the given {@link PrintStream}. This
+     * print method does not check for cycles in the node structure.
+     *
+     * @param out the stream to print to.
+     * @param node the root node to write
+     * @since 0.8 or earlier
+     */
+    public static void printTree(OutputStream out, Node node) {
+        printTree(new PrintWriter(out), node);
+    }
+
+    /** @since 0.8 or earlier */
+    public static String printTreeToString(Node node) {
+        StringWriter out = new StringWriter();
+        printTree(new PrintWriter(out), node);
+        return out.toString();
+    }
+
+    /** @since 0.8 or earlier */
+    public static void printTree(PrintWriter p, Node node) {
+        printTree(p, node, 1);
+        p.println();
+        p.flush();
+    }
+
+    private static void printTree(PrintWriter p, Node node, int level) {
+        if (node == null) {
+            p.print("null");
+            return;
+        }
+
+        p.print(nodeName(node));
+
+        ArrayList<Object> childFields = new ArrayList<>();
+        String sep = "";
+        p.print("(");
+        NodeClass nodeClass = NodeClass.get(node);
+        for (Object field : nodeClass.getNodeFieldArray()) {
+            if (nodeClass.isChildField(field) || nodeClass.isChildrenField(field)) {
+                childFields.add(field);
+            } else {
+                p.print(sep);
+                sep = ", ";
+
+                p.print(nodeClass.getFieldName(field));
+                p.print(" = ");
+                p.print(nodeClass.getFieldValue(field, node));
+            }
+        }
+        p.print(")");
+
+        if (childFields.size() != 0) {
+            p.print(" {");
+            for (Object field : nodeClass.getNodeFieldArray()) {
+                printNewLine(p, level);
+                p.print(nodeClass.getFieldName(field));
+
+                Object value = nodeClass.getFieldValue(field, node);
+                if (value == null) {
+                    p.print(" = null ");
+                } else if (nodeClass.isChildField(field)) {
+                    p.print(" = ");
+                    printTree(p, (Node) value, level + 1);
+                } else if (nodeClass.isChildrenField(field)) {
+                    printChildren(p, level, value);
+                }
+            }
+            printNewLine(p, level - 1);
+            p.print("}");
+        }
+    }
+
+    private static void printChildren(PrintWriter p, int level, Object value) {
+        String sep;
+        Object[] children = (Object[]) value;
+        p.print(" = [");
