@@ -878,3 +878,188 @@ public final class NodeUtil {
         String sep;
         Object[] children = (Object[]) value;
         p.print(" = [");
+        sep = "";
+        for (Object child : children) {
+            p.print(sep);
+            sep = ", ";
+            printTree(p, (Node) child, level + 1);
+        }
+        p.print("]");
+    }
+
+    private static void printNewLine(PrintWriter p, int level) {
+        p.println();
+        for (int i = 0; i < level; i++) {
+            p.print("    ");
+        }
+    }
+
+    private static String nodeName(Node node) {
+        return className(node.getClass());
+    }
+
+    static String className(Class<?> clazz) {
+        String name = clazz.getName();
+        return name.substring(name.lastIndexOf('.') + 1);
+    }
+
+    private static String displaySourceAttribution(Node node) {
+        final SourceSection section = node.getSourceSection();
+        if (section == null) {
+            return "";
+        }
+        if (section.getSource() == null) {
+            // TODO GR-38632 we can remove this block if SourceSection#createUnavailable was
+            // removed, because
+            // then source cannot become null anymore.
+            return "source: <unknown>";
+        }
+        final String srcText = section.getCharacters().toString();
+        final StringBuilder sb = new StringBuilder();
+        sb.append("source:");
+        sb.append(" (" + section.getCharIndex() + "," + (section.getCharEndIndex() - 1) + ")");
+        sb.append(" line=" + section.getStartLine());
+        sb.append(" len=" + srcText.length());
+        sb.append(" text=\"" + srcText + "\"");
+        return sb.toString();
+    }
+
+    /** @since 0.8 or earlier */
+    public static boolean verify(Node root) {
+        Iterable<Node> children = root.getChildren();
+        for (Node child : children) {
+            if (child != null) {
+                if (child.getParent() != root) {
+                    throw new AssertionError(toStringWithClass(child) + ": actual parent=" + toStringWithClass(child.getParent()) + " expected parent=" + toStringWithClass(root));
+                }
+                verify(child);
+            }
+        }
+        return true;
+    }
+
+    private static String toStringWithClass(Object obj) {
+        return obj == null ? "null" : obj + "(" + obj.getClass().getName() + ")";
+    }
+
+    static void traceRewrite(Node oldNode, Node newNode, CharSequence reason) {
+        if (TruffleOptions.TraceRewritesFilterFromCost != null) {
+            if (filterByKind(oldNode, TruffleOptions.TraceRewritesFilterFromCost)) {
+                return;
+            }
+        }
+
+        if (TruffleOptions.TraceRewritesFilterToCost != null) {
+            if (filterByKind(newNode, TruffleOptions.TraceRewritesFilterToCost)) {
+                return;
+            }
+        }
+
+        String filter = TruffleOptions.TraceRewritesFilterClass;
+        Class<? extends Node> from = oldNode.getClass();
+        Class<? extends Node> to = newNode.getClass();
+        if (filter != null && (filterByContainsClassName(from, filter) || filterByContainsClassName(to, filter))) {
+            return;
+        }
+
+        final SourceSection reportedSourceSection = oldNode.getEncapsulatingSourceSection();
+
+        PrintStream out = System.out;
+        out.printf("[truffle]   rewrite %-50s |From %-40s |To %-40s |Reason %s %s%n", oldNode.toString(), formatNodeInfo(oldNode), formatNodeInfo(newNode),
+                        reason != null && reason.length() > 0 ? reason : "unknown", formatLocation(reportedSourceSection));
+    }
+
+    private static String formatLocation(SourceSection sourceSection) {
+        if (sourceSection == null) {
+            return "";
+        }
+
+        if (sourceSection.getSource() == null) {
+            // TODO GR-38632 we can remove this block if SourceSection#createUnavailable was
+            // removed, because
+            // then source cannot become null anymore.
+            return "at <Unknown>";
+        } else {
+            return "at " + String.format("%s:%d", sourceSection.getSource().getName(),
+                            sourceSection.getStartLine());
+        }
+    }
+
+    private static String formatNodeInfo(Node node) {
+        String cost = "?";
+        switch (node.getCost()) {
+            case NONE:
+                cost = "G";
+                break;
+            case MONOMORPHIC:
+                cost = "M";
+                break;
+            case POLYMORPHIC:
+                cost = "P";
+                break;
+            case MEGAMORPHIC:
+                cost = "G";
+                break;
+            default:
+                cost = "?";
+                break;
+        }
+        return cost + " " + nodeName(node);
+    }
+
+    private static boolean filterByKind(Node node, NodeCost cost) {
+        return node.getCost() == cost;
+    }
+
+    private static boolean filterByContainsClassName(Class<? extends Node> from, String filter) {
+        Class<?> currentFrom = from;
+        while (currentFrom != null) {
+            if (currentFrom.getName().contains(filter)) {
+                return false;
+            }
+            currentFrom = currentFrom.getSuperclass();
+        }
+        return true;
+    }
+
+    /**
+     * Fails with an assertion if the exact {@link Node#getClass() node type} is used as a parent.
+     * Returns <code>true</code> if the node is <code>null</code>.
+     *
+     * @since 21.2
+     */
+    public static boolean assertRecursion(Node node, int maxRecursion) {
+        if (node == null) {
+            // not adopted nothing we can do
+            return true;
+        }
+        Node parent = node.getParent();
+        int counter = 0;
+        while (parent != null) {
+            if (node.getClass() == parent.getClass() && counter++ == maxRecursion) {
+                // found recursion
+                throw new AssertionError(String.format("Invalid recursion detected. Path to recursion: %n%s", printRecursionPath(node, node.getClass())));
+            }
+            parent = parent.getParent();
+        }
+        return true;
+    }
+
+    private static String printRecursionPath(Node node, Class<?> recursiveType) {
+        StringBuilder path = new StringBuilder();
+        path.append("     ").append(node.getClass().getTypeName()).append(System.lineSeparator());
+        Node current = node;
+        Node parent = node.getParent();
+        do {
+            path.append("  <- ");
+            if (parent != null) {
+                String fieldName = findChildFieldName(parent, current);
+                path.append(parent.getClass().getTypeName());
+                if (fieldName != null) {
+                    path.append(".");
+                    path.append(fieldName);
+                }
+                if (parent.getClass() == recursiveType) {
+                    path.append(" <-recursion-detected->");
+                }
+     
