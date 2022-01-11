@@ -171,4 +171,149 @@ public final class GraphPrinterDumpHandler implements DebugDumpHandler {
                     }
                 }
                 // Check for method scopes that must be opened since the previous dump.
-                for (int i = 0; i < inl
+                for (int i = 0; i < inlineContext.size(); ++i) {
+                    if (i >= previousInlineContext.size() || !inlineContext.get(i).equals(previousInlineContext.get(i))) {
+                        for (int inlineDepth = i; inlineDepth < inlineContext.size(); ++inlineDepth) {
+                            openScope(debug, inlineContext.get(inlineDepth), inlineDepth, inlineDepth == inlineContext.size() - 1 ? properties : null);
+                        }
+                        break;
+                    }
+                }
+            }
+
+            // Save inline context for next dump.
+            previousInlineContext = inlineContext;
+
+            // Capture before creating the sandbox
+            String currentScopeName = debug.getCurrentScopeName();
+            try (DebugContext.Scope s = debug.sandbox("PrintingGraph", null)) {
+                // Finally, output the graph.
+                Map<Object, Object> properties = new HashMap<>();
+                properties.put("scope", currentScopeName);
+                graph.getDebugProperties(properties);
+                if (graph instanceof StructuredGraph) {
+                    StructuredGraph structuredGraph = (StructuredGraph) graph;
+                    try {
+                        int size = NodeCostUtil.computeGraphSize(structuredGraph);
+                        properties.put("node-cost graph size", size);
+                    } catch (Throwable t) {
+                        properties.put("node-cost-exception", t.getMessage());
+                    }
+                    properties.put("StageFlags", structuredGraph.getGraphState().getStageFlags());
+                    properties.put("speculationLog", structuredGraph.getSpeculationLog() != null ? structuredGraph.getSpeculationLog().toString() : "null");
+                }
+                if (PrintUnmodifiedGraphs.getValue(options) || lastGraph != graph || lastModCount != graph.getEdgeModificationCount()) {
+                    printer.print(debug, graph, properties, nextDumpId(), format, arguments);
+                    lastGraph = graph;
+                    lastModCount = graph.getEdgeModificationCount();
+                }
+            } catch (IOException e) {
+                handleException(debug, e);
+            } catch (Throwable e) {
+                throw debug.handle(e);
+            }
+        }
+    }
+
+    void handleException(DebugContext debug, IOException e) {
+        if (debug != null && DebugOptions.DumpingErrorsAreFatal.getValue(debug.getOptions())) {
+            throw new GraalError(e);
+        }
+        if (e instanceof ClosedByInterruptException) {
+            /*
+             * The current dumping was aborted by an interrupt so treat this as a transient failure.
+             */
+            failuresCount = 0;
+        } else {
+            failuresCount++;
+        }
+        printer = null;
+        e.printStackTrace(TTY.out);
+        if (failuresCount > FAILURE_LIMIT) {
+            TTY.println("Too many failures with dumping. Disabling dump in thread " + Thread.currentThread());
+        }
+    }
+
+    private static void addCompilationId(Map<Object, Object> properties, final Graph graph) {
+        if (graph instanceof StructuredGraph) {
+            properties.put("compilationId", ((StructuredGraph) graph).compilationId());
+        }
+    }
+
+    private List<String> getInlineContext(Graph graph) {
+        List<String> result = inlineContextMap.get(graph);
+        if (result == null) {
+            result = new ArrayList<>();
+            Object lastMethodOrGraph = null;
+            boolean graphSeen = false;
+            DebugContext debug = graph.getDebug();
+            for (Object o : debug.context()) {
+                if (o == graph) {
+                    graphSeen = true;
+                }
+
+                if (o instanceof DebugDumpScope) {
+                    DebugDumpScope debugDumpScope = (DebugDumpScope) o;
+                    if (debugDumpScope.decorator && !result.isEmpty()) {
+                        result.set(result.size() - 1, debugDumpScope.name + ":" + result.get(result.size() - 1));
+                    } else {
+                        result.add(debugDumpScope.name);
+                    }
+                } else {
+                    addMethodContext(result, o, lastMethodOrGraph);
+                }
+                if (o instanceof JavaMethod || o instanceof Graph) {
+                    lastMethodOrGraph = o;
+                }
+            }
+
+            for (int i = 0; i < result.size(); i++) {
+                /*
+                 * Truffle compilations don't have a standard inline context. Since
+                 * TruffleDebugJavaMethod specifies the declaring class for truffle compilations as
+                 * "LTruffleGraal" we identify truffle compilations as starting with "TruffleGraal"
+                 */
+                String name = result.get(i);
+                String search = "TruffleGraal.";
+                if (name.startsWith(search)) {
+                    result.set(i, "TruffleIR::" + name.substring(search.length(), name.length()));
+                    if (i > 0) {
+                        // we can drop previous entry which is just profiledPERoot
+                        result.remove(i - 1);
+                    }
+                    break;
+                }
+            }
+
+            if (result.isEmpty()) {
+                result.add(graph.toString());
+                graphSeen = true;
+            }
+            // Reverse list such that inner method comes after outer method.
+            Collections.reverse(result);
+            if (!graphSeen) {
+                /*
+                 * The graph isn't in any context but is being processed within another graph so add
+                 * it to the end of the scopes.
+                 */
+                if (asJavaMethod(graph) != null) {
+                    addMethodContext(result, graph, lastMethodOrGraph);
+                } else {
+                    result.add(graph.toString());
+                }
+            }
+            inlineContextMap.put(graph, result);
+        }
+        return result;
+    }
+
+    private static void addMethodContext(List<String> result, Object o, Object lastMethodOrGraph) {
+        JavaMethod method = asJavaMethod(o);
+        if (method != null) {
+            /*
+             * Include the current method in the context if there was no previous JavaMethod or
+             * JavaMethodContext or if the method is different or if the method is the same but it
+             * comes from two different graphs. This ensures that recursive call patterns are
+             * handled properly.
+             */
+            if (lastMethodOrGraph == null || asJavaMethod(lastMethodOrGraph) == null || !asJavaMethod(la
