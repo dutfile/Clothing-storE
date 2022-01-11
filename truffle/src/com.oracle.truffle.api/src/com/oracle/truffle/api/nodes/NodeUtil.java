@@ -1062,4 +1062,34 @@ public final class NodeUtil {
                 if (parent.getClass() == recursiveType) {
                     path.append(" <-recursion-detected->");
                 }
-     
+            }
+            current = parent;
+            if (current != null) {
+                parent = current.getParent();
+            }
+            if (parent != null) {
+                path.append(System.lineSeparator());
+            }
+        } while (parent != null);
+
+        return path.toString();
+    }
+
+    private static final class NodeCounter implements NodeVisitor {
+
+        public int count;
+        private final NodeCountFilter filter;
+
+        NodeCounter(NodeCountFilter filter) {
+            this.filter = filter;
+        }
+
+        public boolean visit(Node node) {
+            if (filter.isCounted(node)) {
+                count++;
+            }
+            return true;
+        }
+
+    }
+}
