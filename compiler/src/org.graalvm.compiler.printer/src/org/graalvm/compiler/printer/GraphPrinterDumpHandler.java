@@ -316,4 +316,61 @@ public final class GraphPrinterDumpHandler implements DebugDumpHandler {
              * comes from two different graphs. This ensures that recursive call patterns are
              * handled properly.
              */
-            if (lastMethodOrGraph == null || asJavaMethod(lastMethodOrGraph) == null || !asJavaMethod(la
+            if (lastMethodOrGraph == null || asJavaMethod(lastMethodOrGraph) == null || !asJavaMethod(lastMethodOrGraph).equals(method) ||
+                            (lastMethodOrGraph != o && lastMethodOrGraph instanceof Graph && o instanceof Graph)) {
+                result.add(method.format("%H.%n(%p)"));
+            } else {
+                /*
+                 * This prevents multiple adjacent method context objects for the same method from
+                 * resulting in multiple IGV tree levels. This works on the assumption that real
+                 * inlining debug scopes will have a graph context object between the inliner and
+                 * inlinee context objects.
+                 */
+            }
+        }
+    }
+
+    private void openScope(DebugContext debug, String name, int inlineDepth, Map<Object, Object> properties) {
+        try {
+            Map<Object, Object> props = properties;
+            if (inlineDepth == 0) {
+                /* Include some VM specific properties at the root. */
+                if (props == null) {
+                    props = new HashMap<>();
+                }
+                props.put("jvmArguments", jvmArguments);
+                if (sunJavaCommand != null) {
+                    props.put("sun.java.command", sunJavaCommand);
+                }
+                props.put("date", new Date().toString());
+            }
+            printer.beginGroup(debug, name, name, debug.contextLookup(ResolvedJavaMethod.class), -1, props);
+        } catch (IOException e) {
+            handleException(debug, e);
+        }
+    }
+
+    private void closeScope(DebugContext debug, int inlineDepth) {
+        dumpIds[inlineDepth] = 0;
+        try {
+            if (printer != null) {
+                printer.endGroup();
+            }
+        } catch (IOException e) {
+            handleException(debug, e);
+        }
+    }
+
+    @Override
+    public void close() {
+        if (previousInlineContext != null) {
+            for (int inlineDepth = 0; inlineDepth < previousInlineContext.size(); inlineDepth++) {
+                closeScope(null, inlineDepth);
+            }
+        }
+        if (printer != null) {
+            printer.close();
+            printer = null;
+        }
+    }
+}
