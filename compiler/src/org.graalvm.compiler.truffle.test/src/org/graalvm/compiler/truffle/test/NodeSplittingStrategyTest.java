@@ -62,4 +62,154 @@ public class NodeSplittingStrategyTest extends AbstractSplittingStrategyTest {
         }
 
         @Specialization
-        static int do2(int valu
+        static int do2(int value) {
+            return value;
+        }
+
+        @Fallback
+        static int do3(@SuppressWarnings("unused") VirtualFrame frame, @SuppressWarnings("unused") Object value) {
+            return 0;
+        }
+    }
+
+    @NodeChild
+    abstract static class TurnsPolymorphicOnZeroButSpecializationIsExcludedNode extends SplittingTestNode {
+        @Specialization(guards = "value != 0")
+        int do1(int value) {
+            return value;
+        }
+
+        @ReportPolymorphism.Exclude
+        @Specialization
+        int do2(int value) {
+            return value;
+        }
+
+        @Fallback
+        int do3(@SuppressWarnings("unused") VirtualFrame frame, @SuppressWarnings("unused") Object value) {
+            return 0;
+        }
+    }
+
+    @NodeChild
+    @ReportPolymorphism.Exclude
+    abstract static class TurnsPolymorphicOnZeroButClassIsExcludedNode extends SplittingTestNode {
+        @Specialization(guards = "value != 0")
+        int do1(int value) {
+            return value;
+        }
+
+        @Specialization
+        int do2(int value) {
+            return value;
+        }
+
+        @Fallback
+        int do3(@SuppressWarnings("unused") VirtualFrame frame, @SuppressWarnings("unused") Object value) {
+            return 0;
+        }
+    }
+
+    @NodeChild
+    @ReportPolymorphism
+    abstract static class HasInlineCacheNode extends SplittingTestNode {
+
+        @Specialization(limit = "2", //
+                        guards = "target.getRootNode() == cachedNode")
+        protected static Object doDirect(RootCallTarget target, @Cached("target.getRootNode()") @SuppressWarnings("unused") RootNode cachedNode) {
+            return target.call(noArguments);
+        }
+
+        @Specialization(replaces = "doDirect")
+        protected static Object doIndirect(RootCallTarget target) {
+            return target.call(noArguments);
+        }
+    }
+
+    static class TwoDummiesAndAnotherNode extends SplittingTestNode {
+        int counter;
+        RootCallTarget dummy = new DummyRootNode().getCallTarget();
+
+        @Override
+        public Object execute(VirtualFrame frame) {
+            if (counter < 2) {
+                counter++;
+            } else {
+                counter = 0;
+                dummy = new DummyRootNode().getCallTarget();
+            }
+            return dummy;
+        }
+    }
+
+    @Test
+    public void testSplitsDirectCalls() {
+        OptimizedCallTarget callTarget = (OptimizedCallTarget) new SplittingTestRootNode(NodeSplittingStrategyTestFactory.HasInlineCacheNodeGen.create(new ReturnsFirstArgumentNode())).getCallTarget();
+        Object[] first = new Object[]{new DummyRootNode().getCallTarget()};
+        Object[] second = new Object[]{new DummyRootNode().getCallTarget()};
+        testSplitsDirectCallsHelper(callTarget, first, second);
+
+        callTarget = (OptimizedCallTarget) new SplittingTestRootNode(NodeSplittingStrategyTestFactory.TurnsPolymorphicOnZeroNodeGen.create(new ReturnsFirstArgumentNode())).getCallTarget();
+        // two callers for a target are needed
+        testSplitsDirectCallsHelper(callTarget, new Object[]{1}, new Object[]{0});
+    }
+
+    @Test
+    public void testDoesNotSplitsDirectCalls() {
+        OptimizedCallTarget callTarget = (OptimizedCallTarget) new SplittingTestRootNode(
+                        NodeSplittingStrategyTestFactory.TurnsPolymorphicOnZeroButClassIsExcludedNodeGen.create(new ReturnsFirstArgumentNode())).getCallTarget();
+        testDoesNotSplitDirectCallHelper(callTarget, new Object[]{1}, new Object[]{0});
+
+        callTarget = (OptimizedCallTarget) new SplittingTestRootNode(
+                        NodeSplittingStrategyTestFactory.TurnsPolymorphicOnZeroButSpecializationIsExcludedNodeGen.create(new ReturnsFirstArgumentNode())).getCallTarget();
+        testDoesNotSplitDirectCallHelper(callTarget, new Object[]{1}, new Object[]{0});
+    }
+
+    class CallsInnerNode extends SplittableRootNode {
+
+        private final RootCallTarget toCall;
+        @Child private OptimizedDirectCallNode callNode;
+
+        CallsInnerNode(RootCallTarget toCall) {
+            this.toCall = toCall;
+        }
+
+        @Override
+        public Object execute(VirtualFrame frame) {
+            /*
+             * We lazily initialize the direct call node as this is the case typically for inline
+             * caches in languages.
+             */
+            if (callNode == null) {
+                CompilerDirectives.transferToInterpreterAndInvalidate();
+                callNode = insert((OptimizedDirectCallNode) runtime.createDirectCallNode(toCall));
+            }
+            return callNode.call(frame.getArguments());
+        }
+    }
+
+    @Test
+    public void testSplitPropagatesThrongSoleCallers() {
+        OptimizedCallTarget turnsPolymorphic = (OptimizedCallTarget) new SplittingTestRootNode(
+                        NodeSplittingStrategyTestFactory.TurnsPolymorphicOnZeroNodeGen.create(new ReturnsFirstArgumentNode())).getCallTarget();
+        testPropagatesThroughSoleCallers(turnsPolymorphic, new Object[]{1}, new Object[]{0});
+        turnsPolymorphic = (OptimizedCallTarget) new SplittingTestRootNode(NodeSplittingStrategyTestFactory.HasInlineCacheNodeGen.create(new ReturnsFirstArgumentNode())).getCallTarget();
+        Object[] first = new Object[]{new DummyRootNode().getCallTarget()};
+        Object[] second = new Object[]{new DummyRootNode().getCallTarget()};
+        testPropagatesThroughSoleCallers(turnsPolymorphic, first, second);
+    }
+
+    private void testPropagatesThroughSoleCallers(OptimizedCallTarget turnsPolymorphic, Object[] firstArgs, Object[] secondArgs) {
+        final OptimizedCallTarget callsInner = (OptimizedCallTarget) new CallsInnerNode(turnsPolymorphic).getCallTarget();
+        final OptimizedCallTarget callsCallsInner = (OptimizedCallTarget) new CallsInnerNode(callsInner).getCallTarget();
+        // two callers for a target are needed
+        runtime.createDirectCallNode(callsCallsInner);
+        final DirectCallNode directCallNode = runtime.createDirectCallNode(callsCallsInner);
+        directCallNode.call(firstArgs);
+        Assert.assertFalse("Target needs split before the node went polymorphic", getNeedsSplit(callsCallsInner));
+        Assert.assertFalse("Target needs split before the node went polymorphic", getNeedsSplit(callsInner));
+        Assert.assertFalse("Target needs split before the node went polymorphic", getNeedsSplit(turnsPolymorphic));
+        directCallNode.call(firstArgs);
+        Assert.assertFalse("Target needs split before the node went polymorphic", getNeedsSplit(callsCallsInner));
+        Assert.assertFalse("Target needs split before the node went polymorphic", getNeedsSplit(callsInner));
+        Assert.assertFalse("Target needs split before the node went polymorphic", 
