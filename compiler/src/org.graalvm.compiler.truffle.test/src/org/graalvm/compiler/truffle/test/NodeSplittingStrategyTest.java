@@ -212,4 +212,151 @@ public class NodeSplittingStrategyTest extends AbstractSplittingStrategyTest {
         directCallNode.call(firstArgs);
         Assert.assertFalse("Target needs split before the node went polymorphic", getNeedsSplit(callsCallsInner));
         Assert.assertFalse("Target needs split before the node went polymorphic", getNeedsSplit(callsInner));
-        Assert.assertFalse("Target needs split before the node went polymorphic", 
+        Assert.assertFalse("Target needs split before the node went polymorphic", getNeedsSplit(turnsPolymorphic));
+        directCallNode.call(secondArgs);
+        Assert.assertTrue("Target does not need split after the node went polymorphic", getNeedsSplit(callsCallsInner));
+        Assert.assertTrue("Target does not need split after the node went polymorphic", getNeedsSplit(callsInner));
+        Assert.assertTrue("Target does not need split after the node went polymorphic", getNeedsSplit(turnsPolymorphic));
+
+        directCallNode.call(secondArgs);
+        Assert.assertTrue("Target needs split but not split", directCallNode.isCallTargetCloned());
+
+        // Test new dirrectCallNode will split
+        DirectCallNode newCallNode = runtime.createDirectCallNode(callsCallsInner);
+        newCallNode.call(secondArgs);
+        Assert.assertTrue("new call node to \"needs split\" target is not split", newCallNode.isCallTargetCloned());
+
+        newCallNode = runtime.createDirectCallNode(callsInner);
+        newCallNode.call(secondArgs);
+        Assert.assertTrue("new call node to \"needs split\" target is not split", newCallNode.isCallTargetCloned());
+
+        newCallNode = runtime.createDirectCallNode(turnsPolymorphic);
+        newCallNode.call(secondArgs);
+        Assert.assertTrue("new call node to \"needs split\" target is not split", newCallNode.isCallTargetCloned());
+    }
+
+    @Test
+    public void testNoSplitsDirectCallsBecauseFirstExecution() {
+        final OptimizedCallTarget callTarget = (OptimizedCallTarget) new SplittableRootNode() {
+            @Child private OptimizedDirectCallNode callNode = (OptimizedDirectCallNode) runtime.createDirectCallNode(
+                            new SplittingTestRootNode(NodeSplittingStrategyTestFactory.TurnsPolymorphicOnZeroNodeGen.create(new ReturnsFirstArgumentNode())).getCallTarget());
+
+            @Override
+            public Object execute(VirtualFrame frame) {
+                final Object[] first = {1};
+                callNode.call(first);
+                callNode.call(first);
+                // This call turns the node polymorphic
+                final Object[] second = {0};
+                callNode.call(second);
+                return null;
+            }
+        }.getCallTarget();
+        // Multiple call nodes
+        runtime.createDirectCallNode(callTarget);
+        runtime.createDirectCallNode(callTarget);
+        final DirectCallNode directCallNode = runtime.createDirectCallNode(callTarget);
+
+        directCallNode.call(new Object[]{0});
+        Assert.assertFalse("Target needs split after first execution", getNeedsSplit(callTarget));
+    }
+
+    @Test
+    public void testIncreaseInPolymorphism() {
+        OptimizedCallTarget callTarget = (OptimizedCallTarget) new SplittingTestRootNode(
+                        NodeSplittingStrategyTestFactory.TurnsPolymorphicOnZeroNodeGen.create(new ReturnsFirstArgumentNode())).getCallTarget();
+        final RootCallTarget outerTarget = new CallsInnerNode(callTarget).getCallTarget();
+        Object[] firstArgs = new Object[]{1};
+        outerTarget.call(firstArgs);
+        Assert.assertFalse("Target needs split before the node went polymorphic", getNeedsSplit(callTarget));
+        outerTarget.call(firstArgs);
+        Assert.assertFalse("Target needs split before the node went polymorphic", getNeedsSplit(callTarget));
+        Object[] secondArgs = new Object[]{0};
+        // Turns polymorphic
+        outerTarget.call(secondArgs);
+        Assert.assertFalse("Target needs split even though there is only 1 caller", getNeedsSplit(callTarget));
+
+        // Add second caller
+        final DirectCallNode directCallNode = runtime.createDirectCallNode(callTarget);
+        outerTarget.call(secondArgs);
+        Assert.assertFalse("Target needs split with no increase in polymorphism", getNeedsSplit(callTarget));
+
+        outerTarget.call(new Object[]{"foo"});
+        Assert.assertTrue("Target does not need split after increase in polymorphism", getNeedsSplit(callTarget));
+
+        // Test new dirrectCallNode will split
+        outerTarget.call(firstArgs);
+        directCallNode.call(firstArgs);
+        Assert.assertTrue("new call node to \"needs split\" target is not split", directCallNode.isCallTargetCloned());
+    }
+
+    static class ExposesReportPolymorphicSpecializeNode extends Node {
+        void report() {
+            reportPolymorphicSpecialize();
+        }
+    }
+
+    @Test
+    public void testUnadopted() {
+        final ExposesReportPolymorphicSpecializeNode node = new ExposesReportPolymorphicSpecializeNode();
+        node.report();
+    }
+
+    static class ExposesReportPolymorphicSpecializeRootNode extends RootNode {
+
+        @Child ExposesReportPolymorphicSpecializeNode node = new ExposesReportPolymorphicSpecializeNode();
+
+        protected ExposesReportPolymorphicSpecializeRootNode() {
+            super(null);
+        }
+
+        void report() {
+            node.report();
+        }
+
+        @Override
+        public Object execute(VirtualFrame frame) {
+            return null;
+        }
+    }
+
+    @Test
+    public void testSoloTarget() {
+        final ExposesReportPolymorphicSpecializeRootNode rootNode = new ExposesReportPolymorphicSpecializeRootNode();
+        rootNode.getCallTarget().call(noArguments);
+        rootNode.report();
+    }
+
+    static class CallableOnlyOnceRootNode extends ExposesReportPolymorphicSpecializeRootNode {
+        boolean called;
+        boolean active;
+
+        @Override
+        public Object execute(VirtualFrame frame) {
+            if (active && called) {
+                throw new AssertionError("This is illegal state. Seems a split happened but the original was called.");
+            }
+            called = true;
+            return super.execute(frame);
+        }
+
+        @Override
+        public boolean isCloningAllowed() {
+            return true;
+        }
+    }
+
+    @Test
+    public void testSplitsCalledAfterSplit() {
+        final CallableOnlyOnceRootNode rootNode = new CallableOnlyOnceRootNode();
+        final RootCallTarget reportsPolymorphism = rootNode.getCallTarget();
+        reportsPolymorphism.call(noArguments);
+        final RootCallTarget callsInner1 = new CallsInnerNode(reportsPolymorphism).getCallTarget();
+        final RootCallTarget callsInner2 = new CallsInnerNode(reportsPolymorphism).getCallTarget();
+        // make sure the runtime has seen these calls
+        callsInner1.call(noArguments);
+        callsInner2.call(noArguments);
+        rootNode.active = true;
+        rootNode.report();
+        callsInner1.call(noArguments);
+        callsInner2.call(n
