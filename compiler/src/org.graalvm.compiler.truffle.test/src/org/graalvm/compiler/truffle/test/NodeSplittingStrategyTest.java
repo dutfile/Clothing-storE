@@ -516,4 +516,73 @@ public class NodeSplittingStrategyTest extends AbstractSplittingStrategyTest {
 
     @TruffleLanguage.Registration(id = SplittingLimitTestLanguage.ID, name = SplittingLimitTestLanguage.ID)
     static class SplittingLimitTestLanguage extends ProxyLanguage {
-        static final String ID = "
+        static final String ID = "SplittingLimitTestLanguage";
+
+        @Override
+        protected CallTarget parse(ParsingRequest request) throws Exception {
+            return new RootNode(null) {
+
+                final OptimizedCallTarget target = (OptimizedCallTarget) new SplittingTestRootNode(
+                                NodeSplittingStrategyTestFactory.TurnsPolymorphicOnZeroNodeGen.create(new ReturnsFirstArgumentNode())).getCallTarget();
+
+                final OptimizedDirectCallNode callNode1 = (OptimizedDirectCallNode) insert(runtime.createDirectCallNode(target));
+                final OptimizedDirectCallNode callNode2 = (OptimizedDirectCallNode) insert(runtime.createDirectCallNode(target));
+
+                @Override
+                public Object execute(VirtualFrame frame) {
+                    // Target turns monomorphic on 1
+                    callNode1.call(1);
+                    // Target turns polymorphic on 0
+                    callNode2.call(0);
+                    // Give each a chance to split
+                    callNode1.call(0);
+                    callNode2.call(0);
+                    assertExpectations();
+                    return 42;
+                }
+
+                @CompilerDirectives.TruffleBoundary
+                private void assertExpectations() {
+                    // First is split because we have the budget
+                    Assert.assertTrue(callNode1.isCallTargetCloned());
+                    // Second is not because we don't have the budget
+                    Assert.assertFalse(callNode2.isCallTargetCloned());
+                }
+            }.getCallTarget();
+        }
+    }
+
+    @Test
+    public void testSplittingBudgetLimit() {
+        try (Context c = Context.newBuilder(SplittingLimitTestLanguage.ID).build()) {
+            c.eval(SplittingLimitTestLanguage.ID, "");
+        }
+    }
+
+    @Test
+    public void testRootNodeSizeSmaller() {
+        OptimizedCallTarget callTarget = (OptimizedCallTarget) new SplittingTestRootNode(NodeSplittingStrategyTestFactory.HasInlineCacheNodeGen.create(new ReturnsFirstArgumentNode())) {
+            @Override
+            protected int computeSize() {
+                return PolyglotCompilerOptions.SplittingMaxCalleeSize.getDefaultValue() - 1;
+            }
+        }.getCallTarget();
+        Object[] first = new Object[]{new DummyRootNode().getCallTarget()};
+        Object[] second = new Object[]{new DummyRootNode().getCallTarget()};
+        testSplitsDirectCallsHelper(callTarget, first, second);
+    }
+
+    @Test
+    public void testRootNodeSizeGreater() {
+        OptimizedCallTarget callTarget = (OptimizedCallTarget) new SplittingTestRootNode(NodeSplittingStrategyTestFactory.HasInlineCacheNodeGen.create(new ReturnsFirstArgumentNode())) {
+            @Override
+            protected int computeSize() {
+                return PolyglotCompilerOptions.SplittingMaxCalleeSize.getDefaultValue() + 1;
+            }
+        }.getCallTarget();
+        Object[] first = new Object[]{new DummyRootNode().getCallTarget()};
+        Object[] second = new Object[]{new DummyRootNode().getCallTarget()};
+        testNeedsSplitButDoesNotSplitDirectCallHelper(callTarget, first, second);
+
+    }
+}
