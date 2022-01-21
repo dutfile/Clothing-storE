@@ -66,4 +66,43 @@ public abstract class LookupVirtualMethodNode extends AbstractLookupNode {
     }
 
     @Specialization(replaces = "doArrayCached")
-    Method[] doA
+    Method[] doArrayGeneric(ArrayKlass klass,
+                    String methodName,
+                    int arity) throws ArityException {
+        return doGeneric(getJLObject(klass.getMeta()), methodName, arity);
+    }
+
+    @SuppressWarnings("unused")
+    @Specialization(guards = {
+                    "klass.equals(cachedKlass.getKlass())",
+                    "methodName.equals(cachedMethodName)",
+                    "arity == cachedArity"}, limit = "LIMIT", assumptions = "cachedKlass.getAssumption()")
+    Method[] doCached(ObjectKlass klass,
+                    String methodName,
+                    int arity,
+                    @Cached("klass.getKlassVersion()") ObjectKlass.KlassVersion cachedKlass,
+                    @Cached("methodName") String cachedMethodName,
+                    @Cached("arity") int cachedArity,
+                    @Cached("doGeneric(cachedKlass.getKlass(), methodName, arity)") Method[] methods) {
+        return methods;
+    }
+
+    @Specialization(replaces = "doCached")
+    Method[] doGeneric(ObjectKlass klass, String key, int arity) throws ArityException {
+        return doLookup(klass, key, true, false, arity);
+    }
+
+    protected static ObjectKlass getJLObject(Meta meta) {
+        return meta.java_lang_Object;
+    }
+
+    public static boolean isCandidate(Method m) {
+        return m.isPublic() && !m.isStatic() && !m.isSignaturePolymorphicDeclared();
+    }
+
+    @Override
+    Method.MethodVersion[] getMethodArray(Klass k) {
+        assert k instanceof ObjectKlass;
+        return ((ObjectKlass) k).getVTable();
+    }
+}
