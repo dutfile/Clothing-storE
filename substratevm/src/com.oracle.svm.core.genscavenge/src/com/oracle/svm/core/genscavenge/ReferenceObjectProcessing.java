@@ -217,4 +217,20 @@ final class ReferenceObjectProcessing {
         return false;
     }
 
-    private static boolean maybeUpdateForwardedReference(Reference<?> dr, Pointer refere
+    private static boolean maybeUpdateForwardedReference(Reference<?> dr, Pointer referentAddr) {
+        ObjectHeaderImpl ohi = ObjectHeaderImpl.getObjectHeaderImpl();
+        UnsignedWord header = ohi.readHeaderFromPointer(referentAddr);
+        if (ObjectHeaderImpl.isForwardedHeader(header)) {
+            Object forwardedObj = ohi.getForwardedObject(referentAddr);
+            ReferenceInternals.setReferent(dr, forwardedObj);
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean willSurviveThisCollection(Object obj) {
+        HeapChunk.Header<?> chunk = HeapChunk.getEnclosingHeapChunk(obj);
+        Space space = HeapChunk.getSpace(chunk);
+        return !space.isFromSpace();
+    }
+}
