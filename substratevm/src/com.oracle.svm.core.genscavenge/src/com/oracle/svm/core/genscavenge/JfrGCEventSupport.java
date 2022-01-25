@@ -127,3 +127,27 @@ class JfrGCEventSupport {
     private void pushPhase() {
         assert currentPhase < MAX_PHASE_LEVEL;
         currentPhase++;
+    }
+
+    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+    private int popPhase() {
+        assert currentPhase > 0;
+        return --currentPhase;
+    }
+}
+
+@AutomaticallyRegisteredFeature
+class JfrGCEventFeature implements InternalFeature {
+    @Override
+    public boolean isInConfiguration(IsInConfigurationAccess access) {
+        return SubstrateOptions.UseSerialGC.getValue();
+    }
+
+    @Override
+    public void beforeAnalysis(BeforeAnalysisAccess access) {
+        if (HasJfrSupport.get()) {
+            JfrGCName name = JfrGCNames.singleton().addGCName("serial");
+            ImageSingletons.add(JfrGCEventSupport.class, new JfrGCEventSupport(name));
+        }
+    }
+}
