@@ -52,4 +52,16 @@ public interface ImageGeneratorThreadMarker /* extends Thread */ {
 final class TerminatedThread extends Thread {
     static final TerminatedThread SINGLETON;
     static {
-        SINGLETON = new TerminatedThread("Termina
+        SINGLETON = new TerminatedThread("Terminated Infrastructure Thread");
+        SINGLETON.start();
+        try {
+            SINGLETON.join();
+        } catch (InterruptedException ex) {
+            throw new IllegalStateException(ex);
+        }
+    }
+
+    TerminatedThread(String name) {
+        super(name);
+    }
+}
