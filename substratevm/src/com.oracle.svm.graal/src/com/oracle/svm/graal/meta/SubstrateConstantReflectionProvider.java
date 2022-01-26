@@ -156,4 +156,46 @@ public class SubstrateConstantReflectionProvider extends SharedConstantReflectio
          * We know that the memory offset we are reading from is a proper field location: we already
          * checked that the receiver is an instance of an instance field's declaring class; and for
          * static fields the offsets are into the known data arrays that hold the fields. So we can
-         * use read methods that do not perform furthe
+         * use read methods that do not perform further checks.
+         */
+        if (kind == JavaKind.Object) {
+            result = SubstrateMemoryAccessProviderImpl.readObjectUnchecked(baseObject, location, false, isVolatile);
+        } else {
+            result = SubstrateMemoryAccessProviderImpl.readPrimitiveUnchecked(kind, baseObject, location, kind.getByteCount() * 8, isVolatile);
+        }
+        return result;
+    }
+
+    @Override
+    public int getImageHeapOffset(JavaConstant constant) {
+        if (constant instanceof SubstrateObjectConstant) {
+            return getImageHeapOffsetInternal((SubstrateObjectConstant) constant);
+        }
+
+        /* Primitive values, null values. */
+        return 0;
+    }
+
+    protected static int getImageHeapOffsetInternal(SubstrateObjectConstant constant) {
+        Object object = SubstrateObjectConstant.asObject(constant);
+        assert object != null;
+        /*
+         * Provide offsets only for objects in the primary image heap, any optimizations for
+         * auxiliary image heaps can lead to trouble when generated code and their objects are built
+         * into yet another auxiliary image and the object offsets change.
+         */
+        if (Heap.getHeap().isInPrimaryImageHeap(object)) {
+            SignedWord base = (SignedWord) Isolates.getHeapBase(CurrentIsolate.getIsolate());
+            SignedWord offset = Word.objectToUntrackedPointer(object).subtract(base);
+            return NumUtil.safeToInt(offset.rawValue());
+        } else {
+            return 0;
+        }
+    }
+}
+
+@TargetClass(className = "java.lang.Integer$IntegerCache")
+final class Target_java_lang_Integer_IntegerCache {
+    @Alias @RecomputeFieldValue(kind = Kind.None, isFinal = true) //
+    static int high;
+}

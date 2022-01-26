@@ -1,0 +1,2 @@
+
+Type error at TypeError01.sl line 7 col 3: operation "-" not defined for Number 3, String "4"
