@@ -81,4 +81,28 @@ public class ELFStrtab extends ELFSection implements Iterable<String> {
     }
 
     @Override
-    public int getMemSize(Map<Element, LayoutDecisionMap>
+    public int getMemSize(Map<Element, LayoutDecisionMap> alreadyDecided) {
+        return impl.getMemSize(alreadyDecided);
+    }
+
+    @Override
+    public int getOrDecideOffset(Map<Element, LayoutDecisionMap> alreadyDecided, int offsetHint) {
+        return ObjectFile.defaultGetOrDecideOffset(alreadyDecided, this, offsetHint);
+    }
+
+    @Override
+    public int getOrDecideSize(Map<Element, LayoutDecisionMap> alreadyDecided, int sizeHint) {
+        return ObjectFile.defaultGetOrDecideSize(alreadyDecided, this, sizeHint);
+    }
+
+    @Override
+    public int getOrDecideVaddr(Map<Element, LayoutDecisionMap> alreadyDecided, int vaddrHint) {
+        return ObjectFile.defaultGetOrDecideVaddr(alreadyDecided, this, vaddrHint);
+    }
+
+    @Override
+    public LayoutDecisionMap getDecisions(LayoutDecisionMap copyingIn) {
+        return ObjectFile.defaultDecisions(this, copyingIn);
+    }
+
+}
