@@ -174,3 +174,141 @@ public class HostStackTraceTest extends AbstractPolyglotTest {
     }
 
     @BeforeClass
+    public static void runWithWeakEncapsulationOnly() {
+        TruffleTestAssumptions.assumeWeakEncapsulation();
+    }
+
+    public HostStackTraceTest() {
+        needsLanguageEnv = true;
+    }
+
+    @Before
+    public void setup() {
+        setupEnv();
+    }
+
+    @Test
+    public void testExecute() {
+        Value v = context.asValue(new Supplier<>() {
+            public Object get() {
+                throw new RuntimeException();
+            }
+        });
+        try {
+            v.execute();
+            Assert.fail();
+        } catch (PolyglotException e) {
+            assertTrue(e.asHostException() instanceof RuntimeException);
+            Iterator<StackFrame> frames = e.getPolyglotStackTrace().iterator();
+            StackFrame frame;
+
+            frame = frames.next();
+            assertTrue(frame.isHostFrame());
+            assertEquals("get", frame.toHostFrame().getMethodName());
+
+            frame = frames.next();
+            assertTrue(frame.isHostFrame());
+            assertEquals("execute", frame.toHostFrame().getMethodName());
+        }
+    }
+
+    /*
+     * Referenced in reflection.json
+     */
+    public void v0() {
+        throw new RuntimeException();
+    }
+
+    @Test
+    public void testExecuteGuestOneFrame() {
+        Source source = Source.newBuilder(ProxyLanguage.ID, "    ", "").build();
+
+        Value v0 = context.asValue(this).getMember("v0");
+        Value v1 = context.asValue(new HostStackTraceExecutable("v1", source.createSection(0, 1), source.createSection(1, 1)));
+        try {
+            v1.execute(v0);
+            Assert.fail();
+        } catch (PolyglotException e) {
+            assertTrue(e.asHostException() instanceof RuntimeException);
+            Iterator<StackFrame> frames = e.getPolyglotStackTrace().iterator();
+            StackFrame frame;
+
+            frame = frames.next();
+            assertTrue(frame.isHostFrame());
+            assertEquals("v0", frame.toHostFrame().getMethodName());
+
+            frame = frames.next();
+            assertTrue(frame.isGuestFrame());
+            assertEquals("v1", frame.getRootName());
+            assertEquals(1, frame.getSourceLocation().getCharIndex());
+
+            frame = frames.next();
+            assertTrue(frame.isHostFrame());
+            assertEquals("execute", frame.toHostFrame().getMethodName());
+        }
+    }
+
+    @Test
+    public void testExecuteGuestTwoFrames() {
+        Source source = Source.newBuilder(ProxyLanguage.ID, "    ", "").build();
+
+        Value v0 = context.asValue(this).getMember("v0");
+        Value v1 = context.asValue(new HostStackTraceExecutable("v1", source.createSection(0, 1), source.createSection(1, 1)));
+        Value v2 = context.asValue(new HostStackTraceExecutable("v2", source.createSection(2, 1), source.createSection(3, 1)));
+        try {
+            v2.execute(v1, v0);
+            Assert.fail();
+        } catch (PolyglotException e) {
+            assertTrue(e.asHostException() instanceof RuntimeException);
+            Iterator<StackFrame> frames = e.getPolyglotStackTrace().iterator();
+            StackFrame frame;
+
+            frame = frames.next();
+            assertTrue(frame.isHostFrame());
+            assertEquals("v0", frame.toHostFrame().getMethodName());
+
+            frame = frames.next();
+            assertTrue(frame.isGuestFrame());
+            assertEquals("v1", frame.getRootName());
+            assertEquals(1, frame.getSourceLocation().getCharIndex());
+
+            frame = frames.next();
+            assertTrue(frame.isGuestFrame());
+            assertEquals("v2", frame.getRootName());
+            assertEquals(3, frame.getSourceLocation().getCharIndex());
+
+            frame = frames.next();
+            assertTrue(frame.isHostFrame());
+            assertEquals("execute", frame.toHostFrame().getMethodName());
+        }
+    }
+
+    @Test
+    public void testExecuteUncached() {
+        Source source = Source.newBuilder(ProxyLanguage.ID, "    ", "").build();
+
+        Value v0 = context.asValue(this).getMember("v0");
+        Value v1 = context.asValue(new HostStackTraceExecutable("v1", source.createSection(0, 1), source.createSection(1, 1)));
+        Value v2 = context.asValue(new HostStackTraceExecutable("v2", source.createSection(2, 1), source.createSection(3, 1)));
+
+        // TODO GR-38632 support host stack trace
+        try {
+            v2.execute(v0);
+        } catch (PolyglotException e) {
+        }
+
+        // make the call site uncached
+        try {
+            v2.execute(v1, v0);
+        } catch (PolyglotException e) {
+        }
+
+        // now uncached
+        try {
+            v2.execute(v0);
+        } catch (PolyglotException e) {
+        }
+
+    }
+
+}
