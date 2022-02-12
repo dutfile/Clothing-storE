@@ -102,4 +102,79 @@ final class PolyglotFunction<T, R> implements Function<T, R>, PolyglotWrapper {
 
     @TruffleBoundary
     public static <T> PolyglotFunction<?, ?> create(PolyglotLanguageContext languageContext, Object function, Class<?> returnClass, Type returnType, Class<?> paramClass, Type paramType) {
-        return new PolyglotFu
+        return new PolyglotFunction<>(languageContext, function, returnClass, returnType, paramClass, paramType);
+    }
+
+    static final class Apply extends HostToGuestRootNode {
+
+        final Class<?> receiverClass;
+        final Class<?> returnClass;
+        final Type returnType;
+        final Class<?> paramClass;
+        final Type paramType;
+
+        @Child private PolyglotExecuteNode apply;
+
+        Apply(PolyglotLanguageInstance language, Class<?> receiverType, Class<?> returnClass, Type returnType, Class<?> paramClass, Type paramType) {
+            super(language);
+            this.receiverClass = Objects.requireNonNull(receiverType);
+            this.returnClass = Objects.requireNonNull(returnClass);
+            this.returnType = returnType;
+            this.paramClass = Objects.requireNonNull(paramClass);
+            this.paramType = paramType;
+        }
+
+        @SuppressWarnings("unchecked")
+        @Override
+        protected Class<? extends TruffleObject> getReceiverType() {
+            return (Class<? extends TruffleObject>) receiverClass;
+        }
+
+        @Override
+        public String getName() {
+            return "PolyglotFunction<" + receiverClass + ", " + returnType + ">.apply";
+        }
+
+        @Override
+        protected Object executeImpl(PolyglotLanguageContext languageContext, Object function, Object[] args) {
+            PolyglotExecuteNode localApply = this.apply;
+            if (localApply == null) {
+                CompilerDirectives.transferToInterpreterAndInvalidate();
+                apply = localApply = insert(PolyglotExecuteNodeGen.create());
+            }
+            return localApply.execute(languageContext, function, args[ARGUMENT_OFFSET], returnClass, returnType, paramClass, paramType);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = 1;
+            result = 31 * result + Objects.hashCode(receiverClass);
+            result = 31 * result + Objects.hashCode(returnClass);
+            result = 31 * result + Objects.hashCode(returnType);
+            result = 31 * result + Objects.hashCode(paramClass);
+            result = 31 * result + Objects.hashCode(paramType);
+            return result;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (!(obj instanceof Apply)) {
+                return false;
+            }
+            Apply other = (Apply) obj;
+            return receiverClass == other.receiverClass &&
+                            returnClass == other.returnClass && Objects.equals(returnType, other.returnType) &&
+                            paramClass == other.paramClass && Objects.equals(paramType, other.paramType);
+        }
+
+        private static CallTarget lookup(PolyglotLanguageContext languageContext, Class<?> receiverClass, Class<?> returnClass, Type returnType, Class<?> paramClass, Type paramType) {
+            Apply apply = new Apply(languageContext.getLanguageInstance(), receiverClass, returnClass, returnType, paramClass, paramType);
+            CallTarget target = lookupHostCodeCache(languageContext, apply, CallTarget.class);
+            if (target == null) {
+                target = installHostCodeCache(languageContext, apply, apply.getCallTarget(), CallTarget.class);
+            }
+            return target;
+        }
+    }
+
+}
