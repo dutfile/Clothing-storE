@@ -318,4 +318,90 @@ public final class InnerClassRedefiner {
 
         if (result == null) {
             result = ClassInfo.create(klass, this);
-            infos.put(klass.getName(), res
+            infos.put(klass.getName(), result);
+        }
+        return result;
+    }
+
+    Set<ObjectKlass> findLoadedInnerClasses(Klass klass) {
+        // we use a cache to store inner/outer class mappings
+        Map<Symbol<Symbol.Type>, Set<ObjectKlass>> classLoaderMap = innerKlassCache.get(klass.getDefiningClassLoader());
+        if (classLoaderMap == null) {
+            classLoaderMap = new HashMap<>();
+            // register a listener on the registry to fill in
+            // future loaded anonymous inner classes
+            ClassRegistry classRegistry = context.getRegistries().getClassRegistry(klass.getDefiningClassLoader());
+            classRegistry.registerOnLoadListener(new DefineKlassListener() {
+                @Override
+                public void onKlassDefined(ObjectKlass objectKlass) {
+                    InnerClassRedefiner.this.onKlassDefined(objectKlass);
+                }
+            });
+
+            // do a one-time look up of all currently loaded
+            // classes for this loader and fill in the map
+            List<Klass> loadedKlasses = classRegistry.getLoadedKlasses();
+            for (Klass loadedKlass : loadedKlasses) {
+                if (loadedKlass instanceof ObjectKlass) {
+                    ObjectKlass objectKlass = (ObjectKlass) loadedKlass;
+                    Matcher matcher = ANON_INNER_CLASS_PATTERN.matcher(loadedKlass.getNameAsString());
+                    if (matcher.matches()) {
+                        Symbol<Symbol.Name> outerClassName = getOuterClassName(loadedKlass.getName());
+                        if (outerClassName != null && outerClassName.length() > 0) {
+                            Symbol<Symbol.Type> outerType = context.getTypes().fromName(outerClassName);
+                            Set<ObjectKlass> innerKlasses = classLoaderMap.get(outerType);
+                            if (innerKlasses == null) {
+                                innerKlasses = new HashSet<>(1);
+                                classLoaderMap.put(outerType, innerKlasses);
+                            }
+                            innerKlasses.add(objectKlass);
+                        }
+                    }
+                }
+            }
+            // add to cache
+            innerKlassCache.put(klass.getDefiningClassLoader(), classLoaderMap);
+        }
+        Set<ObjectKlass> innerClasses = classLoaderMap.get(klass.getType());
+        return innerClasses != null ? innerClasses : new HashSet<>(0);
+    }
+
+    private void onKlassDefined(ObjectKlass klass) {
+        Matcher matcher = ANON_INNER_CLASS_PATTERN.matcher(klass.getNameAsString());
+
+        if (matcher.matches()) {
+            Map<Symbol<Symbol.Type>, Set<ObjectKlass>> classLoaderMap = innerKlassCache.get(klass.getDefiningClassLoader());
+            // found inner class, now hunt down the outer
+            Symbol<Symbol.Name> outerName = getOuterClassName(klass.getName());
+            Symbol<Symbol.Type> outerType = context.getTypes().fromName(outerName);
+
+            Set<ObjectKlass> innerKlasses = classLoaderMap.get(outerType);
+            if (innerKlasses == null) {
+                innerKlasses = new HashSet<>(1);
+                classLoaderMap.put(outerType, innerKlasses);
+            }
+            innerKlasses.add(klass);
+        }
+    }
+
+    public void commit(HotSwapClassInfo[] infos) {
+        // first remove the previous info
+        for (HotSwapClassInfo info : infos) {
+            StaticObject classLoader = info.getClassLoader();
+            Map<Symbol<Symbol.Name>, ImmutableClassInfo> classLoaderMap = innerClassInfoMap.get(classLoader);
+            if (classLoaderMap != null) {
+                classLoaderMap.remove(info.getNewName());
+            }
+        }
+        for (HotSwapClassInfo hotSwapInfo : infos) {
+            StaticObject classLoader = hotSwapInfo.getClassLoader();
+            Map<Symbol<Symbol.Name>, ImmutableClassInfo> classLoaderMap = innerClassInfoMap.get(classLoader);
+            if (classLoaderMap == null) {
+                classLoaderMap = new HashMap<>(1);
+                innerClassInfoMap.put(classLoader, classLoaderMap);
+            }
+            // update the cache with the new class info
+            classLoaderMap.put(hotSwapInfo.getName(), ClassInfo.copyFrom(hotSwapInfo));
+        }
+    }
+}
