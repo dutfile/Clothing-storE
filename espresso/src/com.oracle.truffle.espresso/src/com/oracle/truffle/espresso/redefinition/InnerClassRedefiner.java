@@ -183,4 +183,139 @@ public final class InnerClassRedefiner {
                 }
                 if (classBytes != null) {
                     hotswapInfo.addInnerClass(ClassInfo.create(innerName, classBytes, definingLoader, context, false));
-             
+                }
+            }
+        }
+    }
+
+    private byte[] readAllBytes(StaticObject inputStream) {
+        byte[] buf = new byte[4 * 0x400];
+        StaticObject guestBuf = StaticObject.wrap(buf, context.getMeta());
+        int readLen;
+
+        try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+            while ((readLen = (int) context.getMeta().java_io_InputStream_read.invokeDirect(inputStream, guestBuf, 0, buf.length)) != -1) {
+                byte[] bytes = guestBuf.unwrap(context.getLanguage());
+                outputStream.write(bytes, 0, readLen);
+            }
+            return outputStream.toByteArray();
+        } catch (IOException ex) {
+            return new byte[0];
+        } finally {
+            context.getMeta().java_io_InputStream_close.invokeDirect(inputStream);
+        }
+    }
+
+    private void searchConstantPoolForInnerClassNames(ClassInfo classInfo, ArrayList<Symbol<Symbol.Name>> innerNames) throws ClassFormatError {
+        byte[] bytes = classInfo.getBytes();
+        assert bytes != null;
+
+        ConstantPoolPatcher.getDirectInnerClassNames(classInfo.getName(), bytes, innerNames, context);
+    }
+
+    private Symbol<Symbol.Name> getOuterClassName(Symbol<Symbol.Name> innerName) {
+        String strName = innerName.toString();
+        assert strName.contains("$");
+        return context.getNames().getOrCreate(strName.substring(0, strName.lastIndexOf('$')));
+    }
+
+    private void matchClassInfo(HotSwapClassInfo hotSwapInfo, List<ObjectKlass> removedInnerClasses, Map<StaticObject, Map<Symbol<Symbol.Name>, Symbol<Symbol.Name>>> renamingRules)
+                    throws RedefintionNotSupportedException {
+        Klass klass = hotSwapInfo.getKlass();
+        // try to fetch all direct inner classes
+        // based on the constant pool in the class bytes
+        // by means of the defining class loader
+        fetchMissingInnerClasses(hotSwapInfo);
+        if (klass == null) {
+            // non-mapped hotSwapInfo means it's a new inner class that didn't map
+            // to any previous inner class
+            // we need to generate a new unique name and apply to nested inner classes
+            HotSwapClassInfo outerInfo = hotSwapInfo.getOuterClassInfo();
+            String name = outerInfo.addHotClassMarker();
+            hotSwapInfo.rename(context.getNames().getOrCreate(name));
+            addRenamingRule(renamingRules, hotSwapInfo.getClassLoader(), hotSwapInfo.getName(), hotSwapInfo.getNewName(), context);
+        } else {
+            ImmutableClassInfo previousInfo = getGlobalClassInfo(klass);
+            ArrayList<ImmutableClassInfo> previousInnerClasses = previousInfo.getImmutableInnerClasses();
+            ArrayList<HotSwapClassInfo> newInnerClasses = hotSwapInfo.getHotSwapInnerClasses();
+
+            // apply potential outer rename to inner class fingerprints
+            // before matching
+            if (hotSwapInfo.isRenamed()) {
+                for (HotSwapClassInfo newInnerClass : newInnerClasses) {
+                    newInnerClass.outerRenamed(hotSwapInfo.getName().toString(), hotSwapInfo.getNewName().toString());
+                }
+            }
+            if (previousInnerClasses.size() > 0 || newInnerClasses.size() > 0) {
+                ArrayList<ImmutableClassInfo> removedClasses = new ArrayList<>(previousInnerClasses);
+                for (HotSwapClassInfo info : newInnerClasses) {
+                    ImmutableClassInfo bestMatch = null;
+                    int maxScore = 0;
+                    for (ImmutableClassInfo removedClass : removedClasses) {
+                        int score = info.match(removedClass);
+                        if (score > 0 && score > maxScore) {
+                            maxScore = score;
+                            bestMatch = removedClass;
+                            if (maxScore == MAX_SCORE) {
+                                // found a perfect match, so stop iterating
+                                break;
+                            }
+                        }
+                    }
+                    if (bestMatch != null) {
+                        removedClasses.remove(bestMatch);
+                        // rename class and associate with previous klass object
+                        if (!info.getName().equals(bestMatch.getName())) {
+                            info.rename(bestMatch.getName());
+                            addRenamingRule(renamingRules, info.getClassLoader(), info.getName(), info.getNewName(), context);
+                        }
+                        info.setKlass(bestMatch.getKlass());
+                    }
+                }
+                for (ImmutableClassInfo removedClass : removedClasses) {
+                    if (removedClass.getKlass() != null) {
+                        removedInnerClasses.add(removedClass.getKlass());
+                    }
+                }
+            }
+        }
+
+        for (HotSwapClassInfo innerClass : hotSwapInfo.getHotSwapInnerClasses()) {
+            matchClassInfo(innerClass, removedInnerClasses, renamingRules);
+        }
+    }
+
+    private static void addRenamingRule(Map<StaticObject, Map<Symbol<Symbol.Name>, Symbol<Symbol.Name>>> renamingRules, StaticObject classLoader, Symbol<Symbol.Name> originalName,
+                    Symbol<Symbol.Name> newName, EspressoContext context) {
+        Map<Symbol<Symbol.Name>, Symbol<Symbol.Name>> classLoaderRules = renamingRules.get(classLoader);
+        if (classLoaderRules == null) {
+            classLoaderRules = new HashMap<>(4);
+            renamingRules.put(classLoader, classLoaderRules);
+        }
+        context.getClassRedefinition().getController().fine(() -> "Renaming inner class: " + originalName + " to: " + newName);
+        // add simple class names
+        classLoaderRules.put(originalName, newName);
+        // add type names
+        Symbol<Symbol.Name> origTypeName = context.getNames().getOrCreate("L" + originalName + ";");
+        Symbol<Symbol.Name> newTypeName = context.getNames().getOrCreate("L" + newName + ";");
+        classLoaderRules.put(origTypeName, newTypeName);
+        // add <init> signature names
+        Symbol<Symbol.Name> origSigName = context.getNames().getOrCreate("(L" + originalName + ";)V");
+        Symbol<Symbol.Name> newSigName = context.getNames().getOrCreate("(L" + newName + ";)V");
+        classLoaderRules.put(origSigName, newSigName);
+    }
+
+    public ImmutableClassInfo getGlobalClassInfo(Klass klass) {
+        StaticObject classLoader = klass.getDefiningClassLoader();
+        Map<Symbol<Symbol.Name>, ImmutableClassInfo> infos = innerClassInfoMap.get(classLoader);
+
+        if (infos == null) {
+            infos = new HashMap<>(1);
+            innerClassInfoMap.put(classLoader, infos);
+        }
+
+        ImmutableClassInfo result = infos.get(klass.getName());
+
+        if (result == null) {
+            result = ClassInfo.create(klass, this);
+            infos.put(klass.getName(), res
