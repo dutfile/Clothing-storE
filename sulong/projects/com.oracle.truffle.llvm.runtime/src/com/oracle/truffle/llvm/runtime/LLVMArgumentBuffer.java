@@ -86,4 +86,55 @@ public final class LLVMArgumentBuffer implements TruffleObject {
     }
 
     @ExportMessage
-    @SuppressWarnings("
+    @SuppressWarnings("static-method")
+    String asString() {
+        return decodeToString(bytes);
+    }
+
+    @TruffleBoundary
+    private static String decodeToString(byte[] bytes) {
+        return new String(bytes);
+    }
+
+    @TruffleBoundary
+    protected static byte[] encodeFromString(String str) {
+        return str.getBytes();
+    }
+
+    @ExportLibrary(InteropLibrary.class)
+    static final class LLVMArgumentArray implements TruffleObject {
+
+        @CompilationFinal(dimensions = 1) private final LLVMArgumentBuffer[] args;
+
+        LLVMArgumentArray(LLVMArgumentBuffer[] args) {
+            this.args = args;
+        }
+
+        @ExportMessage
+        boolean hasArrayElements() {
+            assert args != null;
+            return true;
+        }
+
+        @ExportMessage
+        long getArraySize() {
+            return args.length;
+        }
+
+        @ExportMessage
+        boolean isArrayElementReadable(long idx) {
+            return Long.compareUnsigned(idx, args.length) < 0;
+        }
+
+        @ExportMessage
+        Object readArrayElement(long idx,
+                        @Cached BranchProfile exception) {
+            if (isArrayElementReadable(idx)) {
+                return args[(int) idx];
+            } else {
+                exception.enter();
+                return InvalidArrayIndexException.create(idx);
+            }
+        }
+    }
+}
