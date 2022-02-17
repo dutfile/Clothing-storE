@@ -1,5 +1,6 @@
+
 /*
- * Copyright (c) 2007, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2021, 2021, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,27 +23,20 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package org.graalvm.compiler.jtt.bytecode;
+package com.oracle.svm.core.jdk;
 
-import org.junit.Test;
+import org.graalvm.nativeimage.ImageSingletons;
 
-import org.graalvm.compiler.jtt.JTTTest;
+import sun.security.jca.ProviderList;
 
-/*
- */
-public class BC_getfield extends JTTTest {
+public interface SecurityProvidersFilter {
 
-    private static BC_getfield object = new BC_getfield();
-
-    private int field = 13;
-
-    public static int test() {
-        return object.field;
+    static SecurityProvidersFilter instance() {
+        return ImageSingletons.lookup(SecurityProvidersFilter.class);
     }
 
-    @Test
-    public void run0() throws Throwable {
-        runTest("test");
-    }
+    Object cleanVerificationCache(Object cache);
+
+    ProviderList cleanUnregisteredProviders(ProviderList providerList);
 
 }

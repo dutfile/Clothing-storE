@@ -1,5 +1,6 @@
+
 /*
- * Copyright (c) 2007, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2022, 2022, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,27 +23,33 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package org.graalvm.compiler.jtt.bytecode;
+package com.oracle.svm.core.jvmstat;
 
-import org.junit.Test;
+import com.oracle.svm.core.Uninterruptible;
+import org.graalvm.nativeimage.Platform;
+import org.graalvm.nativeimage.Platforms;
 
-import org.graalvm.compiler.jtt.JTTTest;
-
-/*
- */
-public class BC_getfield extends JTTTest {
-
-    private static BC_getfield object = new BC_getfield();
-
-    private int field = 13;
-
-    public static int test() {
-        return object.field;
+public abstract class PerfLongVariant extends PerfLong implements MutablePerfDataEntry {
+    @Platforms(Platform.HOSTED_ONLY.class)
+    PerfLongVariant(String name, PerfUnit unit) {
+        super(name, unit);
     }
 
-    @Test
-    public void run0() throws Throwable {
-        runTest("test");
+    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+    public void setValue(long val) {
+        this.value = val;
     }
 
+    public void inc() {
+        add(1);
+    }
+
+    public void add(long increment) {
+        setValue(value + increment);
+    }
+
+    @Override
+    public void publish() {
+        valuePtr.writeLong(0, value);
+    }
 }
