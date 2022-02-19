@@ -1,6 +1,7 @@
+
 /*
- * Copyright (c) 2021, 2021, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2021, 2021, Red Hat Inc. All rights reserved.
+ * Copyright (c) 2019, 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2019, 2019, Arm Limited. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -23,21 +24,16 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
+package com.oracle.svm.core.graal.aarch64;
 
-package com.oracle.svm.test.jfr.utils.poolparsers;
+import org.graalvm.compiler.core.aarch64.AArch64SuitesCreator;
+import org.graalvm.compiler.core.phases.EconomyCompilerConfiguration;
 
-import java.io.IOException;
+import com.oracle.svm.core.graal.code.SubstrateSuitesCreatorProvider;
 
-import com.oracle.svm.test.jfr.utils.RecordingInput;
-
-public class SymbolConstantPoolParser extends ConstantPoolParser {
-
-    @Override
-    public void parse(RecordingInput input) throws IOException {
-        int numberOfSymbols = input.readInt();
-        for (int i = 0; i < numberOfSymbols; i++) {
-            addFoundId(input.readLong()); // SymbolId.
-            input.readUTF(); // Symbol.
-        }
+public class SubstrateAArch64SuitesCreatorProvider extends SubstrateSuitesCreatorProvider {
+    public SubstrateAArch64SuitesCreatorProvider() {
+        super(new AArch64SuitesCreator(getHostedCompilerConfiguration()),
+                        new AArch64SuitesCreator(new EconomyCompilerConfiguration()));
     }
 }
