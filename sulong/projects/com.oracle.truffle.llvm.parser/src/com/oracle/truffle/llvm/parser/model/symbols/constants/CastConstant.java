@@ -35,4 +35,46 @@ import com.oracle.truffle.llvm.parser.model.SymbolTable;
 import com.oracle.truffle.llvm.parser.model.enums.CastOperator;
 import com.oracle.truffle.llvm.parser.model.visitors.SymbolVisitor;
 import com.oracle.truffle.llvm.parser.util.LLVMBitcodeTypeHelper;
-import com.oracle.truffle.llvm.runtime.GetStackS
+import com.oracle.truffle.llvm.runtime.GetStackSpaceFactory;
+import com.oracle.truffle.llvm.runtime.datalayout.DataLayout;
+import com.oracle.truffle.llvm.runtime.nodes.api.LLVMExpressionNode;
+import com.oracle.truffle.llvm.runtime.types.Type;
+
+public final class CastConstant extends AbstractConstant {
+
+    private final CastOperator operator;
+    private Constant value;
+
+    private CastConstant(Type type, CastOperator operator) {
+        super(type);
+        this.operator = operator;
+    }
+
+    @Override
+    public void accept(SymbolVisitor visitor) {
+        visitor.visit(this);
+    }
+
+    @Override
+    public void replace(SymbolImpl original, SymbolImpl replacement) {
+        if (value == original) {
+            value = (Constant) replacement;
+        }
+    }
+
+    public Constant getValue() {
+        return value;
+    }
+
+    public static CastConstant fromSymbols(SymbolTable symbols, Type type, int opcode, int value) {
+        final CastConstant constant = new CastConstant(type, CastOperator.decode(opcode));
+        constant.value = (Constant) symbols.getForwardReferenced(value, constant);
+        return constant;
+    }
+
+    @Override
+    public LLVMExpressionNode createNode(LLVMParserRuntime runtime, DataLayout dataLayout, GetStackSpaceFactory stackFactory) {
+        LLVMExpressionNode fromNode = value.createNode(runtime, dataLayout, stackFactory);
+        return LLVMBitcodeTypeHelper.createCast(fromNode, getType(), value.getType(), operator, runtime.getNodeFactory());
+    }
+}
