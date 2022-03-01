@@ -157,4 +157,120 @@ public abstract class G1WriteBarrierSnippets extends WriteBarrierSnippets implem
                     log(trace, "[%d] G1-Pre Thread %p Previous Object %p\n ", gcCycle, thread.rawValue(), Word.objectToTrackedPointer(previousObject).rawValue());
                     verifyOop(previousObject);
                 }
-            } 
+            } else {
+                previousObject = FixedValueAnchorNode.getObject(expectedObject);
+            }
+
+            counters.g1EffectivePreWriteBarrierCounter.inc();
+            // If the previous value is null the barrier should not be issued.
+            if (probability(FREQUENT_PROBABILITY, previousObject != null)) {
+                counters.g1ExecutedPreWriteBarrierCounter.inc();
+                // If the thread-local SATB buffer is full issue a native call which will
+                // initialize a new one and add the entry.
+                Word indexValue = thread.readWord(satbQueueIndexOffset(), SATB_QUEUE_INDEX_LOCATION);
+                if (probability(FREQUENT_PROBABILITY, indexValue.notEqual(0))) {
+                    Word bufferAddress = thread.readWord(satbQueueBufferOffset(), SATB_QUEUE_BUFFER_LOCATION);
+                    Word nextIndex = indexValue.subtract(wordSize());
+
+                    // Log the object to be marked as well as update the SATB's buffer next index.
+                    bufferAddress.writeWord(nextIndex, Word.objectToTrackedPointer(previousObject), SATB_QUEUE_LOG_LOCATION);
+                    thread.writeWord(satbQueueIndexOffset(), nextIndex, SATB_QUEUE_INDEX_LOCATION);
+                } else {
+                    g1PreBarrierStub(previousObject);
+                }
+            }
+        }
+    }
+
+    @Snippet
+    public void g1PostWriteBarrier(Address address, Object object, Object value, @ConstantParameter boolean usePrecise, @ConstantParameter int traceStartCycle,
+                    @ConstantParameter Counters counters) {
+        Word thread = getThread();
+        Object fixedValue = FixedValueAnchorNode.getObject(value);
+        verifyOop(object);
+        verifyOop(fixedValue);
+        validateObject(object, fixedValue);
+
+        Pointer oop;
+        if (usePrecise) {
+            oop = Word.fromAddress(address);
+        } else {
+            if (verifyBarrier()) {
+                verifyNotArray(object);
+            }
+            oop = Word.objectToTrackedPointer(object);
+        }
+
+        boolean trace = isTracingActive(traceStartCycle);
+        int gcCycle = 0;
+        if (trace) {
+            Pointer gcTotalCollectionsAddress = WordFactory.pointer(gcTotalCollectionsAddress());
+            gcCycle = gcTotalCollectionsAddress.readInt(0, LocationIdentity.any());
+            log(trace, "[%d] G1-Post Thread: %p Object: %p\n", gcCycle, thread.rawValue(), Word.objectToTrackedPointer(object).rawValue());
+            log(trace, "[%d] G1-Post Thread: %p Field: %p\n", gcCycle, thread.rawValue(), oop.rawValue());
+        }
+        Pointer writtenValue = Word.objectToTrackedPointer(fixedValue);
+        // The result of the xor reveals whether the installed pointer crosses heap regions.
+        // In case it does the write barrier has to be issued.
+        final int logOfHeapRegionGrainBytes = logOfHeapRegionGrainBytes();
+        UnsignedWord xorResult = (oop.xor(writtenValue)).unsignedShiftRight(logOfHeapRegionGrainBytes);
+
+        counters.g1AttemptedPostWriteBarrierCounter.inc();
+        if (probability(FREQUENT_PROBABILITY, xorResult.notEqual(0))) {
+            counters.g1EffectiveAfterXORPostWriteBarrierCounter.inc();
+            // If the written value is not null continue with the barrier addition.
+            if (probability(FREQUENT_PROBABILITY, writtenValue.notEqual(0))) {
+                // Calculate the address of the card to be enqueued to the
+                // thread local card queue.
+                Word cardAddress = cardTableAddress(oop);
+
+                byte cardByte = cardAddress.readByte(0, GC_CARD_LOCATION);
+                counters.g1EffectiveAfterNullPostWriteBarrierCounter.inc();
+
+                // If the card is already dirty, (hence already enqueued) skip the insertion.
+                if (probability(NOT_FREQUENT_PROBABILITY, cardByte != youngCardValue())) {
+                    MembarNode.memoryBarrier(MembarNode.FenceKind.STORE_LOAD, GC_CARD_LOCATION);
+                    byte cardByteReload = cardAddress.readByte(0, GC_CARD_LOCATION);
+                    if (probability(NOT_FREQUENT_PROBABILITY, cardByteReload != dirtyCardValue())) {
+                        log(trace, "[%d] G1-Post Thread: %p Card: %p \n", gcCycle, thread.rawValue(), WordFactory.unsigned((int) cardByte).rawValue());
+                        cardAddress.writeByte(0, dirtyCardValue(), GC_CARD_LOCATION);
+                        counters.g1ExecutedPostWriteBarrierCounter.inc();
+
+                        // If the thread local card queue is full, issue a native call which will
+                        // initialize a new one and add the card entry.
+                        Word indexValue = thread.readWord(cardQueueIndexOffset(), CARD_QUEUE_INDEX_LOCATION);
+                        if (probability(FREQUENT_PROBABILITY, indexValue.notEqual(0))) {
+                            Word bufferAddress = thread.readWord(cardQueueBufferOffset(), CARD_QUEUE_BUFFER_LOCATION);
+                            Word nextIndex = indexValue.subtract(wordSize());
+
+                            // Log the object to be scanned as well as update the card queue's next
+                            // index.
+                            bufferAddress.writeWord(nextIndex, cardAddress, CARD_QUEUE_LOG_LOCATION);
+                            thread.writeWord(cardQueueIndexOffset(), nextIndex, CARD_QUEUE_INDEX_LOCATION);
+                        } else {
+                            g1PostBarrierStub(cardAddress);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Snippet
+    public void g1ArrayRangePreWriteBarrier(Address address, long length, @ConstantParameter int elementStride) {
+        Word thread = getThread();
+        byte markingValue = thread.readByte(satbQueueMarkingActiveOffset(), SATB_QUEUE_MARKING_ACTIVE_LOCATION);
+        // If the concurrent marker is not enabled or the vector length is zero, return.
+        if (probability(FREQUENT_PROBABILITY, markingValue == (byte) 0) || probability(NOT_FREQUENT_PROBABILITY, length == 0)) {
+            return;
+        }
+
+        Word bufferAddress = thread.readWord(satbQueueBufferOffset(), SATB_QUEUE_BUFFER_LOCATION);
+        Word indexAddress = thread.add(satbQueueIndexOffset());
+        long indexValue = indexAddress.readWord(0, SATB_QUEUE_INDEX_LOCATION).rawValue();
+        int scale = objectArrayIndexScale();
+        Word start = getPointerToFirstArrayElement(address, length, elementStride);
+
+        for (int i = 0; GraalDirectives.injectIterationCount(10, i < length); i++) {
+            Word arrElemPtr = start.add(i * scale);
+            Object previousObject = arrElemPtr.readObject(0
