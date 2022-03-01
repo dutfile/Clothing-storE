@@ -61,4 +61,100 @@ import org.graalvm.compiler.replacements.SnippetTemplate.AbstractTemplates;
 import org.graalvm.compiler.replacements.SnippetTemplate.Arguments;
 import org.graalvm.compiler.replacements.SnippetTemplate.SnippetInfo;
 import org.graalvm.compiler.replacements.Snippets;
-import org.graalvm.compiler.re
+import org.graalvm.compiler.replacements.nodes.AssertionNode;
+import org.graalvm.compiler.replacements.nodes.CStringConstant;
+import org.graalvm.compiler.word.Word;
+import org.graalvm.word.LocationIdentity;
+import org.graalvm.word.Pointer;
+import org.graalvm.word.UnsignedWord;
+import org.graalvm.word.WordFactory;
+
+import jdk.vm.ci.meta.ResolvedJavaType;
+
+/**
+ * Implementation of the write barriers for the G1 garbage collector.
+ */
+public abstract class G1WriteBarrierSnippets extends WriteBarrierSnippets implements Snippets {
+
+    public static final LocationIdentity SATB_QUEUE_MARKING_ACTIVE_LOCATION = NamedLocationIdentity.mutable("GC-SATB-Marking-Active");
+    public static final LocationIdentity SATB_QUEUE_BUFFER_LOCATION = NamedLocationIdentity.mutable("GC-SATB-Queue-Buffer");
+    public static final LocationIdentity SATB_QUEUE_LOG_LOCATION = NamedLocationIdentity.mutable("GC-SATB-Queue-Log");
+    public static final LocationIdentity SATB_QUEUE_INDEX_LOCATION = NamedLocationIdentity.mutable("GC-SATB-Queue-Index");
+
+    public static final LocationIdentity CARD_QUEUE_BUFFER_LOCATION = NamedLocationIdentity.mutable("GC-Card-Queue-Buffer");
+    public static final LocationIdentity CARD_QUEUE_LOG_LOCATION = NamedLocationIdentity.mutable("GC-Card-Queue-Log");
+    public static final LocationIdentity CARD_QUEUE_INDEX_LOCATION = NamedLocationIdentity.mutable("GC-Card-Queue-Index");
+
+    protected static final LocationIdentity[] KILLED_PRE_WRITE_BARRIER_STUB_LOCATIONS = new LocationIdentity[]{SATB_QUEUE_INDEX_LOCATION, SATB_QUEUE_BUFFER_LOCATION, SATB_QUEUE_LOG_LOCATION};
+    protected static final LocationIdentity[] KILLED_POST_WRITE_BARRIER_STUB_LOCATIONS = new LocationIdentity[]{CARD_QUEUE_INDEX_LOCATION, CARD_QUEUE_BUFFER_LOCATION, CARD_QUEUE_LOG_LOCATION,
+                    GC_CARD_LOCATION};
+
+    public static class Counters {
+        Counters(SnippetCounter.Group.Factory factory) {
+            Group countersWriteBarriers = factory.createSnippetCounterGroup("G1 WriteBarriers");
+            g1AttemptedPreWriteBarrierCounter = new SnippetCounter(countersWriteBarriers, "g1AttemptedPreWriteBarrier", "Number of attempted G1 Pre Write Barriers");
+            g1EffectivePreWriteBarrierCounter = new SnippetCounter(countersWriteBarriers, "g1EffectivePreWriteBarrier", "Number of effective G1 Pre Write Barriers");
+            g1ExecutedPreWriteBarrierCounter = new SnippetCounter(countersWriteBarriers, "g1ExecutedPreWriteBarrier", "Number of executed G1 Pre Write Barriers");
+            g1AttemptedPostWriteBarrierCounter = new SnippetCounter(countersWriteBarriers, "g1AttemptedPostWriteBarrier", "Number of attempted G1 Post Write Barriers");
+            g1EffectiveAfterXORPostWriteBarrierCounter = new SnippetCounter(countersWriteBarriers, "g1EffectiveAfterXORPostWriteBarrier",
+                            "Number of effective G1 Post Write Barriers (after passing the XOR test)");
+            g1EffectiveAfterNullPostWriteBarrierCounter = new SnippetCounter(countersWriteBarriers, "g1EffectiveAfterNullPostWriteBarrier",
+                            "Number of effective G1 Post Write Barriers (after passing the NULL test)");
+            g1ExecutedPostWriteBarrierCounter = new SnippetCounter(countersWriteBarriers, "g1ExecutedPostWriteBarrier", "Number of executed G1 Post Write Barriers");
+        }
+
+        final SnippetCounter g1AttemptedPreWriteBarrierCounter;
+        final SnippetCounter g1EffectivePreWriteBarrierCounter;
+        final SnippetCounter g1ExecutedPreWriteBarrierCounter;
+        final SnippetCounter g1AttemptedPostWriteBarrierCounter;
+        final SnippetCounter g1EffectiveAfterXORPostWriteBarrierCounter;
+        final SnippetCounter g1EffectiveAfterNullPostWriteBarrierCounter;
+        final SnippetCounter g1ExecutedPostWriteBarrierCounter;
+    }
+
+    @Snippet
+    public void g1PreWriteBarrier(Address address, Object object, Object expectedObject, @ConstantParameter boolean doLoad, @ConstantParameter boolean nullCheck,
+                    @ConstantParameter int traceStartCycle, @ConstantParameter Counters counters) {
+        satbBarrier(address, object, expectedObject, doLoad, nullCheck, traceStartCycle, counters);
+    }
+
+    @Snippet
+    public void g1ReferentReadBarrier(Address address, Object object, Object expectedObject, @ConstantParameter int traceStartCycle, @ConstantParameter Counters counters) {
+        satbBarrier(address, object, expectedObject, false, false, traceStartCycle, counters);
+    }
+
+    private void satbBarrier(Address address, Object object, Object expectedObject, boolean doLoad, boolean nullCheck,
+                    int traceStartCycle, Counters counters) {
+        if (nullCheck) {
+            NullCheckNode.nullCheck(address);
+        }
+        Word thread = getThread();
+        verifyOop(object);
+        Word field = Word.fromAddress(address);
+        byte markingValue = thread.readByte(satbQueueMarkingActiveOffset(), SATB_QUEUE_MARKING_ACTIVE_LOCATION);
+
+        boolean trace = isTracingActive(traceStartCycle);
+        int gcCycle = 0;
+        if (trace) {
+            Pointer gcTotalCollectionsAddress = WordFactory.pointer(gcTotalCollectionsAddress());
+            gcCycle = gcTotalCollectionsAddress.readInt(0, LocationIdentity.any());
+            log(trace, "[%d] G1-Pre Thread %p Object %p\n", gcCycle, thread.rawValue(), Word.objectToTrackedPointer(object).rawValue());
+            log(trace, "[%d] G1-Pre Thread %p Expected Object %p\n", gcCycle, thread.rawValue(), Word.objectToTrackedPointer(expectedObject).rawValue());
+            log(trace, "[%d] G1-Pre Thread %p Field %p\n", gcCycle, thread.rawValue(), field.rawValue());
+            log(trace, "[%d] G1-Pre Thread %p Marking %d\n", gcCycle, thread.rawValue(), markingValue);
+            log(trace, "[%d] G1-Pre Thread %p DoLoad %d\n", gcCycle, thread.rawValue(), doLoad ? 1L : 0L);
+        }
+
+        counters.g1AttemptedPreWriteBarrierCounter.inc();
+        // If the concurrent marker is enabled, the barrier is issued.
+        if (probability(NOT_FREQUENT_PROBABILITY, markingValue != (byte) 0)) {
+            // If the previous value has to be loaded (before the write), the load is issued.
+            // The load is always issued except the cases of CAS and referent field.
+            Object previousObject;
+            if (doLoad) {
+                previousObject = field.readObject(0, BarrierType.NONE, LocationIdentity.any());
+                if (trace) {
+                    log(trace, "[%d] G1-Pre Thread %p Previous Object %p\n ", gcCycle, thread.rawValue(), Word.objectToTrackedPointer(previousObject).rawValue());
+                    verifyOop(previousObject);
+                }
+            } 
