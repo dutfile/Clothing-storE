@@ -273,4 +273,155 @@ public abstract class G1WriteBarrierSnippets extends WriteBarrierSnippets implem
 
         for (int i = 0; GraalDirectives.injectIterationCount(10, i < length); i++) {
             Word arrElemPtr = start.add(i * scale);
-            Object previousObject = arrElemPtr.readObject(0
+            Object previousObject = arrElemPtr.readObject(0, BarrierType.NONE, LocationIdentity.any());
+            verifyOop(previousObject);
+            if (probability(FREQUENT_PROBABILITY, previousObject != null)) {
+                if (probability(FREQUENT_PROBABILITY, indexValue != 0)) {
+                    indexValue = indexValue - wordSize();
+                    Word logAddress = bufferAddress.add(WordFactory.unsigned(indexValue));
+                    // Log the object to be marked and update the SATB's buffer next index.
+                    logAddress.writeWord(0, Word.objectToTrackedPointer(previousObject), SATB_QUEUE_LOG_LOCATION);
+                    indexAddress.writeWord(0, WordFactory.unsigned(indexValue), SATB_QUEUE_INDEX_LOCATION);
+                } else {
+                    g1PreBarrierStub(previousObject);
+                }
+            }
+        }
+    }
+
+    @Snippet
+    public void g1ArrayRangePostWriteBarrier(Address address, long length, @ConstantParameter int elementStride) {
+        if (probability(NOT_FREQUENT_PROBABILITY, length == 0)) {
+            return;
+        }
+
+        Word thread = getThread();
+        Word bufferAddress = thread.readWord(cardQueueBufferOffset(), CARD_QUEUE_BUFFER_LOCATION);
+        Word indexAddress = thread.add(cardQueueIndexOffset());
+        long indexValue = thread.readWord(cardQueueIndexOffset(), CARD_QUEUE_INDEX_LOCATION).rawValue();
+
+        Word start = cardTableAddress(getPointerToFirstArrayElement(address, length, elementStride));
+        Word end = cardTableAddress(getPointerToLastArrayElement(address, length, elementStride));
+
+        Word cur = start;
+        do {
+            byte cardByte = cur.readByte(0, GC_CARD_LOCATION);
+            // If the card is already dirty, (hence already enqueued) skip the insertion.
+            if (probability(NOT_FREQUENT_PROBABILITY, cardByte != youngCardValue())) {
+                MembarNode.memoryBarrier(MembarNode.FenceKind.STORE_LOAD, GC_CARD_LOCATION);
+                byte cardByteReload = cur.readByte(0, GC_CARD_LOCATION);
+                if (probability(NOT_FREQUENT_PROBABILITY, cardByteReload != dirtyCardValue())) {
+                    cur.writeByte(0, dirtyCardValue(), GC_CARD_LOCATION);
+                    // If the thread local card queue is full, issue a native call which will
+                    // initialize a new one and add the card entry.
+                    if (probability(FREQUENT_PROBABILITY, indexValue != 0)) {
+                        indexValue = indexValue - wordSize();
+                        Word logAddress = bufferAddress.add(WordFactory.unsigned(indexValue));
+                        // Log the object to be scanned as well as update
+                        // the card queue's next index.
+                        logAddress.writeWord(0, cur, CARD_QUEUE_LOG_LOCATION);
+                        indexAddress.writeWord(0, WordFactory.unsigned(indexValue), CARD_QUEUE_INDEX_LOCATION);
+                    } else {
+                        g1PostBarrierStub(cur);
+                    }
+                }
+            }
+            cur = cur.add(1);
+        } while (GraalDirectives.injectIterationCount(10, cur.belowOrEqual(end)));
+    }
+
+    protected abstract Word getThread();
+
+    protected abstract int wordSize();
+
+    protected abstract int objectArrayIndexScale();
+
+    protected abstract int satbQueueMarkingActiveOffset();
+
+    protected abstract int satbQueueBufferOffset();
+
+    protected abstract int satbQueueIndexOffset();
+
+    protected abstract int cardQueueBufferOffset();
+
+    protected abstract int cardQueueIndexOffset();
+
+    protected abstract byte dirtyCardValue();
+
+    protected abstract byte youngCardValue();
+
+    protected abstract Word cardTableAddress(Pointer oop);
+
+    protected abstract int logOfHeapRegionGrainBytes();
+
+    protected abstract ForeignCallDescriptor preWriteBarrierCallDescriptor();
+
+    protected abstract ForeignCallDescriptor postWriteBarrierCallDescriptor();
+
+    // the data below is only needed for the verification logic
+    protected abstract boolean verifyOops();
+
+    protected abstract boolean verifyBarrier();
+
+    protected abstract long gcTotalCollectionsAddress();
+
+    protected abstract ForeignCallDescriptor verifyOopCallDescriptor();
+
+    protected abstract ForeignCallDescriptor validateObjectCallDescriptor();
+
+    protected abstract ForeignCallDescriptor printfCallDescriptor();
+
+    protected abstract ResolvedJavaType referenceType();
+
+    protected abstract long referentOffset();
+
+    protected boolean isTracingActive(int traceStartCycle) {
+        return traceStartCycle > 0 && ((Pointer) WordFactory.pointer(gcTotalCollectionsAddress())).readInt(0) > traceStartCycle;
+    }
+
+    private void log(boolean enabled, String format, long value1, long value2, long value3) {
+        if (enabled) {
+            printf(printfCallDescriptor(), CStringConstant.cstring(format), value1, value2, value3);
+        }
+    }
+
+    /**
+     * Validation helper method which performs sanity checks on write operations. The addresses of
+     * both the object and the value being written are checked in order to determine if they reside
+     * in a valid heap region. If an object is stale, an invalid access is performed in order to
+     * prematurely crash the VM and debug the stack trace of the faulty method.
+     */
+    private void validateObject(Object parent, Object child) {
+        if (verifyOops() && child != null) {
+            Word parentWord = Word.objectToTrackedPointer(parent);
+            Word childWord = Word.objectToTrackedPointer(child);
+            boolean success = validateOop(validateObjectCallDescriptor(), parentWord, childWord);
+            AssertionNode.dynamicAssert(success, "Verification ERROR, Parent: %p Child: %p\n", parentWord.rawValue(), childWord.rawValue());
+        }
+    }
+
+    private void verifyOop(Object object) {
+        if (verifyOops()) {
+            verifyOopStub(verifyOopCallDescriptor(), object);
+        }
+    }
+
+    private void g1PreBarrierStub(Object previousObject) {
+        g1PreBarrierStub(preWriteBarrierCallDescriptor(), previousObject);
+    }
+
+    private void g1PostBarrierStub(Word cardAddress) {
+        g1PostBarrierStub(postWriteBarrierCallDescriptor(), cardAddress);
+    }
+
+    @NodeIntrinsic(ForeignCallNode.class)
+    private static native Object verifyOopStub(@ConstantNodeParameter ForeignCallDescriptor descriptor, Object object);
+
+    @NodeIntrinsic(ForeignCallNode.class)
+    private static native boolean validateOop(@ConstantNodeParameter ForeignCallDescriptor descriptor, Word parent, Word object);
+
+    @NodeIntrinsic(ForeignCallNode.class)
+    private static native void g1PreBarrierStub(@ConstantNodeParameter ForeignCallDescriptor descriptor, Object object);
+
+    @NodeIntrinsic(ForeignCallNode.class)
+    private static native void g1
