@@ -424,4 +424,112 @@ public abstract class G1WriteBarrierSnippets extends WriteBarrierSnippets implem
     private static native void g1PreBarrierStub(@ConstantNodeParameter ForeignCallDescriptor descriptor, Object object);
 
     @NodeIntrinsic(ForeignCallNode.class)
-    private static native void g1
+    private static native void g1PostBarrierStub(@ConstantNodeParameter ForeignCallDescriptor descriptor, Word card);
+
+    @NodeIntrinsic(ForeignCallNode.class)
+    private static native void printf(@ConstantNodeParameter ForeignCallDescriptor logPrintf, Word format, long v1, long v2, long v3);
+
+    public abstract static class G1WriteBarrierLowerer {
+        private final Counters counters;
+
+        public G1WriteBarrierLowerer(Group.Factory factory) {
+            this.counters = new Counters(factory);
+        }
+
+        public void lower(AbstractTemplates templates, SnippetInfo snippet, G1PreWriteBarrier barrier, LoweringTool tool) {
+            Arguments args = new Arguments(snippet, barrier.graph().getGuardsStage(), tool.getLoweringStage());
+            AddressNode address = barrier.getAddress();
+            args.add("address", address);
+            if (address instanceof OffsetAddressNode) {
+                args.add("object", ((OffsetAddressNode) address).getBase());
+            } else {
+                args.add("object", null);
+            }
+
+            ValueNode expected = barrier.getExpectedObject();
+            if (expected != null && expected.stamp(NodeView.DEFAULT) instanceof NarrowOopStamp) {
+                expected = uncompress(expected);
+            }
+            args.add("expectedObject", expected);
+
+            args.addConst("doLoad", barrier.doLoad());
+            args.addConst("nullCheck", barrier.getNullCheck());
+            args.addConst("traceStartCycle", traceStartCycle(barrier.graph()));
+            args.addConst("counters", counters);
+
+            templates.template(tool, barrier, args).instantiate(tool.getMetaAccess(), barrier, SnippetTemplate.DEFAULT_REPLACER, args);
+        }
+
+        public void lower(AbstractTemplates templates, SnippetInfo snippet, G1ReferentFieldReadBarrier barrier, LoweringTool tool) {
+            Arguments args = new Arguments(snippet, barrier.graph().getGuardsStage(), tool.getLoweringStage());
+            // This is expected to be lowered before address lowering
+            OffsetAddressNode address = (OffsetAddressNode) barrier.getAddress();
+            args.add("address", address);
+            args.add("object", address.getBase());
+
+            ValueNode expected = barrier.getExpectedObject();
+            if (expected != null && expected.stamp(NodeView.DEFAULT) instanceof NarrowOopStamp) {
+                expected = uncompress(expected);
+            }
+
+            args.add("expectedObject", expected);
+            args.addConst("traceStartCycle", traceStartCycle(barrier.graph()));
+            args.addConst("counters", counters);
+
+            templates.template(tool, barrier, args).instantiate(tool.getMetaAccess(), barrier, SnippetTemplate.DEFAULT_REPLACER, args);
+        }
+
+        public void lower(AbstractTemplates templates, SnippetInfo snippet, G1PostWriteBarrier barrier, LoweringTool tool) {
+            if (barrier.alwaysNull()) {
+                barrier.graph().removeFixed(barrier);
+                return;
+            }
+
+            Arguments args = new Arguments(snippet, barrier.graph().getGuardsStage(), tool.getLoweringStage());
+            AddressNode address = barrier.getAddress();
+            args.add("address", address);
+            if (address instanceof OffsetAddressNode) {
+                args.add("object", ((OffsetAddressNode) address).getBase());
+            } else {
+                assert barrier.usePrecise() : "found imprecise barrier that's not an object access " + barrier + " at address " + address;
+                args.add("object", null);
+            }
+
+            ValueNode value = barrier.getValue();
+            if (value.stamp(NodeView.DEFAULT) instanceof NarrowOopStamp) {
+                value = uncompress(value);
+            }
+            args.add("value", value);
+
+            args.addConst("usePrecise", barrier.usePrecise());
+            args.addConst("traceStartCycle", traceStartCycle(barrier.graph()));
+            args.addConst("counters", counters);
+
+            templates.template(tool, barrier, args).instantiate(tool.getMetaAccess(), barrier, SnippetTemplate.DEFAULT_REPLACER, args);
+        }
+
+        public void lower(AbstractTemplates templates, SnippetInfo snippet, G1ArrayRangePreWriteBarrier barrier, LoweringTool tool) {
+            Arguments args = new Arguments(snippet, barrier.graph().getGuardsStage(), tool.getLoweringStage());
+            args.add("address", barrier.getAddress());
+            args.add("length", barrier.getLengthAsLong());
+            args.addConst("elementStride", barrier.getElementStride());
+
+            templates.template(tool, barrier, args).instantiate(tool.getMetaAccess(), barrier, SnippetTemplate.DEFAULT_REPLACER, args);
+        }
+
+        public void lower(AbstractTemplates templates, SnippetInfo snippet, G1ArrayRangePostWriteBarrier barrier, LoweringTool tool) {
+            Arguments args = new Arguments(snippet, barrier.graph().getGuardsStage(), tool.getLoweringStage());
+            args.add("address", barrier.getAddress());
+            args.add("length", barrier.getLengthAsLong());
+            args.addConst("elementStride", barrier.getElementStride());
+
+            templates.template(tool, barrier, args).instantiate(tool.getMetaAccess(), barrier, SnippetTemplate.DEFAULT_REPLACER, args);
+        }
+
+        private static int traceStartCycle(StructuredGraph graph) {
+            return GraalOptions.GCDebugStartCycle.getValue(graph.getOptions());
+        }
+
+        protected abstract ValueNode uncompress(ValueNode value);
+    }
+}
