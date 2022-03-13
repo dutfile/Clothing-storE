@@ -132,4 +132,42 @@ java -truffle -jar target/spring-petclinic-<version>-SNAPSHOT.jar
 
 #### From IDE
 
-To run a Java project on Truffle from an IDE requires setting 
+To run a Java project on Truffle from an IDE requires setting the Java on Truffle enabled GraalVM as a project's default JDK.
+For exampe, to run the Spring PetClinic project using Intellij IDEA, you need to:
+
+1&#46; Navigate to **File**, then to **Project Structure**. Click **Project**, and then click **Project SDK**. Expand the drop down, press Add **JDK** and open the folder where you installed GraalVM. For macOS users, JDK home path will be `/Library/Java/JavaVirtualMachines/{graalvm}/Contents/Home`. Give it a name, and press Apply.
+
+![](images/add-project-default-sdk.png)
+
+2&#46; Generate sources and update folders for the project. In the Maven sidebar, click on the folder with the spinner icon:
+
+![](images/generate-project-sources.png)
+
+3&#46; Enable the Java on Truffle execution mode. From the main menu select **Run**, then **Run…**. Click **Edit Configurations** and choose **Environment**. Put the `-truffle -XX:+IgnoreUnrecognizedVMOptions` command in **VM options** and press Apply.
+
+![](images/pass-vmoption.png)
+
+It is necessary to specify `-XX:+IgnoreUnrecognizedVMOptions` because Intellij automatically adds a `-javaagent` argument which is not supported yet.
+
+4&#46; Press Run.
+
+## Debugging
+
+You do not have to configure anything special to debug applications running Java on Truffle from your favorite IDE debugger.
+For example, starting a debugger session from IntelliJ IDEA is based on the Run Configurations.
+To ensure you attach the debugger to your Java application in the same environment, navigate in the main menu to Run -> Debug… -> Edit Configurations, expand Environment, check the JRE value and VM options values.
+It should show GraalVM as project's JRE and VM options should include `-truffle -XX:+IgnoreUnrecognizedVMOptions`: `-truffle` to run Java on Truffle, and `-XX:+IgnoreUnrecognizedVMOptions` as a temporary workaround since the Java on Truffle runtime does not yet support attaching Java agents.
+
+![](images/debug-configuration.png)
+
+## What to Read Next
+
+Java on Truffle enables a seamless Java interoperability with other languages in the GraalVM ecosystem.
+Check the [Interoperability with Truffle Languages guide](Interoperability.md) to learn how to load code written in foreign languages, export and import objects between languages, how to use Java-on-Truffle objects from a foreign language and vice versa to create powerful polyglot programs.
+
+To learn about the implementation approach, project's current status, and known limitations proceed to [Implementation Details](ImplementationDetails.md).
+
+You can already run some large applications like the Eclipse IDE, Scala or other languages REPLs, etc. in the Java on Truffle execution mode.
+We recommend having a look at the collection of [Demo Applications](Demos.md).
+
+If you have a question, check the available [FAQs](FAQ.md), or reach us directly over the **#espresso** channel in [GraalVM Slack](https://www.graalvm.org/slack-invitation/).
