@@ -34,4 +34,28 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTIO
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+package org.graalvm.wasm.benchcases.bench;
+
+import org.graalvm.wasm.benchmark.WasmBenchmarkSuiteBase;
+import org.openjdk.jmh.annotations.Benchmark;
+import org.openjdk.jmh.annotations.Scope;
+import org.openjdk.jmh.annotations.State;
+
+public class CMicroBenchmarkSuite extends WasmBenchmarkSuiteBase {
+    @State(Scope.Benchmark)
+    public static class CBenchmarkState extends WasmBenchmarkState {
+        @Override
+        protected String benchmarkResource() {
+            return "c/micro";
+        }
+    }
+
+    @Benchmark
+    public void run(CBenchmarkState state) {
+        state.run();
+    }
+}
