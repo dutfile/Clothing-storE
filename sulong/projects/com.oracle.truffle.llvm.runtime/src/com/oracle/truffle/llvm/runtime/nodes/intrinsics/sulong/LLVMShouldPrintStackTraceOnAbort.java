@@ -38,4 +38,13 @@ import com.oracle.truffle.llvm.runtime.options.SulongEngineOption;
 
 public abstract class LLVMShouldPrintStackTraceOnAbort extends LLVMIntrinsic {
 
-    @TruffleBoundar
+    @TruffleBoundary
+    private static int shouldPrintStackTraceOnAbort(OptionValues options) {
+        return options.get(SulongEngineOption.STACKTRACE_ON_ABORT) ? 1 : 0;
+    }
+
+    @Specialization
+    protected int doOp() {
+        return shouldPrintStackTraceOnAbort(getContext().getEnv().getOptions());
+    }
+}
