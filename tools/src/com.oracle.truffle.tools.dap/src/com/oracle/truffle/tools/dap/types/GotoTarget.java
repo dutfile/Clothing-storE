@@ -163,4 +163,26 @@ public class GotoTarget extends JSONBase {
         hash = 59 * hash + Integer.hashCode(this.getId());
         hash = 59 * hash + Objects.hashCode(this.getLabel());
         hash = 59 * hash + Integer.hashCode(this.getLine());
-        if (this.g
+        if (this.getColumn() != null) {
+            hash = 59 * hash + Integer.hashCode(this.getColumn());
+        }
+        if (this.getEndLine() != null) {
+            hash = 59 * hash + Integer.hashCode(this.getEndLine());
+        }
+        if (this.getEndColumn() != null) {
+            hash = 59 * hash + Integer.hashCode(this.getEndColumn());
+        }
+        if (this.getInstructionPointerReference() != null) {
+            hash = 59 * hash + Objects.hashCode(this.getInstructionPointerReference());
+        }
+        return hash;
+    }
+
+    public static GotoTarget create(Integer id, String label, Integer line) {
+        final JSONObject json = new JSONObject();
+        json.put("id", id);
+        json.put("label", label);
+        json.put("line", line);
+        return new GotoTarget(json);
+    }
+}
