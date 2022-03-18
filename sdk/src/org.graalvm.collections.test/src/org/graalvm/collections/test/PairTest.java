@@ -24,4 +24,45 @@
  * Software and the Larger Work(s), and to sublicense the foregoing rights on
  * either these or other terms.
  *
- * This licens
+ * This license is subject to the following condition:
+ *
+ * The above copyright notice and either this complete permission notice or at a
+ * minimum a reference to the UPL must be included in all copies or substantial
+ * portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+package org.graalvm.collections.test;
+
+import org.graalvm.collections.Pair;
+import org.junit.Assert;
+import org.junit.Test;
+
+public class PairTest {
+
+    @Test
+    public void testCreate() {
+        Assert.assertEquals(Pair.create(null, null), Pair.empty());
+        Assert.assertNotEquals(Pair.create(null, null), null);
+        Assert.assertEquals(Pair.createLeft(null), Pair.empty());
+        Assert.assertEquals(Pair.createRight(null), Pair.empty());
+        Assert.assertEquals(Pair.create(1, null), Pair.createLeft(1));
+        Assert.assertEquals(Pair.create(null, 1), Pair.createRight(1));
+    }
+
+    @Test
+    public void testUtilities() {
+        Pair<Integer, Integer> pair = Pair.create(1, null);
+        Assert.assertEquals(pair.getLeft(), Integer.valueOf(1));
+        Assert.assertEquals(pair.getRight(), null);
+        Assert.assertEquals(pair.toString(), "(1, null)");
+        Assert.assertEquals(pair.hashCode(), Pair.createLeft(1).hashCode());
+    }
+
+}
