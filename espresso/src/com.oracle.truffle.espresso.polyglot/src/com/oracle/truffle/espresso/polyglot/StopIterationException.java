@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2020, 2021, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -34,27 +34,4 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
-package com.oracle.truffle.sl.nodes.controlflow;
-
-import com.oracle.truffle.api.frame.VirtualFrame;
-import com.oracle.truffle.api.nodes.NodeInfo;
-import com.oracle.truffle.sl.nodes.SLStatementNode;
-
-/**
- * Implementation of the SL break statement. We need to unwind an unknown number of interpreter
- * frames that are between this {@link SLBreakNode} and the {@link SLWhileNode} of the loop we are
- * breaking out. This is done by throwing an {@link SLBreakException exception} that is caught by
- * the {@link SLWhileNode#executeVoid loop node}.
- */
-@NodeInfo(shortName = "break", description = "The node implementing a break statement")
-public final class SLBreakNode extends SLStatementNode {
-
-    @Override
-    public void executeVoid(VirtualFrame frame) {
-        throw SLBreakException.SINGLETON;
-    }
-}
+ * 
