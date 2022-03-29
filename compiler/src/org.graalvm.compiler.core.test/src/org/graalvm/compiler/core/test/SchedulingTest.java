@@ -66,4 +66,15 @@ public class SchedulingTest extends GraphScheduleTest {
         SchedulePhase schedulePhase = new SchedulePhase(SchedulingStrategy.LATEST);
         schedulePhase.apply(graph, getDefaultHighTierContext());
         ScheduleResult schedule = graph.getLastSchedule();
- 
+        NodeMap<HIRBlock> nodeToBlock = schedule.getCFG().getNodeToBlock();
+        assertTrue(graph.getNodes().filter(LoopExitNode.class).count() == 1);
+        LoopExitNode loopExit = graph.getNodes().filter(LoopExitNode.class).first();
+        List<Node> list = schedule.nodesFor(nodeToBlock.get(loopExit));
+        for (BinaryArithmeticNode<?> node : graph.getNodes().filter(BinaryArithmeticNode.class)) {
+            if (!(node instanceof AddNode)) {
+                assertTrue(node.toString(), nodeToBlock.get(node) == nodeToBlock.get(loopExit));
+                assertTrue(list.indexOf(node) + " < " + list.indexOf(loopExit) + ", " + node + ", " + loopExit, list.indexOf(node) < list.indexOf(loopExit));
+            }
+        }
+    }
+}
