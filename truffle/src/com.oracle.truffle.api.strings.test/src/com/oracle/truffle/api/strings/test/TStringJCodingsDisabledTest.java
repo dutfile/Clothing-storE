@@ -79,4 +79,81 @@ public class TStringJCodingsDisabledTest {
         }
 
         @Override
-        protected boolean patchContext(@Suppres
+        protected boolean patchContext(@SuppressWarnings("hiding") NoJCodingsDummyLanguageContext context, Env newEnv) {
+            context.patchContext(newEnv);
+            return true;
+        }
+
+        @Override
+        protected boolean isThreadAccessAllowed(Thread thread, boolean singleThreaded) {
+            return true;
+        }
+
+        public static final class NoJCodingsDummyLanguageContext {
+
+            private static final ContextReference<NoJCodingsDummyLanguageContext> REFERENCE = ContextReference.create(TStringTestNoJCodingsDummyLanguage.class);
+
+            @CompilerDirectives.CompilationFinal private Env env;
+
+            NoJCodingsDummyLanguageContext(Env env) {
+                this.env = env;
+            }
+
+            void patchContext(Env patchedEnv) {
+                this.env = patchedEnv;
+            }
+
+            public Env getEnv() {
+                return env;
+            }
+
+            public static NoJCodingsDummyLanguageContext get(Node node) {
+                return REFERENCE.get(node);
+            }
+        }
+    }
+
+    static Context context;
+
+    @BeforeClass
+    public static void setUp() {
+        context = Context.newBuilder(TStringTestNoJCodingsDummyLanguage.ID).build();
+        context.enter();
+    }
+
+    @AfterClass
+    public static void tearDown() {
+        context.leave();
+        context.close();
+    }
+
+    @Parameter public TruffleString.FromByteArrayNode node;
+    @Parameter(1) public MutableTruffleString.FromByteArrayNode nodeMutable;
+
+    @Parameters(name = "{0}, {1}")
+    public static Iterable<Object[]> data() {
+        return Arrays.asList(
+                        new Object[]{TruffleString.FromByteArrayNode.create(), MutableTruffleString.FromByteArrayNode.create()},
+                        new Object[]{TruffleString.FromByteArrayNode.getUncached(), MutableTruffleString.FromByteArrayNode.getUncached()});
+    }
+
+    @Test(expected = AssertionError.class)
+    public void testTruffleStringCopy() {
+        node.execute(new byte[1], 0, 1, TruffleString.Encoding.Big5, true);
+    }
+
+    @Test(expected = AssertionError.class)
+    public void testTruffleStringDirect() {
+        node.execute(new byte[1], 0, 1, TruffleString.Encoding.Big5, false);
+    }
+
+    @Test(expected = AssertionError.class)
+    public void testMutableTruffleStringCopy() {
+        nodeMutable.execute(new byte[1], 0, 1, TruffleString.Encoding.Big5, true);
+    }
+
+    @Test(expected = AssertionError.class)
+    public void testMutableTruffleStringDirect() {
+        nodeMutable.execute(new byte[1], 0, 1, TruffleString.Encoding.Big5, false);
+    }
+}
