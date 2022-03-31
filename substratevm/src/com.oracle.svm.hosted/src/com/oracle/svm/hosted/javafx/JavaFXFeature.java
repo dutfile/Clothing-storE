@@ -31,4 +31,41 @@ import org.graalvm.nativeimage.hosted.RuntimeClassInitialization;
 import org.graalvm.nativeimage.hosted.Feature;
 import org.graalvm.nativeimage.hosted.RuntimeReflection;
 
-import com.oracle.svm.hosted.Fe
+import com.oracle.svm.hosted.FeatureImpl;
+
+final class JavaFXFeature implements Feature {
+
+    @Override
+    public boolean isInConfiguration(IsInConfigurationAccess access) {
+        return getJavaFXApplication(access) != null;
+    }
+
+    @Override
+    public void beforeAnalysis(BeforeAnalysisAccess access) {
+        /*
+         * Include subclasses of javafx.application.Application for reflection so users don't have
+         * to do it every time.
+         *
+         * See javafx.application.Application#launch(java.lang.String...).
+         */
+        ((FeatureImpl.BeforeAnalysisAccessImpl) access)
+                        .findSubclasses(getJavaFXApplication(access))
+                        .forEach(RuntimeReflection::register);
+
+        /*
+         * Static initializers that are not supported in JavaFX.
+         */
+        Stream.of("com.sun.javafx.tk.quantum.QuantumRenderer", "javafx.stage.Screen", "com.sun.javafx.scene.control.behavior.BehaviorBase", "com.sun.javafx.scene.control.skin.BehaviorSkinBase",
+                        "javafx.scene.control.SkinBase", "javafx.scene.control.Control", "javafx.scene.control.PopupControl", "javafx.scene.control.SkinBase$StyleableProperties",
+                        "javafx.scene.control.Labeled$StyleableProperties", "javafx.scene.control.SkinBase$StyleableProperties", "com.sun.javafx.tk.quantum.PrismImageLoader2$AsyncImageLoader",
+                        "com.sun.javafx.tk.quantum.PrismImageLoader2", "com.sun.prism.PresentableState")
+                        .map(access::findClassByName)
+                        .filter(Objects::nonNull)
+                        .forEach(RuntimeClassInitialization::initializeAtRunTime);
+    }
+
+    private static Class<?> getJavaFXApplication(FeatureAccess access) {
+        return access.findClassByName("javafx.application.Application");
+    }
+
+}
