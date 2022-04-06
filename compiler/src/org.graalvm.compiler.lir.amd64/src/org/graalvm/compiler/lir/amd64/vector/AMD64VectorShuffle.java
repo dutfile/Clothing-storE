@@ -548,4 +548,112 @@ public class AMD64VectorShuffle {
     }
 
     public static final class ExtractByteOp extends AMD64LIRInstruction {
-        public static final LIRInstructionClass<E
+        public static final LIRInstructionClass<ExtractByteOp> TYPE = LIRInstructionClass.create(ExtractByteOp.class);
+        @Def({REG}) protected AllocatableValue result;
+        @Use({REG}) protected AllocatableValue vector;
+        private final int selector;
+
+        public ExtractByteOp(AllocatableValue result, AllocatableValue vector, int selector) {
+            super(TYPE);
+            assert result.getPlatformKind() == AMD64Kind.DWORD;
+            assert ((AMD64Kind) vector.getPlatformKind()).getScalar() == AMD64Kind.BYTE;
+            this.result = result;
+            this.vector = vector;
+            this.selector = selector;
+        }
+
+        @Override
+        public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
+            VPEXTRB.emit(masm, XMM, asRegister(result), asRegister(vector), selector);
+        }
+    }
+
+    public static final class ExtractShortOp extends AMD64LIRInstruction {
+        public static final LIRInstructionClass<ExtractShortOp> TYPE = LIRInstructionClass.create(ExtractShortOp.class);
+        @Def({REG}) protected AllocatableValue result;
+        @Use({REG}) protected AllocatableValue vector;
+        private final int selector;
+
+        public ExtractShortOp(AllocatableValue result, AllocatableValue vector, int selector) {
+            super(TYPE);
+            assert result.getPlatformKind() == AMD64Kind.DWORD;
+            assert ((AMD64Kind) vector.getPlatformKind()).getScalar() == AMD64Kind.WORD;
+            this.result = result;
+            this.vector = vector;
+            this.selector = selector;
+        }
+
+        @Override
+        public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
+            VPEXTRW.emit(masm, XMM, asRegister(result), asRegister(vector), selector);
+        }
+    }
+
+    public static final class ExtractIntOp extends AMD64LIRInstruction {
+        public static final LIRInstructionClass<ExtractIntOp> TYPE = LIRInstructionClass.create(ExtractIntOp.class);
+        @Def({REG, STACK}) protected AllocatableValue result;
+        @Use({REG}) protected AllocatableValue vector;
+        private final int selector;
+
+        public ExtractIntOp(AllocatableValue result, AllocatableValue vector, int selector) {
+            super(TYPE);
+            assert result.getPlatformKind() == AMD64Kind.DWORD;
+            assert ((AMD64Kind) vector.getPlatformKind()).getScalar() == AMD64Kind.DWORD;
+            this.result = result;
+            this.vector = vector;
+            this.selector = selector;
+        }
+
+        @Override
+        public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
+            if (isRegister(result)) {
+                if (selector == 0) {
+                    VMOVD.emitReverse(masm, XMM, asRegister(result), asRegister(vector));
+                } else {
+                    VPEXTRD.emit(masm, XMM, asRegister(result), asRegister(vector), selector);
+                }
+            } else {
+                assert isStackSlot(result);
+                if (selector == 0) {
+                    VMOVD.emit(masm, XMM, (AMD64Address) crb.asAddress(result), asRegister(vector));
+                } else {
+                    VPEXTRD.emit(masm, XMM, (AMD64Address) crb.asAddress(result), asRegister(vector), selector);
+                }
+            }
+        }
+    }
+
+    public static final class ExtractLongOp extends AMD64LIRInstruction {
+        public static final LIRInstructionClass<ExtractLongOp> TYPE = LIRInstructionClass.create(ExtractLongOp.class);
+        @Def({REG, STACK}) protected AllocatableValue result;
+        @Use({REG}) protected AllocatableValue vector;
+        private final int selector;
+
+        public ExtractLongOp(AllocatableValue result, AllocatableValue vector, int selector) {
+            super(TYPE);
+            assert result.getPlatformKind() == AMD64Kind.QWORD;
+            assert ((AMD64Kind) vector.getPlatformKind()).getScalar() == AMD64Kind.QWORD;
+            this.result = result;
+            this.vector = vector;
+            this.selector = selector;
+        }
+
+        @Override
+        public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
+            if (isRegister(result)) {
+                if (selector == 0) {
+                    VMOVQ.emitReverse(masm, XMM, asRegister(result), asRegister(vector));
+                } else {
+                    VPEXTRQ.emit(masm, XMM, asRegister(result), asRegister(vector), selector);
+                }
+            } else {
+                assert isStackSlot(result);
+                if (selector == 0) {
+                    VMOVQ.emit(masm, XMM, (AMD64Address) crb.asAddress(result), asRegister(vector));
+                } else {
+                    VPEXTRQ.emit(masm, XMM, (AMD64Address) crb.asAddress(result), asRegister(vector), selector);
+                }
+            }
+        }
+    }
+}
