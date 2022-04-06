@@ -113,4 +113,136 @@ public class AMD64VectorShuffle {
         @Def({REG}) protected AllocatableValue result;
         @Use({REG, STACK}) protected AllocatableValue value;
 
-        pub
+        public LongToVectorOp(AllocatableValue result, AllocatableValue value) {
+            super(TYPE);
+            assert result.getPlatformKind() == AMD64Kind.V128_QWORD || result.getPlatformKind() == AMD64Kind.V256_QWORD;
+            this.result = result;
+            this.value = value;
+        }
+
+        @Override
+        public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
+            if (isRegister(value)) {
+                VMOVQ.emit(masm, XMM, asRegister(result), asRegister(value));
+            } else {
+                assert isStackSlot(value);
+                VMOVQ.emit(masm, XMM, asRegister(result), (AMD64Address) crb.asAddress(value));
+            }
+        }
+    }
+
+    public static final class ShuffleBytesOp extends AMD64LIRInstruction {
+        public static final LIRInstructionClass<ShuffleBytesOp> TYPE = LIRInstructionClass.create(ShuffleBytesOp.class);
+        @Def({REG}) protected AllocatableValue result;
+        @Use({REG}) protected AllocatableValue source;
+        @Use({REG, STACK}) protected AllocatableValue selector;
+
+        public ShuffleBytesOp(AllocatableValue result, AllocatableValue source, AllocatableValue selector) {
+            super(TYPE);
+            this.result = result;
+            this.source = source;
+            this.selector = selector;
+        }
+
+        @Override
+        public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
+            AMD64Kind kind = (AMD64Kind) result.getPlatformKind();
+            if (isRegister(selector)) {
+                VPSHUFB.emit(masm, AVXKind.getRegisterSize(kind), asRegister(result), asRegister(source), asRegister(selector));
+            } else {
+                assert isStackSlot(selector);
+                VPSHUFB.emit(masm, AVXKind.getRegisterSize(kind), asRegister(result), asRegister(source), (AMD64Address) crb.asAddress(selector));
+            }
+        }
+    }
+
+    public static final class ConstPermuteBytesUsingTableOp extends AMD64LIRInstruction implements AVX512Support {
+        public static final LIRInstructionClass<ConstPermuteBytesUsingTableOp> TYPE = LIRInstructionClass.create(ConstPermuteBytesUsingTableOp.class);
+        @Def({REG}) protected AllocatableValue result;
+        @Use({REG, STACK}) protected AllocatableValue source;
+        @Use({REG}) protected AllocatableValue mask;
+        @Temp({REG}) protected AllocatableValue selector;
+
+        byte[] selectorData;
+
+        public ConstPermuteBytesUsingTableOp(LIRGeneratorTool tool, AllocatableValue result, AllocatableValue source, byte[] selectorData) {
+            this(tool, result, source, selectorData, null);
+        }
+
+        public ConstPermuteBytesUsingTableOp(LIRGeneratorTool tool, AllocatableValue result, AllocatableValue source, byte[] selectorData, AllocatableValue mask) {
+            super(TYPE);
+            this.result = result;
+            this.source = source;
+            this.selectorData = selectorData;
+            this.selector = tool.newVariable(LIRKind.value(source.getPlatformKind()));
+            this.mask = mask;
+        }
+
+        @Override
+        public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
+            AMD64Kind kind = (AMD64Kind) source.getPlatformKind();
+            int alignment = crb.dataBuilder.ensureValidDataAlignment(selectorData.length);
+            AMD64Address address = (AMD64Address) crb.recordDataReferenceInCode(selectorData, alignment);
+            VMOVDQU64.emit(masm, AVXKind.getRegisterSize(kind), asRegister(selector), address);
+            if (isRegister(source)) {
+                VPERMT2B.emit(masm, AVXKind.getRegisterSize(kind), asRegister(result), asRegister(selector), asRegister(source), mask != null ? asRegister(mask) : Register.None,
+                                AMD64BaseAssembler.EVEXPrefixConfig.Z1,
+                                AMD64BaseAssembler.EVEXPrefixConfig.B0);
+            } else {
+                VPERMT2B.emit(masm, AVXKind.getRegisterSize(kind), asRegister(result), asRegister(selector), (AMD64Address) crb.asAddress(source), mask != null ? asRegister(mask) : Register.None,
+                                AMD64BaseAssembler.EVEXPrefixConfig.Z1,
+                                AMD64BaseAssembler.EVEXPrefixConfig.B0);
+            }
+        }
+
+        @Override
+        public AllocatableValue getOpmask() {
+            return mask;
+        }
+    }
+
+    public static final class ConstShuffleBytesOp extends AMD64LIRInstruction {
+        public static final LIRInstructionClass<ConstShuffleBytesOp> TYPE = LIRInstructionClass.create(ConstShuffleBytesOp.class);
+        @Def({REG}) protected AllocatableValue result;
+        @Use({REG}) protected AllocatableValue source;
+        private final byte[] selector;
+
+        public ConstShuffleBytesOp(AllocatableValue result, AllocatableValue source, byte... selector) {
+            super(TYPE);
+            assert AVXKind.getRegisterSize(((AMD64Kind) source.getPlatformKind())).getBytes() == selector.length : " Register size=" +
+                            AVXKind.getRegisterSize(((AMD64Kind) source.getPlatformKind())).getBytes() + " select length=" + selector.length;
+            this.result = result;
+            this.source = source;
+            this.selector = selector;
+        }
+
+        @Override
+        public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
+            AMD64Kind kind = (AMD64Kind) source.getPlatformKind();
+            int alignment = crb.dataBuilder.ensureValidDataAlignment(selector.length);
+            AMD64Address address = (AMD64Address) crb.recordDataReferenceInCode(selector, alignment);
+            VPSHUFB.emit(masm, AVXKind.getRegisterSize(kind), asRegister(result), asRegister(source), address);
+        }
+    }
+
+    public static class ShuffleWordOp extends AMD64LIRInstruction {
+        public static final LIRInstructionClass<ShuffleWordOp> TYPE = LIRInstructionClass.create(ShuffleWordOp.class);
+        protected final VexRMIOp op;
+        @Def({REG}) protected AllocatableValue result;
+        @Use({REG, STACK}) protected AllocatableValue source;
+        protected final int selector;
+
+        public ShuffleWordOp(VexRMIOp op, AllocatableValue result, AllocatableValue source, int selector) {
+            this(TYPE, op, result, source, selector);
+        }
+
+        protected ShuffleWordOp(LIRInstructionClass<? extends AMD64LIRInstruction> c, VexRMIOp op, AllocatableValue result, AllocatableValue source, int selector) {
+            super(c);
+            this.op = op;
+            this.result = result;
+            this.source = source;
+            this.selector = selector;
+        }
+
+        @Override
+        public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
