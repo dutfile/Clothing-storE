@@ -246,3 +246,157 @@ public class AMD64VectorShuffle {
 
         @Override
         public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
+            AMD64Kind kind = (AMD64Kind) source.getPlatformKind();
+            if (isRegister(source)) {
+                op.emit(masm, AVXKind.getRegisterSize(kind), asRegister(result), asRegister(source), selector);
+            } else {
+                op.emit(masm, AVXKind.getRegisterSize(kind), asRegister(result), (AMD64Address) crb.asAddress(source), selector);
+            }
+        }
+    }
+
+    public static class ShuffleWordOpWithMask extends ShuffleWordOp implements AVX512Support {
+        public static final LIRInstructionClass<ShuffleWordOpWithMask> TYPE = LIRInstructionClass.create(ShuffleWordOpWithMask.class);
+
+        @Use({REG}) protected AllocatableValue mask;
+
+        public ShuffleWordOpWithMask(VexRMIOp op, AllocatableValue result, AllocatableValue source, int selector, AllocatableValue mask) {
+            super(TYPE, op, result, source, selector);
+            this.mask = mask;
+        }
+
+        @Override
+        public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
+            AMD64Kind kind = (AMD64Kind) source.getPlatformKind();
+            if (isRegister(source)) {
+                op.emit(masm, AVXKind.getRegisterSize(kind), asRegister(result), asRegister(source), selector, asRegister(mask), AMD64BaseAssembler.EVEXPrefixConfig.Z1,
+                                AMD64BaseAssembler.EVEXPrefixConfig.B0);
+            } else {
+                op.emit(masm, AVXKind.getRegisterSize(kind), asRegister(result), (AMD64Address) crb.asAddress(source), selector, asRegister(mask), AMD64BaseAssembler.EVEXPrefixConfig.Z1,
+                                AMD64BaseAssembler.EVEXPrefixConfig.B0);
+            }
+        }
+
+        @Override
+        public AllocatableValue getOpmask() {
+            return mask;
+        }
+    }
+
+    public static class ShuffleFloatOp extends AMD64LIRInstruction {
+        public static final LIRInstructionClass<ShuffleFloatOp> TYPE = LIRInstructionClass.create(ShuffleFloatOp.class);
+        @Def({REG}) protected AllocatableValue result;
+        @Use({REG}) protected AllocatableValue source1;
+        @Use({REG, STACK}) protected AllocatableValue source2;
+        private final int selector;
+
+        public ShuffleFloatOp(AllocatableValue result, AllocatableValue source1, AllocatableValue source2, int selector) {
+            super(TYPE);
+            this.result = result;
+            this.source1 = source1;
+            this.source2 = source2;
+            this.selector = selector;
+        }
+
+        @Override
+        public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
+            AMD64Kind kind = (AMD64Kind) result.getPlatformKind();
+
+            VexRVMIOp op;
+            switch (kind.getScalar()) {
+                case SINGLE:
+                    op = VSHUFPS;
+                    break;
+                case DOUBLE:
+                    op = VSHUFPD;
+                    break;
+                default:
+                    throw GraalError.shouldNotReachHere(); // ExcludeFromJacocoGeneratedReport
+            }
+
+            if (isRegister(source2)) {
+                op.emit(masm, AVXKind.getRegisterSize(kind), asRegister(result), asRegister(source1), asRegister(source2), selector);
+            } else {
+                assert isStackSlot(source2);
+                op.emit(masm, AVXKind.getRegisterSize(kind), asRegister(result), asRegister(source1), (AMD64Address) crb.asAddress(source2), selector);
+            }
+        }
+    }
+
+    public static final class Extract128Op extends AMD64LIRInstruction {
+        public static final LIRInstructionClass<Extract128Op> TYPE = LIRInstructionClass.create(Extract128Op.class);
+        @Def({REG, STACK}) protected AllocatableValue result;
+        @Use({REG}) protected AllocatableValue source;
+        private final int selector;
+
+        public Extract128Op(AllocatableValue result, AllocatableValue source, int selector) {
+            super(TYPE);
+            this.result = result;
+            this.source = source;
+            this.selector = selector;
+        }
+
+        @Override
+        public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
+            AMD64Kind kind = (AMD64Kind) source.getPlatformKind();
+
+            AVXKind.AVXSize size = AVXKind.getRegisterSize(kind);
+
+            VexMRIOp op;
+            switch (size) {
+                case YMM:
+                    switch (kind.getScalar()) {
+                        case SINGLE:
+                        case DOUBLE:
+                            op = VEXTRACTF128;
+                            break;
+                        default:
+                            // if supported we want VEXTRACTI128
+                            // on AVX1, we have to use VEXTRACTF128
+                            op = masm.supports(CPUFeature.AVX2) ? VEXTRACTI128 : VEXTRACTF128;
+                            break;
+                    }
+                    break;
+                case ZMM:
+                    switch (kind.getScalar()) {
+                        case DOUBLE:
+                            op = masm.supports(CPUFeature.AVX512DQ) ? VEXTRACTF64X2 : VEXTRACTF32X4;
+                            break;
+                        case DWORD:
+                            op = VEXTRACTI32X4;
+                            break;
+                        case QWORD:
+                            op = masm.supports(CPUFeature.AVX512DQ) ? VEXTRACTI64X2 : VEXTRACTI32X4;
+                            break;
+                        default:
+                            op = VEXTRACTF32X4;
+                            break;
+                    }
+                    break;
+                default:
+                    throw GraalError.shouldNotReachHere("Unexpected vector size for extract-128-bits op" + size); // ExcludeFromJacocoGeneratedReport
+            }
+
+            if (isRegister(result)) {
+                op.emit(masm, size, asRegister(result), asRegister(source), selector);
+            } else {
+                assert isStackSlot(result);
+                op.emit(masm, size, (AMD64Address) crb.asAddress(result), asRegister(source), selector);
+            }
+        }
+    }
+
+    public static class Extract256Op extends AMD64LIRInstruction {
+        public static final LIRInstructionClass<Extract256Op> TYPE = LIRInstructionClass.create(Extract256Op.class);
+        @Def({REG, STACK}) protected AllocatableValue result;
+        @Use({REG}) protected AllocatableValue source;
+        private final int selector;
+
+        public Extract256Op(AllocatableValue result, AllocatableValue source, int selector) {
+            super(TYPE);
+            this.result = result;
+            this.source = source;
+            this.selector = selector;
+        }
+
+        @Overrid
