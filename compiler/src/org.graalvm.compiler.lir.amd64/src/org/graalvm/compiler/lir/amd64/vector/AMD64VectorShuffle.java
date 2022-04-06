@@ -399,4 +399,153 @@ public class AMD64VectorShuffle {
             this.selector = selector;
         }
 
-        @Overrid
+        @Override
+        public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
+            AMD64Kind kind = (AMD64Kind) source.getPlatformKind();
+
+            assert AVXKind.getRegisterSize(kind) == ZMM : "Can only extract 256 bits from ZMM register";
+
+            VexMRIOp op;
+            switch (kind.getScalar()) {
+                case DOUBLE:
+                    op = VEXTRACTF64X4;
+                    break;
+                case DWORD:
+                    // the 32x8 versions require additional features (DQ),
+                    // thus we fall back to the 64x4 versions unless provided
+                    op = masm.supports(CPUFeature.AVX512DQ) ? VEXTRACTI32X8 : VEXTRACTI64X4;
+                    break;
+                case QWORD:
+                    op = VEXTRACTI64X4;
+                    break;
+                default:
+                    op = masm.supports(CPUFeature.AVX512DQ) ? VEXTRACTF32X8 : VEXTRACTF64X4;
+                    break;
+            }
+
+            if (isRegister(result)) {
+                op.emit(masm, AVXKind.getRegisterSize(kind), asRegister(result), asRegister(source), selector);
+            } else {
+                assert isStackSlot(result);
+                op.emit(masm, AVXKind.getRegisterSize(kind), (AMD64Address) crb.asAddress(result), asRegister(source), selector);
+            }
+        }
+    }
+
+    public static final class Insert128Op extends AMD64LIRInstruction {
+        public static final LIRInstructionClass<Insert128Op> TYPE = LIRInstructionClass.create(Insert128Op.class);
+        @Def({REG}) protected AllocatableValue result;
+        @Use({REG}) protected AllocatableValue source1;
+        @Use({REG, STACK}) protected AllocatableValue source2;
+        private final int selector;
+
+        public Insert128Op(AllocatableValue result, AllocatableValue source1, AllocatableValue source2, int selector) {
+            super(TYPE);
+            this.result = result;
+            this.source1 = source1;
+            this.source2 = source2;
+            this.selector = selector;
+        }
+
+        @Override
+        public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
+            AMD64Kind kind = (AMD64Kind) result.getPlatformKind();
+
+            AVXKind.AVXSize size = AVXKind.getRegisterSize(kind);
+
+            VexRVMIOp op;
+            switch (size) {
+                case YMM:
+                    switch (kind.getScalar()) {
+                        case SINGLE:
+                        case DOUBLE:
+                            op = VINSERTF128;
+                            break;
+                        default:
+                            /*
+                             * if supported we want VINSERTI128 - on AVX1, we have to use
+                             * VINSERTF128. Using instructions with an incorrect data type is
+                             * possible but typically results in an additional overhead whenever the
+                             * value is being accessed.
+                             */
+                            op = masm.supports(CPUFeature.AVX2) ? VINSERTI128 : VINSERTF128;
+                            break;
+                    }
+                    break;
+                case ZMM:
+                    switch (kind.getScalar()) {
+                        case DOUBLE:
+                            op = masm.supports(CPUFeature.AVX512DQ) ? VINSERTF64X2 : VINSERTF32X4;
+                            break;
+                        case DWORD:
+                            op = VINSERTI32X4;
+                            break;
+                        case QWORD:
+                            op = masm.supports(CPUFeature.AVX512DQ) ? VINSERTI64X2 : VINSERTI32X4;
+                            break;
+                        default:
+                            op = VINSERTF32X4;
+                            break;
+                    }
+                    break;
+                default:
+                    throw GraalError.shouldNotReachHere("Unexpected vector size for extract-128-bits op" + size); // ExcludeFromJacocoGeneratedReport
+            }
+
+            if (isRegister(source2)) {
+                op.emit(masm, AVXKind.getRegisterSize(kind), asRegister(result), asRegister(source1), asRegister(source2), selector);
+            } else {
+                assert isStackSlot(source2);
+                op.emit(masm, AVXKind.getRegisterSize(kind), asRegister(result), asRegister(source1), (AMD64Address) crb.asAddress(source2), selector);
+            }
+        }
+    }
+
+    public static final class Insert256Op extends AMD64LIRInstruction {
+        public static final LIRInstructionClass<Insert256Op> TYPE = LIRInstructionClass.create(Insert256Op.class);
+        @Def({REG}) protected AllocatableValue result;
+        @Use({REG}) protected AllocatableValue source1;
+        @Use({REG, STACK}) protected AllocatableValue source2;
+        private final int selector;
+
+        public Insert256Op(AllocatableValue result, AllocatableValue source1, AllocatableValue source2, int selector) {
+            super(TYPE);
+            this.result = result;
+            this.source1 = source1;
+            this.source2 = source2;
+            this.selector = selector;
+        }
+
+        @Override
+        public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
+            AMD64Kind kind = (AMD64Kind) result.getPlatformKind();
+
+            assert AVXKind.getRegisterSize(kind) == ZMM : "Can only extract 256 bits from ZMM register";
+
+            VexRVMIOp op;
+            switch (kind.getScalar()) {
+                case DOUBLE:
+                    op = VINSERTF64X4;
+                    break;
+                case DWORD:
+                    op = masm.supports(CPUFeature.AVX512DQ) ? VINSERTI32X8 : VINSERTI64X4;
+                    break;
+                case QWORD:
+                    op = VINSERTI64X4;
+                    break;
+                default:
+                    op = masm.supports(CPUFeature.AVX512DQ) ? VINSERTF32X8 : VINSERTF64X4;
+                    break;
+            }
+
+            if (isRegister(source2)) {
+                op.emit(masm, AVXKind.getRegisterSize(kind), asRegister(result), asRegister(source1), asRegister(source2), selector);
+            } else {
+                assert isStackSlot(source2);
+                op.emit(masm, AVXKind.getRegisterSize(kind), asRegister(result), asRegister(source1), (AMD64Address) crb.asAddress(source2), selector);
+            }
+        }
+    }
+
+    public static final class ExtractByteOp extends AMD64LIRInstruction {
+        public static final LIRInstructionClass<E
