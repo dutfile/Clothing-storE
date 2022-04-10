@@ -32,4 +32,52 @@ import org.graalvm.nativeimage.ImageSingletons;
 
 import com.oracle.graal.pointsto.meta.AnalysisField;
 import com.oracle.svm.core.feature.InternalFeature;
-import com.oracle.svm.core.feature.AutomaticallyRegisteredFeatur
+import com.oracle.svm.core.feature.AutomaticallyRegisteredFeature;
+
+/**
+ * Tracks fields with constant values which could be inlined, but which must exist in memory -- for
+ * example, when they might be accessed via JNI.
+ */
+public class MaterializedConstantFields {
+    static void initialize() {
+        ImageSingletons.add(MaterializedConstantFields.class, new MaterializedConstantFields());
+    }
+
+    public static MaterializedConstantFields singleton() {
+        return ImageSingletons.lookup(MaterializedConstantFields.class);
+    }
+
+    private final Set<AnalysisField> fields = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private boolean sealed = false;
+
+    public void register(AnalysisField field) {
+        assert field.isStatic() && field.isFinal() : "Only required for static final fields";
+        assert field.isAccessed() : "Field must be accessed as read";
+        assert !sealed : "Already sealed";
+        fields.add(field);
+    }
+
+    public boolean contains(AnalysisField field) {
+        if (field.isStatic() && field.isFinal()) {
+            return fields.contains(field);
+        }
+        return false;
+    }
+
+    void seal() {
+        sealed = true;
+    }
+}
+
+@AutomaticallyRegisteredFeature
+class MaterializedConstantFieldsFeature implements InternalFeature {
+    @Override
+    public void afterRegistration(AfterRegistrationAccess access) {
+        MaterializedConstantFields.initialize();
+    }
+
+    @Override
+    public void afterAnalysis(AfterAnalysisAccess access) {
+        MaterializedConstantFields.singleton().seal();
+    }
+}
