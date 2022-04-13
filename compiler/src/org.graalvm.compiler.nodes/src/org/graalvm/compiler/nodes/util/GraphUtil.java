@@ -71,4 +71,147 @@ import org.graalvm.compiler.nodes.PhiNode;
 import org.graalvm.compiler.nodes.PiNode;
 import org.graalvm.compiler.nodes.ProxyNode;
 import org.graalvm.compiler.nodes.StateSplit;
-import o
+import org.graalvm.compiler.nodes.StructuredGraph;
+import org.graalvm.compiler.nodes.ValueNode;
+import org.graalvm.compiler.nodes.ValuePhiNode;
+import org.graalvm.compiler.nodes.ValueProxyNode;
+import org.graalvm.compiler.nodes.WithExceptionNode;
+import org.graalvm.compiler.nodes.extended.MultiGuardNode;
+import org.graalvm.compiler.nodes.java.LoadIndexedNode;
+import org.graalvm.compiler.nodes.java.MethodCallTargetNode;
+import org.graalvm.compiler.nodes.java.MonitorIdNode;
+import org.graalvm.compiler.nodes.memory.MemoryPhiNode;
+import org.graalvm.compiler.nodes.spi.ArrayLengthProvider;
+import org.graalvm.compiler.nodes.spi.ArrayLengthProvider.FindLengthMode;
+import org.graalvm.compiler.nodes.spi.CoreProviders;
+import org.graalvm.compiler.nodes.spi.CoreProvidersDelegate;
+import org.graalvm.compiler.nodes.spi.LimitedValueProxy;
+import org.graalvm.compiler.nodes.spi.SimplifierTool;
+import org.graalvm.compiler.nodes.spi.ValueProxy;
+import org.graalvm.compiler.nodes.spi.VirtualizerTool;
+import org.graalvm.compiler.nodes.type.StampTool;
+import org.graalvm.compiler.nodes.virtual.VirtualArrayNode;
+import org.graalvm.compiler.nodes.virtual.VirtualObjectNode;
+import org.graalvm.compiler.options.Option;
+import org.graalvm.compiler.options.OptionKey;
+import org.graalvm.compiler.options.OptionType;
+import org.graalvm.compiler.options.OptionValues;
+
+import jdk.vm.ci.code.BailoutException;
+import jdk.vm.ci.code.BytecodePosition;
+import jdk.vm.ci.meta.Assumptions;
+import jdk.vm.ci.meta.ConstantReflectionProvider;
+import jdk.vm.ci.meta.JavaKind;
+import jdk.vm.ci.meta.ResolvedJavaMethod;
+import jdk.vm.ci.meta.ResolvedJavaType;
+
+public class GraphUtil {
+
+    public static class Options {
+        @Option(help = "Verify that there are no new unused nodes when performing killCFG", type = OptionType.Debug)//
+        public static final OptionKey<Boolean> VerifyKillCFGUnusedNodes = new OptionKey<>(false);
+    }
+
+    public static final int MAX_FRAMESTATE_SEARCH_DEPTH = 4;
+
+    private static void killCFGInner(FixedNode node) {
+        EconomicSet<Node> markedNodes = EconomicSet.create();
+        EconomicMap<AbstractMergeNode, List<AbstractEndNode>> unmarkedMerges = EconomicMap.create();
+
+        // Detach this node from CFG
+        node.replaceAtPredecessor(null);
+
+        markFixedNodes(node, markedNodes, unmarkedMerges);
+
+        fixSurvivingAffectedMerges(markedNodes, unmarkedMerges);
+
+        DebugContext debug = node.getDebug();
+        debug.dump(DebugContext.DETAILED_LEVEL, node.graph(), "After fixing merges (killCFG %s)", node);
+
+        // Mark non-fixed nodes
+        markUsagesForKill(markedNodes);
+
+        // Detach marked nodes from non-marked nodes
+        for (Node marked : markedNodes) {
+            for (Node input : marked.inputs()) {
+                if (!markedNodes.contains(input)) {
+                    marked.replaceFirstInput(input, null);
+                    tryKillUnused(input);
+                }
+            }
+        }
+        debug.dump(DebugContext.VERY_DETAILED_LEVEL, node.graph(), "After disconnecting non-marked inputs (killCFG %s)", node);
+        // Kill marked nodes
+        for (Node marked : markedNodes) {
+            if (marked.isAlive()) {
+                marked.markDeleted();
+            }
+        }
+    }
+
+    private static void markFixedNodes(FixedNode node, EconomicSet<Node> markedNodes, EconomicMap<AbstractMergeNode, List<AbstractEndNode>> unmarkedMerges) {
+        NodeStack workStack = new NodeStack();
+        workStack.push(node);
+        while (!workStack.isEmpty()) {
+            Node fixedNode = workStack.pop();
+            markedNodes.add(fixedNode);
+            if (fixedNode instanceof AbstractMergeNode) {
+                unmarkedMerges.removeKey((AbstractMergeNode) fixedNode);
+            }
+            while (fixedNode instanceof FixedWithNextNode) {
+                fixedNode = ((FixedWithNextNode) fixedNode).next();
+                if (fixedNode != null) {
+                    markedNodes.add(fixedNode);
+                }
+            }
+            if (fixedNode instanceof ControlSplitNode) {
+                for (Node successor : fixedNode.successors()) {
+                    workStack.push(successor);
+                }
+            } else if (fixedNode instanceof AbstractEndNode) {
+                AbstractEndNode end = (AbstractEndNode) fixedNode;
+                AbstractMergeNode merge = end.merge();
+                if (merge != null) {
+                    assert !markedNodes.contains(merge) || (merge instanceof LoopBeginNode && end instanceof LoopEndNode) : merge;
+                    if (merge instanceof LoopBeginNode) {
+                        if (end == ((LoopBeginNode) merge).forwardEnd()) {
+                            workStack.push(merge);
+                            continue;
+                        }
+                        if (markedNodes.contains(merge)) {
+                            continue;
+                        }
+                    }
+                    List<AbstractEndNode> endsSeen = unmarkedMerges.get(merge);
+                    if (endsSeen == null) {
+                        endsSeen = new ArrayList<>(merge.forwardEndCount());
+                        unmarkedMerges.put(merge, endsSeen);
+                    }
+                    endsSeen.add(end);
+                    if (!(end instanceof LoopEndNode) && endsSeen.size() == merge.forwardEndCount()) {
+                        assert merge.forwardEnds().filter(n -> !markedNodes.contains(n)).isEmpty();
+                        // all this merge's forward ends are marked: it needs to be killed
+                        workStack.push(merge);
+                    }
+                }
+            }
+        }
+    }
+
+    private static void fixSurvivingAffectedMerges(EconomicSet<Node> markedNodes, EconomicMap<AbstractMergeNode, List<AbstractEndNode>> unmarkedMerges) {
+        MapCursor<AbstractMergeNode, List<AbstractEndNode>> cursor = unmarkedMerges.getEntries();
+        while (cursor.advance()) {
+            AbstractMergeNode merge = cursor.getKey();
+            for (AbstractEndNode end : cursor.getValue()) {
+                merge.removeEnd(end);
+            }
+            if (merge.phiPredecessorCount() == 1) {
+                if (merge instanceof LoopBeginNode) {
+                    LoopBeginNode loopBegin = (LoopBeginNode) merge;
+                    assert merge.forwardEndCount() == 1;
+                    for (LoopExitNode loopExit : loopBegin.loopExits().snapshot()) {
+                        if (markedNodes.contains(loopExit)) {
+                            /*
+                             * disconnect from loop begin so that reduceDegenerateLoopBegin doesn't
+                             * transform it into a new beginNode
+                 
