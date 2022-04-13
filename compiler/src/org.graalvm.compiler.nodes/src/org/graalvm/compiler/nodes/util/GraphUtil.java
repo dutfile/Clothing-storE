@@ -357,4 +357,183 @@ public class GraphUtil {
     private static boolean checkKill(Node node, boolean mayKillGuard) {
         node.assertTrue(mayKillGuard || !(node instanceof GuardNode), "must not be a guard node %s", node);
         node.assertTrue(node.isAlive(), "must be alive");
-        node.assertTrue(node.hasNoUsages(), "cannot kill node %s because of usages: %s", node, node.u
+        node.assertTrue(node.hasNoUsages(), "cannot kill node %s because of usages: %s", node, node.usages());
+        node.assertTrue(node.predecessor() == null, "cannot kill node %s because of predecessor: %s", node, node.predecessor());
+        return true;
+    }
+
+    public static void killWithUnusedFloatingInputs(Node node) {
+        killWithUnusedFloatingInputs(node, false);
+    }
+
+    public static void killWithUnusedFloatingInputs(Node node, boolean mayKillGuard) {
+        LinkedStack<Node> stack = null;
+        Node cur = node;
+        do {
+            assert checkKill(cur, mayKillGuard);
+            cur.markDeleted();
+            outer: for (Node in : cur.inputs()) {
+                if (in.isAlive()) {
+                    in.removeUsage(cur);
+                    if (in.hasNoUsages()) {
+                        cur.maybeNotifyZeroUsages(in);
+                    }
+                    if (isFloatingNode(in)) {
+                        if (in.hasNoUsages()) {
+                            if (in instanceof GuardNode) {
+                                // Guard nodes are only killed if their anchor dies.
+                                continue outer;
+                            }
+                        } else if (in instanceof PhiNode) {
+                            if (!((PhiNode) in).isDegenerated()) {
+                                continue outer;
+                            }
+                            in.replaceAtUsages(null);
+                        } else {
+                            continue outer;
+                        }
+                        if (stack == null) {
+                            stack = new LinkedStack<>();
+                        }
+                        stack.push(in);
+                    }
+                }
+            }
+            if (stack == null || stack.isEmpty()) {
+                break;
+            } else {
+                cur = stack.pop();
+            }
+        } while (true);
+    }
+
+    public static void removeFixedWithUnusedInputs(FixedWithNextNode fixed) {
+        if (fixed instanceof StateSplit) {
+            FrameState stateAfter = ((StateSplit) fixed).stateAfter();
+            if (stateAfter != null) {
+                ((StateSplit) fixed).setStateAfter(null);
+                if (stateAfter.hasNoUsages()) {
+                    killWithUnusedFloatingInputs(stateAfter);
+                }
+            }
+        }
+        unlinkFixedNode(fixed);
+        killWithUnusedFloatingInputs(fixed);
+    }
+
+    public static void unlinkFixedNode(FixedWithNextNode fixed) {
+        assert fixed.next() != null && fixed.predecessor() != null && fixed.isAlive() : fixed;
+        FixedNode next = fixed.next();
+        fixed.setNext(null);
+        fixed.replaceAtPredecessor(next);
+    }
+
+    public static void unlinkAndKillExceptionEdge(WithExceptionNode withException) {
+        assert withException.next() != null && withException.predecessor() != null && withException.isAlive() : withException;
+        FixedNode next = withException.next();
+        withException.setNext(null);
+        withException.replaceAtPredecessor(next);
+        withException.killExceptionEdge();
+    }
+
+    public static void checkRedundantPhi(PhiNode phiNode) {
+        if (phiNode.isDeleted() || phiNode.valueCount() == 1) {
+            return;
+        }
+
+        ValueNode singleValue = phiNode.singleValueOrThis();
+        if (singleValue != phiNode) {
+            Collection<PhiNode> phiUsages = phiNode.usages().filter(PhiNode.class).snapshot();
+            Collection<ProxyNode> proxyUsages = phiNode.usages().filter(ProxyNode.class).snapshot();
+            phiNode.replaceAtUsagesAndDelete(singleValue);
+            for (PhiNode phi : phiUsages) {
+                checkRedundantPhi(phi);
+            }
+            for (ProxyNode proxy : proxyUsages) {
+                checkRedundantProxy(proxy);
+            }
+        }
+    }
+
+    public static void checkRedundantProxy(ProxyNode vpn) {
+        if (vpn.isDeleted()) {
+            return;
+        }
+        AbstractBeginNode proxyPoint = vpn.proxyPoint();
+        if (proxyPoint instanceof LoopExitNode) {
+            LoopExitNode exit = (LoopExitNode) proxyPoint;
+            LoopBeginNode loopBegin = exit.loopBegin();
+            Node vpnValue = vpn.value();
+            for (ValueNode v : loopBegin.stateAfter().values()) {
+                ValueNode v2 = v;
+                if (loopBegin.isPhiAtMerge(v2)) {
+                    v2 = ((PhiNode) v2).valueAt(loopBegin.forwardEnd());
+                }
+                if (vpnValue == v2) {
+                    Collection<PhiNode> phiUsages = vpn.usages().filter(PhiNode.class).snapshot();
+                    Collection<ProxyNode> proxyUsages = vpn.usages().filter(ProxyNode.class).snapshot();
+                    vpn.replaceAtUsagesAndDelete(vpnValue);
+                    for (PhiNode phi : phiUsages) {
+                        checkRedundantPhi(phi);
+                    }
+                    for (ProxyNode proxy : proxyUsages) {
+                        checkRedundantProxy(proxy);
+                    }
+                    return;
+                }
+            }
+        }
+    }
+
+    /**
+     * Remove loop header without loop ends. This can happen with degenerated loops like this one:
+     *
+     * <pre>
+     * for (;;) {
+     *     try {
+     *         break;
+     *     } catch (UnresolvedException iioe) {
+     *     }
+     * }
+     * </pre>
+     */
+    public static void normalizeLoops(StructuredGraph graph) {
+        boolean loopRemoved = false;
+        for (LoopBeginNode begin : graph.getNodes(LoopBeginNode.TYPE)) {
+            if (begin.loopEnds().isEmpty()) {
+                assert begin.forwardEndCount() == 1;
+                graph.reduceDegenerateLoopBegin(begin);
+                loopRemoved = true;
+            } else {
+                normalizeLoopBegin(begin);
+            }
+        }
+
+        if (loopRemoved) {
+            /*
+             * Removing a degenerated loop can make non-loop phi functions unnecessary. Therefore,
+             * we re-check all phi functions and remove redundant ones.
+             */
+            for (Node node : graph.getNodes()) {
+                if (node instanceof PhiNode) {
+                    checkRedundantPhi((PhiNode) node);
+                }
+            }
+        }
+    }
+
+    private static void normalizeLoopBegin(LoopBeginNode begin) {
+        // Delete unnecessary loop phi functions, i.e., phi functions where all inputs are either
+        // the same or the phi itself.
+        for (PhiNode phi : begin.phis().snapshot()) {
+            GraphUtil.checkRedundantPhi(phi);
+        }
+        for (LoopExitNode exit : begin.loopExits().snapshot()) {
+            for (ProxyNode vpn : exit.proxies().snapshot()) {
+                GraphUtil.checkRedundantProxy(vpn);
+            }
+        }
+    }
+
+    /**
+     * Gets an approxima
