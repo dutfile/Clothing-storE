@@ -536,4 +536,181 @@ public class GraphUtil {
     }
 
     /**
-     * Gets an approxima
+     * Gets an approximate source code location for a node if possible.
+     *
+     * @return the StackTraceElements if an approximate source location is found, null otherwise
+     */
+    public static StackTraceElement[] approxSourceStackTraceElement(Node node) {
+        NodeSourcePosition position = node.getNodeSourcePosition();
+        if (position != null) {
+            // use GraphBuilderConfiguration and enable trackNodeSourcePosition to get better source
+            // positions.
+            return approxSourceStackTraceElement(position);
+        }
+        ArrayList<StackTraceElement> elements = new ArrayList<>();
+        Node n = node;
+        while (n != null) {
+            if (n instanceof MethodCallTargetNode) {
+                elements.add(((MethodCallTargetNode) n).targetMethod().asStackTraceElement(-1));
+                n = ((MethodCallTargetNode) n).invoke().asNode();
+            }
+
+            if (n instanceof StateSplit) {
+                FrameState state = ((StateSplit) n).stateAfter();
+                elements.addAll(Arrays.asList(approxSourceStackTraceElement(state)));
+                break;
+            }
+            n = n.predecessor();
+        }
+        return elements.toArray(new StackTraceElement[elements.size()]);
+    }
+
+    /**
+     * Gets an approximate source code location for frame state.
+     *
+     * @return the StackTraceElements if an approximate source location is found, null otherwise
+     */
+    public static StackTraceElement[] approxSourceStackTraceElement(FrameState frameState) {
+        ArrayList<StackTraceElement> elements = new ArrayList<>();
+        FrameState state = frameState;
+        while (state != null) {
+            Bytecode code = state.getCode();
+            if (code != null) {
+                elements.add(code.asStackTraceElement(state.bci - 1));
+            }
+            state = state.outerFrameState();
+        }
+        return elements.toArray(new StackTraceElement[0]);
+    }
+
+    /**
+     * Gets approximate stack trace elements for a bytecode position.
+     */
+    public static StackTraceElement[] approxSourceStackTraceElement(BytecodePosition bytecodePosition) {
+        ArrayList<StackTraceElement> elements = new ArrayList<>();
+        BytecodePosition position = bytecodePosition;
+        while (position != null) {
+            ResolvedJavaMethod method = position.getMethod();
+            if (method != null) {
+                elements.add(method.asStackTraceElement(position.getBCI()));
+            }
+            position = position.getCaller();
+        }
+        return elements.toArray(new StackTraceElement[0]);
+    }
+
+    /**
+     * Gets an approximate source code location for a node, encoded as an exception, if possible.
+     *
+     * @return the exception with the location
+     */
+    public static RuntimeException approxSourceException(Node node, Throwable cause) {
+        final StackTraceElement[] elements = approxSourceStackTraceElement(node);
+        return createBailoutException(cause == null ? "" : cause.getMessage(), cause, elements);
+    }
+
+    /**
+     * Creates a bailout exception with the given stack trace elements and message.
+     *
+     * @param message the message of the exception
+     * @param elements the stack trace elements
+     * @return the exception
+     */
+    public static BailoutException createBailoutException(String message, Throwable cause, StackTraceElement[] elements) {
+        return SourceStackTraceBailoutException.create(cause, message, elements);
+    }
+
+    /**
+     * Gets an approximate source code location for a node if possible.
+     *
+     * @return a file name and source line number in stack trace format (e.g. "String.java:32") if
+     *         an approximate source location is found, null otherwise
+     */
+    public static String approxSourceLocation(Node node) {
+        StackTraceElement[] stackTraceElements = approxSourceStackTraceElement(node);
+        if (stackTraceElements != null && stackTraceElements.length > 0) {
+            StackTraceElement top = stackTraceElements[0];
+            if (top.getFileName() != null && top.getLineNumber() >= 0) {
+                return top.getFileName() + ":" + top.getLineNumber();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Returns a string representation of the given collection of objects.
+     *
+     * @param objects The {@link Iterable} that will be used to iterate over the objects.
+     * @return A string of the format "[a, b, ...]".
+     */
+    public static String toString(Iterable<?> objects) {
+        StringBuilder str = new StringBuilder();
+        str.append("[");
+        for (Object o : objects) {
+            str.append(o).append(", ");
+        }
+        if (str.length() > 1) {
+            str.setLength(str.length() - 2);
+        }
+        str.append("]");
+        return str.toString();
+    }
+
+    /**
+     * Gets the original value by iterating through all {@link ValueProxy ValueProxies}.
+     *
+     * @param value the start value.
+     * @return the first non-proxy value encountered
+     */
+    public static ValueNode unproxify(ValueNode value) {
+        if (value instanceof ValueProxy) {
+            return unproxify((ValueProxy) value);
+        } else {
+            return value;
+        }
+    }
+
+    /**
+     * Gets the original value by iterating through all {@link ValueProxy ValueProxies}.
+     *
+     * @param value the start value proxy.
+     * @return the first non-proxy value encountered
+     */
+    public static ValueNode unproxify(ValueProxy value) {
+        if (value != null) {
+            ValueNode result = value.getOriginalNode();
+            while (result instanceof ValueProxy) {
+                result = ((ValueProxy) result).getOriginalNode();
+            }
+            return result;
+        } else {
+            return null;
+        }
+    }
+
+    public static ValueNode skipPi(ValueNode node) {
+        ValueNode n = node;
+        while (n instanceof PiNode) {
+            PiNode piNode = (PiNode) n;
+            n = piNode.getOriginalNode();
+        }
+        return n;
+    }
+
+    public static ValueNode skipPiWhileNonNullArray(ValueNode node) {
+        ValueNode n = node;
+        while (n instanceof PiNode) {
+            PiNode piNode = (PiNode) n;
+            ObjectStamp originalStamp = (ObjectStamp) piNode.getOriginalNode().stamp(NodeView.DEFAULT);
+            if (originalStamp.nonNull() && originalStamp.isAlwaysArray()) {
+                n = piNode.getOriginalNode();
+            } else {
+                break;
+            }
+        }
+        return n;
+    }
+
+    /**
+     * Returns the length of the array described by the value parameter, or null if it is not
+ 
