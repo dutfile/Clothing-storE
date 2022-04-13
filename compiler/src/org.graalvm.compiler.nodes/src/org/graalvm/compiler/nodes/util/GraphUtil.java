@@ -214,4 +214,147 @@ public class GraphUtil {
                             /*
                              * disconnect from loop begin so that reduceDegenerateLoopBegin doesn't
                              * transform it into a new beginNode
-                 
+                             */
+                            loopExit.replaceFirstInput(loopBegin, null);
+                        }
+                    }
+                    merge.graph().reduceDegenerateLoopBegin(loopBegin, true);
+                } else {
+                    merge.graph().reduceTrivialMerge(merge, true);
+                }
+            } else {
+                assert merge.phiPredecessorCount() > 1 : merge;
+            }
+        }
+    }
+
+    private static void markUsagesForKill(EconomicSet<Node> markedNodes) {
+        NodeStack workStack = new NodeStack(markedNodes.size() + 4);
+        for (Node marked : markedNodes) {
+            workStack.push(marked);
+        }
+        ArrayList<MultiGuardNode> unmarkedMultiGuards = new ArrayList<>();
+        while (!workStack.isEmpty()) {
+            Node marked = workStack.pop();
+            for (Node usage : marked.usages()) {
+                boolean doMark = true;
+                if (usage instanceof MultiGuardNode) {
+                    // Only mark a MultiGuardNode for deletion if all of its guards are marked for
+                    // deletion. Otherwise, we would kill nodes outside the path to be killed.
+                    MultiGuardNode multiGuard = (MultiGuardNode) usage;
+                    for (Node guard : multiGuard.inputs()) {
+                        if (!markedNodes.contains(guard)) {
+                            doMark = false;
+                            unmarkedMultiGuards.add(multiGuard);
+                        }
+                    }
+                }
+                if (doMark && !markedNodes.contains(usage)) {
+                    workStack.push(usage);
+                    markedNodes.add(usage);
+                }
+            }
+            // Detach unmarked multi guards from the marked node
+            for (MultiGuardNode multiGuard : unmarkedMultiGuards) {
+                multiGuard.replaceFirstInput(marked, null);
+            }
+            unmarkedMultiGuards.clear();
+        }
+    }
+
+    @SuppressWarnings("try")
+    public static void killCFG(FixedNode node) {
+        DebugContext debug = node.getDebug();
+        try (DebugContext.Scope scope = debug.scope("KillCFG", node)) {
+            EconomicSet<Node> unusedNodes = null;
+            EconomicSet<Node> unsafeNodes = null;
+            Graph.NodeEventScope nodeEventScope = null;
+            OptionValues options = node.getOptions();
+            boolean verifyGraalGraphEdges = node.graph().verifyGraphEdges;
+            boolean verifyKillCFGUnusedNodes = GraphUtil.Options.VerifyKillCFGUnusedNodes.getValue(options);
+            if (verifyGraalGraphEdges) {
+                unsafeNodes = collectUnsafeNodes(node.graph());
+            }
+            if (verifyKillCFGUnusedNodes) {
+                EconomicSet<Node> deadControlFLow = EconomicSet.create(Equivalence.IDENTITY);
+                for (Node n : node.graph().getNodes()) {
+                    if (n instanceof FixedNode && !(n instanceof AbstractMergeNode) && n.predecessor() == null) {
+                        deadControlFLow.add(n);
+                    }
+                }
+                EconomicSet<Node> collectedUnusedNodes = unusedNodes = EconomicSet.create(Equivalence.IDENTITY);
+                nodeEventScope = node.graph().trackNodeEvents(new Graph.NodeEventListener() {
+                    @Override
+                    public void changed(Graph.NodeEvent e, Node n) {
+                        if (e == Graph.NodeEvent.ZERO_USAGES && isFloatingNode(n) && !(n instanceof GuardNode)) {
+                            collectedUnusedNodes.add(n);
+                        }
+                        if (e == Graph.NodeEvent.INPUT_CHANGED && n instanceof FixedNode && !(n instanceof AbstractMergeNode) && n.predecessor() == null) {
+                            if (!deadControlFLow.contains(n)) {
+                                collectedUnusedNodes.add(n);
+                            }
+                        }
+                        if (e == Graph.NodeEvent.NODE_REMOVED) {
+                            collectedUnusedNodes.remove(n);
+                        }
+                    }
+                });
+            }
+            debug.dump(DebugContext.VERY_DETAILED_LEVEL, node.graph(), "Before killCFG %s", node);
+            killCFGInner(node);
+            debug.dump(DebugContext.VERY_DETAILED_LEVEL, node.graph(), "After killCFG %s", node);
+            if (verifyGraalGraphEdges) {
+                EconomicSet<Node> newUnsafeNodes = collectUnsafeNodes(node.graph());
+                newUnsafeNodes.removeAll(unsafeNodes);
+                assert newUnsafeNodes.isEmpty() : "New unsafe nodes: " + newUnsafeNodes;
+            }
+            if (verifyKillCFGUnusedNodes) {
+                nodeEventScope.close();
+                Iterator<Node> iterator = unusedNodes.iterator();
+                while (iterator.hasNext()) {
+                    Node curNode = iterator.next();
+                    if (curNode.isDeleted()) {
+                        GraalError.shouldNotReachHere(); // ExcludeFromJacocoGeneratedReport
+                    } else {
+                        if (curNode instanceof FixedNode && !(curNode instanceof AbstractMergeNode) && curNode.predecessor() != null) {
+                            iterator.remove();
+                        }
+                        if ((curNode instanceof PhiNode)) {
+                            // We seem to skip PhiNodes at the moment but that's mostly ok.
+                            iterator.remove();
+                        }
+                    }
+                }
+                GraalError.guarantee(unusedNodes.isEmpty(), "New unused nodes: %s", unusedNodes);
+            }
+        } catch (Throwable t) {
+            throw debug.handle(t);
+        }
+    }
+
+    /**
+     * Collects all node in the graph which have non-optional inputs that are null.
+     */
+    private static EconomicSet<Node> collectUnsafeNodes(Graph graph) {
+        EconomicSet<Node> unsafeNodes = EconomicSet.create(Equivalence.IDENTITY);
+        for (Node n : graph.getNodes()) {
+            for (Position pos : n.inputPositions()) {
+                Node input = pos.get(n);
+                if (input == null) {
+                    if (!pos.isInputOptional()) {
+                        unsafeNodes.add(n);
+                    }
+                }
+            }
+        }
+        return unsafeNodes;
+    }
+
+    public static boolean isFloatingNode(Node n) {
+        return !(n instanceof FixedNode);
+    }
+
+    private static boolean checkKill(Node node, boolean mayKillGuard) {
+        node.assertTrue(mayKillGuard || !(node instanceof GuardNode), "must not be a guard node %s", node);
+        node.assertTrue(node.isAlive(), "must be alive");
+        node.assertTrue(node.hasNoUsages(), "cannot kill node %s because of usages: %s", node, node.u
