@@ -713,4 +713,149 @@ public class GraphUtil {
 
     /**
      * Returns the length of the array described by the value parameter, or null if it is not
- 
+     * available. Details of the different modes are documented in {@link FindLengthMode}.
+     *
+     * @param value The start value.
+     * @param mode The mode as documented in {@link FindLengthMode}.
+     * @return The array length if one was found, or null otherwise.
+     */
+    public static ValueNode arrayLength(ValueNode value, FindLengthMode mode, ConstantReflectionProvider constantReflection) {
+        return arrayLength(value, mode, constantReflection, null);
+    }
+
+    private static ValueNode arrayLength(ValueNode value, FindLengthMode mode, ConstantReflectionProvider constantReflection, EconomicMap<ValueNode, ValueNode> visitedPhiInputs) {
+        Objects.requireNonNull(mode);
+
+        EconomicMap<ValueNode, ValueNode> visitedPhiInputMap = visitedPhiInputs;
+        ValueNode current = value;
+        do {
+            /*
+             * PiArrayNode implements ArrayLengthProvider and ValueProxy. We want to treat it as an
+             * ArrayLengthProvider, therefore we check this case first.
+             */
+            if (current instanceof ArrayLengthProvider) {
+                return ((ArrayLengthProvider) current).findLength(mode, constantReflection);
+
+            } else if (current instanceof ValuePhiNode) {
+                if (visitedPhiInputMap == null) {
+                    visitedPhiInputMap = EconomicMap.create();
+                }
+                return phiArrayLength((ValuePhiNode) current, mode, constantReflection, visitedPhiInputMap);
+
+            } else if (current instanceof ValueProxyNode) {
+                ValueProxyNode proxy = (ValueProxyNode) current;
+                ValueNode length = arrayLength(proxy.getOriginalNode(), mode, constantReflection);
+                if (mode == ArrayLengthProvider.FindLengthMode.CANONICALIZE_READ && length != null && !length.isConstant()) {
+                    length = new ValueProxyNode(length, proxy.proxyPoint());
+                }
+                return length;
+
+            } else if (current instanceof ValueProxy) {
+                /* Written as a loop instead of a recursive call to reduce recursion depth. */
+                current = ((ValueProxy) current).getOriginalNode();
+
+            } else {
+                return null;
+            }
+        } while (true);
+    }
+
+    private static ValueNode phiArrayLength(ValuePhiNode phi, ArrayLengthProvider.FindLengthMode mode, ConstantReflectionProvider constantReflection,
+                    EconomicMap<ValueNode, ValueNode> visitedPhiInputs) {
+        if (phi.merge() instanceof LoopBeginNode) {
+            /*
+             * Avoid fixed point computation by not processing phi functions that could introduce
+             * cycles.
+             */
+            return null;
+        }
+
+        ValueNode singleLength = null;
+        for (int i = 0; i < phi.values().count(); i++) {
+            ValueNode input = phi.values().get(i);
+            if (input == null) {
+                return null;
+            }
+            /*
+             * Multi-way phis can have the same input along many paths. Avoid the exponential blowup
+             * from visiting them many times.
+             */
+            ValueNode length = null;
+            if (visitedPhiInputs.containsKey(input)) {
+                length = visitedPhiInputs.get(input);
+            } else {
+                length = arrayLength(input, mode, constantReflection, visitedPhiInputs);
+                if (length == null) {
+                    return null;
+                }
+                visitedPhiInputs.put(input, length);
+            }
+            assert length.stamp(NodeView.DEFAULT).getStackKind() == JavaKind.Int;
+
+            if (i == 0) {
+                assert singleLength == null;
+                singleLength = length;
+            } else if (singleLength == length) {
+                /* Nothing to do, still having a single length. */
+            } else {
+                return null;
+            }
+        }
+        return singleLength;
+    }
+
+    /**
+     * Tries to find an original value of the given node by traversing through proxies and
+     * unambiguous phis. Note that this method will perform an exhaustive search through phis.
+     *
+     * @param value the node whose original value should be determined
+     * @param abortOnLoopPhi specifies if the traversal through phis should stop and return
+     *            {@code value} if it hits a {@linkplain PhiNode#isLoopPhi loop phi}. This argument
+     *            must be {@code true} if used during graph building as loop phi nodes may not yet
+     *            have all their inputs computed.
+     * @return the original value (which might be {@code value} itself)
+     */
+    public static ValueNode originalValue(ValueNode value, boolean abortOnLoopPhi) {
+        ValueNode result = originalValueSimple(value, abortOnLoopPhi);
+        assert result != null;
+        return result;
+    }
+
+    private static ValueNode originalValueSimple(ValueNode value, boolean abortOnLoopPhi) {
+        /* The very simple case: look through proxies. */
+        ValueNode cur = originalValueForProxy(value);
+
+        while (cur instanceof PhiNode) {
+            /*
+             * We found a phi function. Check if we can analyze it without allocating temporary data
+             * structures.
+             */
+            PhiNode phi = (PhiNode) cur;
+
+            if (abortOnLoopPhi && phi.isLoopPhi()) {
+                return value;
+            }
+
+            ValueNode phiSingleValue = null;
+            int count = phi.valueCount();
+            for (int i = 0; i < count; ++i) {
+                ValueNode phiCurValue = originalValueForProxy(phi.valueAt(i));
+                if (phiCurValue == phi) {
+                    /* Simple cycle, we can ignore the input value. */
+                } else if (phiSingleValue == null) {
+                    /* The first input. */
+                    phiSingleValue = phiCurValue;
+                } else if (phiSingleValue != phiCurValue) {
+                    /* Another input that is different from the first input. */
+
+                    if (phiSingleValue instanceof PhiNode || phiCurValue instanceof PhiNode) {
+                        /*
+                         * We have two different input values for the phi function, and at least one
+                         * of the inputs is another phi function. We need to do a complicated
+                         * exhaustive check.
+                         */
+                        return originalValueForComplicatedPhi(value, phi, new NodeBitMap(value.graph()), abortOnLoopPhi);
+                    } else {
+                        /*
+                         * We have two different input values for the phi function, but none of them
+                         * is a
