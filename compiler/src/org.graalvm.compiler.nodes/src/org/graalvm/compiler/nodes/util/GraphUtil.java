@@ -858,4 +858,193 @@ public class GraphUtil {
                     } else {
                         /*
                          * We have two different input values for the phi function, but none of them
-                         * is a
+                         * is another phi function. This phi function cannot be reduce any further,
+                         * so the phi function is the original value.
+                         */
+                        return phi;
+                    }
+                }
+            }
+
+            /*
+             * Successfully reduced the phi function to a single input value. The single input value
+             * can itself be a phi function again, so we might take another loop iteration.
+             */
+            assert phiSingleValue != null;
+            cur = phiSingleValue;
+        }
+
+        /* We reached a "normal" node, which is the original value. */
+        assert !(cur instanceof LimitedValueProxy) && !(cur instanceof PhiNode);
+        return cur;
+    }
+
+    private static ValueNode originalValueForProxy(ValueNode value) {
+        ValueNode cur = value;
+        while (cur instanceof LimitedValueProxy) {
+            cur = ((LimitedValueProxy) cur).getOriginalNode();
+        }
+        return cur;
+    }
+
+    /**
+     * Handling for complicated nestings of phi functions. We need to reduce phi functions
+     * recursively, and need a temporary map of visited nodes to avoid endless recursion of cycles.
+     *
+     * @param value the node whose original value is being determined
+     * @param abortOnLoopPhi specifies if the traversal through phis should stop and return
+     *            {@code value} if it hits a {@linkplain PhiNode#isLoopPhi loop phi}
+     */
+    private static ValueNode originalValueForComplicatedPhi(ValueNode value, PhiNode phi, NodeBitMap visited, boolean abortOnLoopPhi) {
+        if (visited.isMarked(phi)) {
+            /*
+             * Found a phi function that was already seen. Either a cycle, or just a second phi
+             * input to a path we have already processed.
+             */
+            return null;
+        }
+        visited.mark(phi);
+
+        ValueNode phiSingleValue = null;
+        int count = phi.valueCount();
+        for (int i = 0; i < count; ++i) {
+            ValueNode phiCurValue = originalValueForProxy(phi.valueAt(i));
+            if (phiCurValue instanceof PhiNode) {
+                /* Recursively process a phi function input. */
+                PhiNode curPhi = (PhiNode) phiCurValue;
+                if (abortOnLoopPhi && curPhi.isLoopPhi()) {
+                    return value;
+                }
+                phiCurValue = originalValueForComplicatedPhi(value, curPhi, visited, abortOnLoopPhi);
+                if (phiCurValue == value) {
+                    // Hit a loop phi
+                    assert abortOnLoopPhi;
+                    return value;
+                }
+            }
+
+            if (phiCurValue == null) {
+                /* Cycle to a phi function that was already seen. We can ignore this input. */
+            } else if (phiSingleValue == null) {
+                /* The first input. */
+                phiSingleValue = phiCurValue;
+            } else if (phiCurValue != phiSingleValue) {
+                /*
+                 * Another input that is different from the first input. Since we already
+                 * recursively looked through other phi functions, we now know that this phi
+                 * function cannot be reduce any further, so the phi function is the original value.
+                 */
+                return phi;
+            }
+        }
+        return phiSingleValue;
+    }
+
+    public static boolean tryKillUnused(Node node) {
+        if (node.isAlive() && isFloatingNode(node) && node.hasNoUsages() && !(node instanceof GuardNode)) {
+            killWithUnusedFloatingInputs(node);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Returns an iterator that will return the given node followed by all its predecessors, up
+     * until the point where {@link Node#predecessor()} returns null.
+     *
+     * @param start the node at which to start iterating
+     */
+    public static NodeIterable<FixedNode> predecessorIterable(final FixedNode start) {
+        return new NodeIterable<>() {
+            @Override
+            public Iterator<FixedNode> iterator() {
+                return new Iterator<>() {
+                    public FixedNode current = start;
+
+                    @Override
+                    public boolean hasNext() {
+                        return current != null;
+                    }
+
+                    @Override
+                    public FixedNode next() {
+                        try {
+                            return current;
+                        } finally {
+                            current = (FixedNode) current.predecessor();
+                        }
+                    }
+                };
+            }
+        };
+    }
+
+    private static final class DefaultSimplifierTool extends CoreProvidersDelegate implements SimplifierTool {
+        private final boolean canonicalizeReads;
+        private final Assumptions assumptions;
+        private final OptionValues options;
+
+        DefaultSimplifierTool(CoreProviders providers, boolean canonicalizeReads, Assumptions assumptions, OptionValues options) {
+            super(providers);
+            this.canonicalizeReads = canonicalizeReads;
+            this.assumptions = assumptions;
+            this.options = options;
+        }
+
+        @Override
+        public boolean canonicalizeReads() {
+            return canonicalizeReads;
+        }
+
+        @Override
+        public boolean allUsagesAvailable() {
+            return true;
+        }
+
+        @Override
+        public void deleteBranch(Node branch) {
+            FixedNode fixedBranch = (FixedNode) branch;
+            fixedBranch.predecessor().replaceFirstSuccessor(fixedBranch, null);
+            GraphUtil.killCFG(fixedBranch);
+        }
+
+        @Override
+        public void removeIfUnused(Node node) {
+            GraphUtil.tryKillUnused(node);
+        }
+
+        @Override
+        public void addToWorkList(Node node) {
+        }
+
+        @Override
+        public void addToWorkList(Iterable<? extends Node> nodes) {
+        }
+
+        @Override
+        public boolean trySinkWriteFences() {
+            return false;
+        }
+
+        @Override
+        public Assumptions getAssumptions() {
+            return assumptions;
+        }
+
+        @Override
+        public OptionValues getOptions() {
+            return options;
+        }
+
+        @Override
+        public Integer smallestCompareWidth() {
+            if (getLowerer() != null) {
+                return getLowerer().smallestCompareWidth();
+            } else {
+                return null;
+            }
+        }
+
+        @Override
+        public boolean supportsRounding() {
+            if (getLowerer()
