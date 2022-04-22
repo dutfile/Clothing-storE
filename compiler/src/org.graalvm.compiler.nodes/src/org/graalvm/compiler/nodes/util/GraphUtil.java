@@ -1192,4 +1192,124 @@ public class GraphUtil {
                 }
                 return false;
             } else if (node instanceof FixedWithNextNode) {
-                FixedWithNextNode fixedWithNextNode = (FixedWithNextNode) n
+                FixedWithNextNode fixedWithNextNode = (FixedWithNextNode) node;
+                node = fixedWithNextNode.next();
+            } else if (node instanceof AbstractEndNode) {
+                AbstractEndNode endNode = (AbstractEndNode) node;
+                node = endNode.merge();
+            } else if (node instanceof ControlSinkNode) {
+                return true;
+            } else {
+                assert false : "unexpected node";
+                return false;
+            }
+        }
+    }
+
+    public static boolean mayRemoveSplit(IfNode ifNode) {
+        return GraphUtil.checkFrameState(ifNode.trueSuccessor(), MAX_FRAMESTATE_SEARCH_DEPTH) && GraphUtil.checkFrameState(ifNode.falseSuccessor(), MAX_FRAMESTATE_SEARCH_DEPTH);
+    }
+
+    /**
+     * An if node with an empty body at the end of a loop is represented with a {@link LoopEndNode}
+     * at the end of each path. For some optimizations it is more useful to have a representation of
+     * the if statement as a proper diamond with a merge after the two bodies, followed by a
+     * {@link LoopEndNode}. This method tries to transform the given {@code ifNode} into such a
+     * form, introducing new phi nodes for the diamond and patching up the loop's phis accordingly.
+     * On success, the newly introduced loop end node is returned. If the given {@code ifNode} is
+     * not an if statement with empty bodies at the end of the loop, the graph is not modified, and
+     * {@code null} is returned.
+     *
+     * Note that the diamond representation is not canonical and will be undone by the next
+     * application of {@link AbstractMergeNode#simplify(SimplifierTool)} to the merge.
+     */
+    public static LoopEndNode tryToTransformToEmptyLoopDiamond(IfNode ifNode, LoopBeginNode loopBegin) {
+        if (ifNode.trueSuccessor().next() instanceof AbstractEndNode && ifNode.falseSuccessor().next() instanceof AbstractEndNode) {
+            AbstractEndNode trueEnd = (AbstractEndNode) ifNode.trueSuccessor().next();
+            AbstractEndNode falseEnd = (AbstractEndNode) ifNode.falseSuccessor().next();
+            if (trueEnd.merge() == loopBegin && falseEnd.merge() == loopBegin) {
+                StructuredGraph graph = loopBegin.graph();
+                for (PhiNode phi : loopBegin.phis()) {
+                    if (!(phi instanceof ValuePhiNode || phi instanceof MemoryPhiNode)) {
+                        return null;
+                    }
+                }
+
+                EndNode newTrueEnd = graph.add(new EndNode());
+                EndNode newFalseEnd = graph.add(new EndNode());
+                MergeNode merge = graph.add(new MergeNode());
+                merge.addForwardEnd(newTrueEnd);
+                merge.addForwardEnd(newFalseEnd);
+
+                EconomicMap<PhiNode, PhiNode> replacementPhis = EconomicMap.create(Equivalence.IDENTITY);
+                for (PhiNode phi : loopBegin.phis()) {
+                    if (phi instanceof ValuePhiNode) {
+                        ValuePhiNode valuePhi = (ValuePhiNode) phi;
+                        ValuePhiNode newPhi = phi.graph().unique(new ValuePhiNode(valuePhi.stamp(NodeView.DEFAULT), merge, new ValueNode[]{valuePhi.valueAt(trueEnd), valuePhi.valueAt(falseEnd)}));
+                        replacementPhis.put(phi, newPhi);
+                    } else if (phi instanceof MemoryPhiNode) {
+                        MemoryPhiNode memoryPhi = (MemoryPhiNode) phi;
+                        MemoryPhiNode newPhi = phi.graph().unique(new MemoryPhiNode(merge, memoryPhi.getLocationIdentity(), new ValueNode[]{memoryPhi.valueAt(trueEnd), memoryPhi.valueAt(falseEnd)}));
+                        replacementPhis.put(phi, newPhi);
+                    } else {
+                        GraalError.shouldNotReachHere(); // ExcludeFromJacocoGeneratedReport
+                    }
+                }
+                assert loopBegin.phis().count() == replacementPhis.size();
+
+                loopBegin.removeEnd(trueEnd);
+                loopBegin.removeEnd(falseEnd);
+                ifNode.trueSuccessor().setNext(newTrueEnd);
+                ifNode.falseSuccessor().setNext(newFalseEnd);
+                trueEnd.safeDelete();
+                falseEnd.safeDelete();
+
+                LoopEndNode newEnd = graph.add(new LoopEndNode(loopBegin));
+                merge.setNext(newEnd);
+                int i = 0;
+                for (PhiNode phi : loopBegin.phis()) {
+                    PhiNode replacementPhi = replacementPhis.get(phi);
+                    assert (phi instanceof ValuePhiNode && replacementPhi instanceof ValuePhiNode) || (phi instanceof MemoryPhiNode && replacementPhi instanceof MemoryPhiNode);
+                    ValueNode replacementValue = replacementPhi.singleValueOrThis();
+                    phi.addInput(replacementValue);
+                    i++;
+                }
+                assert i == replacementPhis.size() : "did not consume all values";
+                for (PhiNode maybeUnused : replacementPhis.getValues()) {
+                    if (maybeUnused.hasNoUsages() && !maybeUnused.isDeleted()) {
+                        maybeUnused.safeDelete();
+                    }
+                }
+
+                return newEnd;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Find the last, i.e. dominating, {@link StateSplit} node that returns {@code true} for
+     * {@link StateSplit#hasSideEffect()} and return its {@link StateSplit#stateAfter()}. That is
+     * the {@link FrameState} node describing the current frame since no {@linkplain StateSplit side
+     * effect} happened in between.
+     *
+     * This method will check Graal's invariant relations regarding side-effects and framestates.
+     */
+    public static FrameState findLastFrameState(FixedNode start) {
+        GraalError.guarantee(start.graph().getGuardsStage().areFrameStatesAtSideEffects(), "Framestates must be at side effects when looking for state split nodes");
+        assert start != null;
+        FixedNode lastFixedNode = null;
+        FixedNode currentStart = start;
+        while (true) {
+            for (FixedNode fixed : GraphUtil.predecessorIterable(currentStart)) {
+                if (fixed instanceof StateSplit) {
+                    StateSplit stateSplit = (StateSplit) fixed;
+                    GraalError.guarantee(!stateSplit.hasSideEffect() || stateSplit.stateAfter() != null, "Found state split with side-effect without framestate=%s", stateSplit);
+                    if (stateSplit.stateAfter() != null) {
+                        return stateSplit.stateAfter();
+                    }
+                }
+                lastFixedNode = fixed;
+            }
+            if (lastFixedNode instanceof LoopBeginNode) {
+                currentStart = ((LoopBeginNode) l
