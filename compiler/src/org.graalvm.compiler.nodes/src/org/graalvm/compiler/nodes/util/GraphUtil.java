@@ -1047,4 +1047,149 @@ public class GraphUtil {
 
         @Override
         public boolean supportsRounding() {
-            if (getLowerer()
+            if (getLowerer() != null) {
+                return getLowerer().supportsRounding();
+            } else {
+                return false;
+            }
+        }
+
+        @Override
+        public boolean divisionOverflowIsJVMSCompliant() {
+            if (getLowerer() != null) {
+                return getLowerer().divisionOverflowIsJVMSCompliant();
+            } else {
+                // prevent accidental floating of divs if we don't know the target arch
+                return false;
+            }
+        }
+    }
+
+    public static SimplifierTool getDefaultSimplifier(CoreProviders providers, boolean canonicalizeReads, Assumptions assumptions, OptionValues options) {
+        return new DefaultSimplifierTool(providers, canonicalizeReads, assumptions, options);
+    }
+
+    /**
+     * Virtualize an array copy.
+     *
+     * @param tool the virtualization tool
+     * @param source the source array
+     * @param sourceLength the length of the source array
+     * @param newLength the length of the new array
+     * @param from the start index in the source array
+     * @param newComponentType the component type of the new array
+     * @param elementKind the kind of the new array elements
+     * @param graph the node graph
+     * @param virtualArrayProvider a functional provider that returns a new virtual array given the
+     *            component type and length
+     */
+    public static void virtualizeArrayCopy(VirtualizerTool tool, ValueNode source, ValueNode sourceLength, ValueNode newLength, ValueNode from, ResolvedJavaType newComponentType, JavaKind elementKind,
+                    StructuredGraph graph, BiFunction<ResolvedJavaType, Integer, VirtualArrayNode> virtualArrayProvider) {
+
+        ValueNode sourceAlias = tool.getAlias(source);
+        ValueNode replacedSourceLength = tool.getAlias(sourceLength);
+        ValueNode replacedNewLength = tool.getAlias(newLength);
+        ValueNode replacedFrom = tool.getAlias(from);
+        if (!replacedNewLength.isConstant() || !replacedFrom.isConstant() || !replacedSourceLength.isConstant()) {
+            return;
+        }
+
+        assert newComponentType != null : "An array copy can be virtualized only if the real type of the resulting array is known statically.";
+
+        int fromInt = replacedFrom.asJavaConstant().asInt();
+        int newLengthInt = replacedNewLength.asJavaConstant().asInt();
+        int sourceLengthInt = replacedSourceLength.asJavaConstant().asInt();
+        if (sourceAlias instanceof VirtualObjectNode) {
+            VirtualObjectNode sourceVirtual = (VirtualObjectNode) sourceAlias;
+            assert sourceLengthInt == sourceVirtual.entryCount();
+        }
+
+        if (fromInt < 0 || newLengthInt < 0 || fromInt > sourceLengthInt) {
+            /* Illegal values for either from index, the new length or the source length. */
+            return;
+        }
+
+        if (newLengthInt > tool.getMaximumEntryCount()) {
+            /* The new array size is higher than maximum allowed size of virtualized objects. */
+            return;
+        }
+
+        ValueNode[] newEntryState = new ValueNode[newLengthInt];
+        int readLength = Math.min(newLengthInt, sourceLengthInt - fromInt);
+
+        if (sourceAlias instanceof VirtualObjectNode) {
+            /* The source array is virtualized, just copy over the values. */
+            VirtualObjectNode sourceVirtual = (VirtualObjectNode) sourceAlias;
+            boolean alwaysAssignable = newComponentType.getJavaKind() == JavaKind.Object && newComponentType.isJavaLangObject();
+            for (int i = 0; i < readLength; i++) {
+                ValueNode entry = tool.getEntry(sourceVirtual, fromInt + i);
+                if (!alwaysAssignable) {
+                    ResolvedJavaType entryType = StampTool.typeOrNull(entry, tool.getMetaAccess());
+                    if (entryType == null) {
+                        return;
+                    }
+                    if (!newComponentType.isAssignableFrom(entryType)) {
+                        return;
+                    }
+                }
+                newEntryState[i] = entry;
+            }
+        } else {
+            /* The source array is not virtualized, emit index loads. */
+            ResolvedJavaType sourceType = StampTool.typeOrNull(sourceAlias, tool.getMetaAccess());
+            if (sourceType == null || !sourceType.isArray() || !newComponentType.isAssignableFrom(sourceType.getElementalType())) {
+                return;
+            }
+            for (int i = 0; i < readLength; i++) {
+                LoadIndexedNode load = new LoadIndexedNode(null, sourceAlias, ConstantNode.forInt(i + fromInt, graph), null, elementKind);
+                tool.addNode(load);
+                newEntryState[i] = load;
+            }
+        }
+        if (readLength < newLengthInt) {
+            /* Pad the copy with the default value of its elment kind. */
+            ValueNode defaultValue = ConstantNode.defaultForKind(elementKind, graph);
+            for (int i = readLength; i < newLengthInt; i++) {
+                newEntryState[i] = defaultValue;
+            }
+        }
+        /* Perform the replacement. */
+        VirtualArrayNode newVirtualArray = virtualArrayProvider.apply(newComponentType, newLengthInt);
+        tool.createVirtualObject(newVirtualArray, newEntryState, Collections.<MonitorIdNode> emptyList(), source.getNodeSourcePosition(), false);
+        tool.replaceWithVirtual(newVirtualArray);
+    }
+
+    /**
+     * Snippet lowerings may produce patterns without a frame state on the merge. We need to take
+     * extra care when optimizing these patterns.
+     */
+    public static boolean checkFrameState(FixedNode start, int maxDepth) {
+        if (maxDepth == 0) {
+            return false;
+        }
+        FixedNode node = start;
+        while (true) {
+            if (node instanceof AbstractMergeNode) {
+                AbstractMergeNode mergeNode = (AbstractMergeNode) node;
+                if (mergeNode.stateAfter() == null) {
+                    return false;
+                } else {
+                    return true;
+                }
+            } else if (node instanceof StateSplit) {
+                StateSplit stateSplitNode = (StateSplit) node;
+                if (stateSplitNode.stateAfter() != null) {
+                    return true;
+                }
+            }
+
+            if (node instanceof ControlSplitNode) {
+                ControlSplitNode controlSplitNode = (ControlSplitNode) node;
+                for (Node succ : controlSplitNode.cfgSuccessors()) {
+                    if (checkFrameState((FixedNode) succ, maxDepth - 1)) {
+                        return true;
+                    }
+                }
+                return false;
+            } else if (node instanceof FixedWithNextNode) {
+                FixedWithNextNode fixedWithNextNode = (FixedWithNextNode) n
