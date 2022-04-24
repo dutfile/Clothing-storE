@@ -1312,4 +1312,12 @@ public class GraphUtil {
                 lastFixedNode = fixed;
             }
             if (lastFixedNode instanceof LoopBeginNode) {
-                currentStart = ((LoopBeginNode) l
+                currentStart = ((LoopBeginNode) lastFixedNode).forwardEnd();
+                continue;
+            }
+            break;
+        }
+        return null;
+    }
+
+}
