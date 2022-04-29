@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, 2020, Oracle and/or its affiliates.
+ * Copyright (c) 2020, Oracle and/or its affiliates.
  *
  * All rights reserved.
  *
@@ -27,8 +27,18 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#include <stdio.h>
+
+struct Klass {
+    Klass() : y(1) {
+    }
+    int x;
+    int y;
+};
+
+Klass m;
+static Klass &k = m;
+
 int main() {
-    int a;
-    a = 5;
-    return a;
+    return k.x + k.y;
 }
