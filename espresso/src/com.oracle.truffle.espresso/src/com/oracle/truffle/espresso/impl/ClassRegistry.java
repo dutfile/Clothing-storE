@@ -270,4 +270,155 @@ public abstract class ClassRegistry {
     /**
      * Queries a registry to load a Klass for us.
      *
-     * @param type the symbolic reference to the Klas
+     * @param type the symbolic reference to the Klass we want to load
+     * @param protectionDomain The protection domain extracted from the guest class, or
+     *            {@link StaticObject#NULL} if trusted.
+     * @return The Klass corresponding to given type
+     */
+    @SuppressWarnings("try")
+    Klass loadKlass(EspressoContext context, Symbol<Type> type, StaticObject protectionDomain) throws EspressoClassLoadingException {
+        ClassLoadingEnv env = context.getClassLoadingEnv();
+        if (Types.isArray(type)) {
+            Klass elemental = loadKlass(context, env.getTypes().getElementalType(type), protectionDomain);
+            if (elemental == null) {
+                return null;
+            }
+            return elemental.getArrayClass(Types.getArrayDimensions(type));
+        }
+
+        loadKlassCountInc();
+
+        // Double-checked locking on the symbol (globally unique).
+        ClassRegistries.RegistryEntry entry;
+        try (DebugCloseable probe = KLASS_PROBE.scope(env.getTimers())) {
+            entry = classes.get(type);
+        }
+        if (entry == null) {
+            synchronized (type) {
+                entry = classes.get(type);
+                if (entry == null) {
+                    if (loadKlassImpl(context, type) == null) {
+                        return null;
+                    }
+                    entry = classes.get(type);
+                }
+            }
+        } else {
+            // Grabbing a lock to fetch the class is not considered a hit.
+            loadKlassCacheHitsInc();
+        }
+        assert entry != null;
+        StaticObject classLoader = getClassLoader();
+        if (!StaticObject.isNull(classLoader)) {
+            entry.checkPackageAccess(env.getMeta(), classLoader, protectionDomain);
+        }
+        return entry.klass();
+    }
+
+    protected abstract Klass loadKlassImpl(EspressoContext context, Symbol<Type> type) throws EspressoClassLoadingException;
+
+    protected abstract void loadKlassCountInc();
+
+    protected abstract void loadKlassCacheHitsInc();
+
+    public abstract @JavaType(ClassLoader.class) StaticObject getClassLoader();
+
+    public List<Klass> getLoadedKlasses() {
+        ArrayList<Klass> klasses = new ArrayList<>(classes.size());
+        for (ClassRegistries.RegistryEntry entry : classes.values()) {
+            klasses.add(entry.klass());
+        }
+        return klasses;
+    }
+
+    public Klass findLoadedKlass(ClassLoadingEnv env, Symbol<Type> type) {
+        if (Types.isArray(type)) {
+            Symbol<Type> elemental = env.getTypes().getElementalType(type);
+            Klass elementalKlass = findLoadedKlass(env, elemental);
+            if (elementalKlass == null) {
+                return null;
+            }
+            return elementalKlass.getArrayClass(Types.getArrayDimensions(type));
+        }
+        ClassRegistries.RegistryEntry entry = classes.get(type);
+        if (entry == null) {
+            return null;
+        }
+        return entry.klass();
+    }
+
+    public final ObjectKlass defineKlass(EspressoContext context, Symbol<Type> typeOrNull, final byte[] bytes) throws EspressoClassLoadingException {
+        return defineKlass(context, typeOrNull, bytes, ClassDefinitionInfo.EMPTY);
+    }
+
+    @SuppressWarnings("try")
+    public ObjectKlass defineKlass(EspressoContext context, Symbol<Type> typeOrNull, final byte[] bytes, ClassDefinitionInfo info) throws EspressoClassLoadingException {
+        ClassLoadingEnv env = context.getClassLoadingEnv();
+        ParserKlass parserKlass;
+        try (DebugCloseable parse = KLASS_PARSE.scope(env.getTimers())) {
+            parserKlass = parseKlass(env, bytes, typeOrNull, info);
+        }
+        Symbol<Type> type = typeOrNull == null ? parserKlass.getType() : typeOrNull;
+
+        if (info.addedToRegistry()) {
+            Klass maybeLoaded = findLoadedKlass(env, type);
+            if (maybeLoaded != null) {
+                throw EspressoClassLoadingException.linkageError("Class " + type + " already defined");
+            }
+        }
+
+        Symbol<Type> superKlassType = parserKlass.getSuperKlass();
+
+        ObjectKlass klass = createKlass(context, parserKlass, type, superKlassType, info);
+        if (info.addedToRegistry()) {
+            registerKlass(klass, type);
+        } else if (info.isStrongHidden()) {
+            registerStrongHiddenClass(klass);
+        }
+        return klass;
+    }
+
+    private ParserKlass parseKlass(ClassLoadingEnv env, byte[] bytes, Symbol<Type> typeOrNull, ClassDefinitionInfo info) throws EspressoClassLoadingException.SecurityException {
+        // May throw guest ClassFormatError, NoClassDefFoundError.
+        ParserKlass parserKlass = env.getLanguage().getLanguageCache().getOrCreateParserKlass(env, getClassLoader(), typeOrNull, bytes, info);
+        if (!env.loaderIsBootOrPlatform(getClassLoader()) && parserKlass.getName().toString().startsWith("java/")) {
+            throw EspressoClassLoadingException.securityException("Define class in prohibited package name: " + parserKlass.getName());
+        }
+        return parserKlass;
+    }
+
+    @SuppressWarnings("try")
+    private ObjectKlass createKlass(EspressoContext context, ParserKlass parserKlass, Symbol<Type> type, Symbol<Type> superKlassType, ClassDefinitionInfo info) throws EspressoClassLoadingException {
+        ClassLoadingEnv env = context.getClassLoadingEnv();
+        EspressoThreadLocalState threadLocalState = env.getLanguage().getThreadLocalState();
+        TypeStack chain = threadLocalState.getTypeStack();
+
+        ObjectKlass superKlass = null;
+        ObjectKlass[] superInterfaces = null;
+        LinkedKlass[] linkedInterfaces = null;
+
+        chain.push(type);
+
+        try {
+            if (superKlassType != null) {
+                if (chain.contains(superKlassType)) {
+                    throw EspressoClassLoadingException.classCircularityError();
+                }
+                superKlass = loadKlassRecursively(context, superKlassType, true);
+            }
+
+            final Symbol<Type>[] superInterfacesTypes = parserKlass.getSuperInterfaces();
+
+            linkedInterfaces = superInterfacesTypes.length == 0
+                            ? LinkedKlass.EMPTY_ARRAY
+                            : new LinkedKlass[superInterfacesTypes.length];
+
+            superInterfaces = superInterfacesTypes.length == 0
+                            ? ObjectKlass.EMPTY_ARRAY
+                            : new ObjectKlass[superInterfacesTypes.length];
+
+            for (int i = 0; i < superInterfacesTypes.length; ++i) {
+                if (chain.contains(superInterfacesTypes[i])) {
+                    throw EspressoClassLoadingException.classCircularityError();
+                }
+                ObjectKl
