@@ -421,4 +421,110 @@ public abstract class ClassRegistry {
                 if (chain.contains(superInterfacesTypes[i])) {
                     throw EspressoClassLoadingException.classCircularityError();
                 }
-                ObjectKl
+                ObjectKlass interf = loadKlassRecursively(context, superInterfacesTypes[i], false);
+                superInterfaces[i] = interf;
+                linkedInterfaces[i] = interf.getLinkedKlass();
+            }
+        } finally {
+            chain.pop();
+        }
+
+        if (env.getJavaVersion().java16OrLater() && superKlass != null) {
+            if (superKlass.isFinalFlagSet()) {
+                throw EspressoClassLoadingException.incompatibleClassChangeError("class " + type + " is a subclass of final class " + superKlassType);
+            }
+        }
+
+        ObjectKlass klass;
+
+        try (DebugCloseable define = KLASS_DEFINE.scope(env.getTimers())) {
+            // FIXME(peterssen): Do NOT create a LinkedKlass every time, use a global cache.
+            ContextDescription description = new ContextDescription(env.getLanguage(), env.getJavaVersion());
+            LinkedKlass linkedSuperKlass = superKlass == null ? null : superKlass.getLinkedKlass();
+            LinkedKlass linkedKlass = env.getLanguage().getLanguageCache().getOrCreateLinkedKlass(description, parserKlass, linkedSuperKlass, linkedInterfaces, info);
+            klass = new ObjectKlass(context, linkedKlass, superKlass, superInterfaces, getClassLoader(), info);
+        }
+
+        if (superKlass != null) {
+            if (!Klass.checkAccess(superKlass, klass)) {
+                throw EspressoClassLoadingException.illegalAccessError("class " + type + " cannot access its superclass " + superKlassType);
+            }
+            if (!superKlass.permittedSubclassCheck(klass)) {
+                throw EspressoClassLoadingException.incompatibleClassChangeError("class " + type + " is not a permitted subclass of class " + superKlassType);
+            }
+        }
+
+        for (ObjectKlass interf : superInterfaces) {
+            if (interf != null) {
+                if (!Klass.checkAccess(interf, klass)) {
+                    throw EspressoClassLoadingException.illegalAccessError("class " + type + " cannot access its superinterface " + interf.getType());
+                }
+                if (!interf.permittedSubclassCheck(klass)) {
+                    throw EspressoClassLoadingException.incompatibleClassChangeError("class " + type + " is not a permitted subclass of interface " + superKlassType);
+                }
+            }
+        }
+
+        return klass;
+    }
+
+    private void registerKlass(ObjectKlass klass, Symbol<Type> type) {
+        ClassRegistries.RegistryEntry entry = new ClassRegistries.RegistryEntry(klass);
+        ClassRegistries.RegistryEntry previous = classes.putIfAbsent(type, entry);
+
+        EspressoError.guarantee(previous == null, "Class already defined", type);
+
+        klass.getRegistries().recordConstraint(type, klass, getClassLoader());
+        klass.getRegistries().onKlassDefined(klass);
+        if (defineKlassListener != null) {
+            defineKlassListener.onKlassDefined(klass);
+        }
+    }
+
+    private ObjectKlass loadKlassRecursively(EspressoContext context, Symbol<Type> type, boolean notInterface) throws EspressoClassLoadingException {
+        ClassLoadingEnv env = context.getClassLoadingEnv();
+        Klass klass;
+        try {
+            klass = loadKlass(context, type, StaticObject.NULL);
+        } catch (EspressoException e) {
+            throw EspressoClassLoadingException.wrapClassNotFoundGuestException(env, e);
+        }
+        if (notInterface == klass.isInterface()) {
+            throw EspressoClassLoadingException.incompatibleClassChangeError("Super interface of " + type + " is in fact not an interface.");
+        }
+        return (ObjectKlass) klass;
+    }
+
+    public void onClassRenamed(ObjectKlass renamedKlass) {
+        // this method is constructed so that any existing class loader constraint
+        // for the new type is removed from the class registries first. This allows
+        // a clean addition of a new class loader constraint for the new type for a
+        // different klass object.
+
+        // The old type of the renamed klass object will not be handled within this
+        // method. There are two possible ways in which the old type is handled, 1)
+        // if another renamed class instance now has the old type, it will also go
+        // through this method directly or 2) if no klass instance has the new type
+        // the old klass instance will be marked as removed and will follow a direct
+        // path to ClassRegistries.removeUnloadedKlassConstraint().
+
+        ClassLoadingEnv env = renamedKlass.getContext().getClassLoadingEnv();
+        Klass loadedKlass = findLoadedKlass(env, renamedKlass.getType());
+        if (loadedKlass != null) {
+            loadedKlass.getRegistries().removeUnloadedKlassConstraint(loadedKlass, renamedKlass.getType());
+        }
+
+        classes.put(renamedKlass.getType(), new ClassRegistries.RegistryEntry(renamedKlass));
+        // record the new loading constraint
+        renamedKlass.getRegistries().recordConstraint(renamedKlass.getType(), renamedKlass, renamedKlass.getDefiningClassLoader());
+    }
+
+    public void onInnerClassRemoved(Symbol<Symbol.Type> type) {
+        // "unload" the class by removing from classes
+        ClassRegistries.RegistryEntry removed = classes.remove(type);
+        // purge class loader constraint for this type
+        if (removed != null && removed.klass() != null) {
+            removed.klass().getRegistries().removeUnloadedKlassConstraint(removed.klass(), type);
+        }
+    }
+}
