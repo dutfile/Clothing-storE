@@ -58,4 +58,115 @@ public class ConstantPoolTool {
         DYNAMIC(4),
         INVOKEDYNAMIC(4),
         MODULE(2),
-     
+        PACKAGE(2);
+
+        static final ConstantKind[] VALUES = values();
+
+        final int lengthWithoutTag;
+        final int tableEntries;
+
+        ConstantKind(int lengthWithoutTag) {
+            this(lengthWithoutTag, 1);
+        }
+
+        ConstantKind(int lengthWithoutTag, int tableEntries) {
+            this.lengthWithoutTag = lengthWithoutTag;
+            this.tableEntries = tableEntries;
+        }
+    }
+
+    public static class MethodReference {
+        public final CharSequence name;
+        public final CharSequence descriptor;
+
+        MethodReference(CharSequence name, CharSequence descriptor) {
+            this.name = name;
+            this.descriptor = descriptor;
+        }
+    }
+
+    private final ByteBuffer buffer;
+
+    private int cachedIndex = 1;
+    private int cachedIndexOffset = 0;
+
+    public ConstantPoolTool(ByteBuffer buffer) {
+        this.buffer = buffer;
+    }
+
+    public MethodReference readMethodReference(int cpi) {
+        try {
+            seekEntryPastTag(cpi, ConstantKind.METHODREF);
+            buffer.getShort(); // class: not needed at the moment
+            int nameAndTypeIndex = Short.toUnsignedInt(buffer.getShort());
+
+            seekEntryPastTag(nameAndTypeIndex, ConstantKind.NAMEANDTYPE);
+            int nameIndex = Short.toUnsignedInt(buffer.getShort());
+            int descriptorIndex = Short.toUnsignedInt(buffer.getShort());
+
+            CharSequence name = readUTF(nameIndex);
+            CharSequence descriptor = readUTF(descriptorIndex);
+            return new MethodReference(name, descriptor);
+        } catch (BufferUnderflowException | IllegalArgumentException | CharacterCodingException e) {
+            throw new ConstantPoolException("Malformed constant pool", e);
+        }
+    }
+
+    private void seekEntryPastTag(int cpi, ConstantKind expectedKind) {
+        seekEntry(cpi);
+        int tag = Byte.toUnsignedInt(buffer.get());
+        if (tag != expectedKind.ordinal()) {
+            throw new ConstantPoolException("Expected tag " + expectedKind.ordinal());
+        }
+    }
+
+    private CharSequence readUTF(int cpi) throws CharacterCodingException {
+        seekEntryPastTag(cpi, ConstantKind.UTF8);
+        int length = Short.toUnsignedInt(buffer.getShort());
+        int previousLimit = buffer.limit();
+        buffer.limit(buffer.position() + length);
+        try {
+            return StandardCharsets.UTF_8.newDecoder().decode(buffer);
+        } finally {
+            buffer.limit(previousLimit);
+        }
+    }
+
+    private void seekEntry(int cpi) {
+        boolean resumeAtCachedIndex = (cpi >= cachedIndex);
+        int index = resumeAtCachedIndex ? cachedIndex : 1;
+        buffer.position(resumeAtCachedIndex ? cachedIndexOffset : 0);
+        while (index < cpi) {
+            int tag = Byte.toUnsignedInt(buffer.get());
+            if (tag >= ConstantKind.VALUES.length) {
+                throw new ConstantPoolException("Invalid constant pool entry tag: " + tag);
+            }
+            ConstantKind kind = ConstantKind.VALUES[tag];
+            int length = kind.lengthWithoutTag;
+            if (kind == ConstantKind.UTF8) {
+                length = Short.toUnsignedInt(buffer.getShort()); // in bytes; advances buffer
+            }
+            if (length < 0 || kind.tableEntries <= 0) {
+                throw new ConstantPoolException("Invalid constant pool entry kind: " + kind);
+            }
+            buffer.position(buffer.position() + length);
+            index += kind.tableEntries;
+        }
+        if (index != cpi) {
+            throw new ConstantPoolException("Constant pool index is not valid or unusable: " + cpi);
+        }
+        cachedIndex = cpi;
+        cachedIndexOffset = buffer.position();
+    }
+
+    @SuppressWarnings("serial")
+    public static final class ConstantPoolException extends RuntimeException {
+        ConstantPoolException(String message) {
+            super(message);
+        }
+
+        ConstantPoolException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+}
