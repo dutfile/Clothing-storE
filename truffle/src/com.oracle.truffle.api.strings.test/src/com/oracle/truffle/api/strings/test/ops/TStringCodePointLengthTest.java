@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2021, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -38,25 +38,41 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package org.graalvm.wasm.predefined.emscripten;
 
-import com.oracle.truffle.api.frame.VirtualFrame;
-import org.graalvm.wasm.WasmContext;
-import org.graalvm.wasm.WasmLanguage;
-import org.graalvm.wasm.WasmInstance;
+package com.oracle.truffle.api.strings.test.ops;
 
-public class SegfaultNode extends AbortNode {
-    public SegfaultNode(WasmLanguage language, WasmInstance module) {
-        super(language, module);
+import static org.junit.runners.Parameterized.Parameter;
+
+import java.util.Arrays;
+
+import org.junit.Assert;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
+
+import com.oracle.truffle.api.strings.TruffleString;
+import com.oracle.truffle.api.strings.test.TStringTestBase;
+
+@RunWith(Parameterized.class)
+public class TStringCodePointLengthTest extends TStringTestBase {
+
+    @Parameter public TruffleString.CodePointLengthNode node;
+
+    @Parameters(name = "{0}")
+    public static Iterable<TruffleString.CodePointLengthNode> data() {
+        return Arrays.asList(TruffleString.CodePointLengthNode.create(), TruffleString.CodePointLengthNode.getUncached());
     }
 
-    @Override
-    public Object executeWithContext(VirtualFrame frame, WasmContext context) {
-        return super.execute(frame);
+    @Test
+    public void testAll() throws Exception {
+        forAllStrings(false, (a, array, codeRange, isValid, encoding, codepoints, byteIndices) -> {
+            Assert.assertEquals(codepoints.length, node.execute(a, encoding));
+        });
     }
 
-    @Override
-    public String builtinNodeName() {
-        return "SegfaultNode";
+    @Test
+    public void testNull() throws Exception {
+        checkNullSE((s, e) -> node.execute(s, e));
     }
 }
