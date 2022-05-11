@@ -101,4 +101,118 @@ public class ExecuteGroupingTest {
 
         assertEquals(result, TestHelper.createRoot(ExecuteGrouping1NodeGen.create(null, null, null)).execute(a, b, c));
         assertEquals(result, TestHelper.createRoot(ExecuteGrouping1NodeGen.create(null, null, null)).execute((int) a, (int) b, c));
-        assertEquals(result, TestHelper.createRoot(ExecuteGrouping1NodeGen.create(null, nul
+        assertEquals(result, TestHelper.createRoot(ExecuteGrouping1NodeGen.create(null, null, null)).execute((int) a, (int) b, (int) c));
+
+    }
+
+    @NodeChild(type = ExecuteGroupingChild.class)
+    @NodeChild(type = ExecuteGroupingChild.class)
+    @NodeChild(type = ExecuteGroupingChild.class)
+    abstract static class ExecuteGrouping1Node extends Node {
+
+        abstract Object execute();
+
+        int executeInt() throws UnexpectedResultException {
+            Object value = execute();
+            if (value instanceof Integer) {
+                return (int) value;
+            }
+            throw new UnexpectedResultException(value);
+        }
+
+        abstract double executeDouble() throws UnexpectedResultException;
+
+        abstract Object execute(VirtualFrame frame);
+
+        abstract Object execute(Object o1);
+
+        abstract int executeInt(Object o1) throws UnexpectedResultException;
+
+        abstract Object execute(Object o1, Object o2);
+
+        abstract Object execute(int o1, int o2);
+
+        abstract Object execute(int o1, int o2, Object o3);
+
+        abstract int executeInt(int o1, int o2) throws UnexpectedResultException;
+
+        abstract Object execute(Object o1, int o2);
+
+        abstract Object execute(int o1, Object o2);
+
+        abstract Object execute(Object o1, Object o2, Object o3);
+
+        abstract Object execute(int o1, int o2, int o3);
+
+        @Specialization
+        int s1(int a, int b, int c) {
+            return a + b + c;
+        }
+
+        @Specialization
+        int s2(Object a, Object b, Object c) {
+            return ((int) a) + ((int) b) + ((int) c);
+        }
+
+    }
+
+    @GenerateInline(false)
+    abstract static class StrangeReturnCase extends Node {
+
+        // we don't know how to implement executeDouble
+        public abstract double executeDouble();
+
+        public int executeInt() {
+            return 42;
+        }
+
+        @Specialization(rewriteOn = RuntimeException.class)
+        double s1() {
+            return 42;
+        }
+
+        @Specialization
+        double s2() {
+            return 42;
+        }
+
+    }
+
+    @ExpectError("Incompatible abstract execute methods found %")
+    abstract static class IncompatibleAbstract1 extends Node {
+
+        // we don't know how to implement executeDouble
+        abstract double executeDouble();
+
+        abstract int executeInt();
+
+        @Specialization
+        double s1() {
+            return 42;
+        }
+
+    }
+
+    abstract static class IncompatibleAbstract2 extends Node {
+
+        abstract double executeDouble();
+
+        // we can resolve duplicate path errors by making an execute method final
+        @SuppressWarnings("static-method")
+        public final int executeInt() {
+            return 42;
+        }
+
+        @ExpectError("The provided return type \"int\" does not match expected return type \"double\".%")
+        @Specialization(rewriteOn = RuntimeException.class)
+        int s1() {
+            return 42;
+        }
+
+        @Specialization
+        double s2() {
+            return 42;
+        }
+
+    }
+}
