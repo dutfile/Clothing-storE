@@ -143,4 +143,65 @@ public final class IntValueProfile extends Profile {
      * {@inheritDoc}
      *
      * @since 22.1
-   
+     */
+    @Override
+    public void reset() {
+        this.state = UNINITIALIZED;
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * @since 22.1
+     */
+    @Override
+    public String toString() {
+        return toString(IntValueProfile.class, isUninitialized(), isGeneric(), //
+                        String.format("value == (int)%s", cachedValue));
+    }
+
+    /**
+     * Returns a value profile that profiles the exact value of an <code>int</code>.
+     *
+     * @see IntValueProfile
+     * @since 0.10
+     */
+    public static IntValueProfile createIdentityProfile() {
+        return create();
+    }
+
+    /**
+     * Returns a value profile that profiles the exact value of an <code>int</code>.
+     *
+     * @see IntValueProfile
+     * @since 22.1
+     */
+    @NeverDefault
+    public static IntValueProfile create() {
+        if (isProfilingEnabled()) {
+            return new IntValueProfile();
+        } else {
+            return DISABLED;
+        }
+    }
+
+    /**
+     * Returns the uncached version of the profile. The uncached version of a profile does nothing.
+     *
+     * @since 19.0
+     */
+    public static IntValueProfile getUncached() {
+        return DISABLED;
+    }
+
+    /**
+     * Returns an inlined version of the profile. This version is automatically used by Truffle DSL
+     * node inlining.
+     *
+     * @since 23.0
+     */
+    public static InlinedIntValueProfile inline(InlineTarget target) {
+        return InlinedIntValueProfile.inline(target);
+    }
+
+}
