@@ -184,4 +184,49 @@ public abstract class LLVMPolyglotAsDateTimeNode extends LLVMNode {
     public abstract static class LLVMPolyglotAsTimeZoneNode extends LLVMPolyglotAsDateTimeNode {
         public static final ZoneId UTC = ZoneId.of("UTC");
 
-        pu
+        public abstract ZoneId execute(LLVMPointer receiver) throws UnsupportedMessageException;
+
+        @Specialization(guards = "isInstantPointer(receiver)")
+        protected ZoneId instantAsZoneId(@SuppressWarnings("unused") LLVMPointer receiver) {
+            return UTC;
+        }
+
+        @Fallback
+        public ZoneId unsupported(@SuppressWarnings("unused") LLVMPointer receiver) throws UnsupportedMessageException {
+            throw UnsupportedMessageException.create();
+        }
+    }
+
+    @GenerateUncached
+    public abstract static class LLVMPolyglotAsInstantNode extends LLVMPolyglotAsDateTimeNode {
+
+        public abstract Instant execute(LLVMPointer receiver) throws UnsupportedMessageException;
+
+        @TruffleBoundary
+        private Instant ofEpochSecond(long epochSecond) {
+            try {
+                return Instant.ofEpochSecond(epochSecond);
+            } catch (DateTimeException ex) {
+                throw new LLVMPolyglotException(this, "Failed to construct instant value from epoch second: %s", ex.toString());
+            }
+        }
+
+        @Specialization(guards = "isInstantPointer(receiver)")
+        protected Instant asInstant(LLVMPointer receiver,
+                        @Cached LLVMI64OffsetLoadNode load,
+                        @Cached BranchProfile exception) throws UnsupportedMessageException {
+            try {
+                long v = load.executeWithTarget(receiver, 0);
+                return ofEpochSecond(v);
+            } catch (UnexpectedResultException ex) {
+                exception.enter();
+                throw UnsupportedMessageException.create(ex);
+            }
+        }
+
+        @Fallback
+        public Instant unsupported(@SuppressWarnings("unused") LLVMPointer receiver) throws UnsupportedMessageException {
+            throw UnsupportedMessageException.create();
+        }
+    }
+}
