@@ -89,4 +89,5 @@ class CompilationStatisticsEventImpl extends Event implements CompilationStatist
     @Override
     public void publish() {
         commit();
- 
+    }
+}
