@@ -1770,3 +1770,93 @@ public class ElementUtils {
             case FIELD:
                 parent = getReadableReference(relativeTo, element.getEnclosingElement());
                 return parent + "." + element.getSimpleName().toString();
+            default:
+                return "Unknown Element";
+        }
+    }
+
+    public static boolean isDeclaredIn(Element search, Element elementHierarchy) {
+        Element searchEnclosing = search.getEnclosingElement();
+        while (searchEnclosing != null) {
+            if (ElementUtils.elementEquals(searchEnclosing, elementHierarchy)) {
+                return true;
+            }
+            searchEnclosing = searchEnclosing.getEnclosingElement();
+        }
+        return false;
+
+    }
+
+    public static String getBinaryName(TypeElement provider) {
+        if (provider instanceof GeneratedElement) {
+            String packageName = getPackageName(provider);
+            Element enclosing = provider.getEnclosingElement();
+            StringBuilder b = new StringBuilder();
+            b.append(provider.getSimpleName().toString());
+            while (enclosing != null) {
+                ElementKind kind = enclosing.getKind();
+                if ((kind.isClass() || kind.isInterface()) && enclosing instanceof TypeElement) {
+                    b.insert(0, enclosing.getSimpleName().toString() + "$");
+                } else {
+                    break;
+                }
+                enclosing = enclosing.getEnclosingElement();
+            }
+            b.insert(0, packageName + ".");
+            return b.toString();
+        } else {
+            return ProcessorContext.getInstance().getEnvironment().getElementUtils().getBinaryName(provider).toString();
+        }
+    }
+
+    public static final int COMPRESSED_POINTER_SIZE = 4;
+    public static final int COMPRESSED_HEADER_SIZE = 12;
+
+    public static int getCompressedReferenceSize(TypeMirror mirror) {
+        switch (mirror.getKind()) {
+            case BOOLEAN:
+            case BYTE:
+                return 1;
+            case SHORT:
+            case CHAR:
+                return 2;
+            case INT:
+            case FLOAT:
+                return 4;
+            case DOUBLE:
+            case LONG:
+                return 8;
+            case DECLARED:
+            case ARRAY:
+            case TYPEVAR:
+                return COMPRESSED_POINTER_SIZE;
+            case VOID:
+            case NULL:
+            case EXECUTABLE:
+                // unknown
+                return 0;
+            default:
+                throw new RuntimeException("Unknown type specified " + mirror.getKind());
+        }
+    }
+
+    public static Idempotence getIdempotent(ExecutableElement method) {
+        TruffleTypes types = ProcessorContext.types();
+        if (findAnnotationMirror(method, types.Idempotent) != null) {
+            return Idempotence.IDEMPOTENT;
+        }
+        if (findAnnotationMirror(method, types.NonIdempotent) != null) {
+            return Idempotence.NON_IDEMPOTENT;
+        }
+
+        if (types.isBuiltinIdempotent(method)) {
+            return Idempotence.IDEMPOTENT;
+        }
+        if (types.isBuiltinNonIdempotent(method)) {
+            return Idempotence.NON_IDEMPOTENT;
+        }
+
+        return Idempotence.UNKNOWN;
+    }
+
+}
