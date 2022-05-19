@@ -43,4 +43,52 @@ public interface EngineCacheSupport extends GraalRuntimeServiceProvider {
 
     boolean isStoreEnabled(OptionValues options);
 
-    Object tryLoadingCachedEngine(Opti
+    Object tryLoadingCachedEngine(OptionValues options, Function<String, TruffleLogger> loggerFactory);
+
+    final class Disabled implements EngineCacheSupport {
+
+        @Override
+        public void onEngineCreated(EngineData e) {
+        }
+
+        @Override
+        public void onEnginePatch(EngineData e) {
+        }
+
+        @Override
+        public Object tryLoadingCachedEngine(OptionValues options, Function<String, TruffleLogger> loggerFactory) {
+            return null;
+        }
+
+        @Override
+        public boolean onEngineClosing(EngineData e) {
+            return false;
+        }
+
+        @Override
+        public boolean isStoreEnabled(OptionValues options) {
+            return false;
+        }
+
+        @Override
+        public void onEngineClosed(EngineData e) {
+        }
+
+        @Override
+        public int getPriority() {
+            // only last resort
+            return Integer.MIN_VALUE;
+        }
+
+        @Override
+        public OptionDescriptors getEngineOptions() {
+            return OptionDescriptors.EMPTY;
+        }
+
+    }
+
+    static EngineCacheSupport get() {
+        return GraalTruffleRuntime.getRuntime().getEngineCacheSupport();
+    }
+
+}
