@@ -189,4 +189,141 @@ final class Target_java_lang_invoke_MethodHandleNatives {
     private static native void registerNatives();
 
     @Delete
-    private static native int getNa
+    private static native int getNamedCon(int which, Object[] name);
+
+    // JDK 11
+
+    @Substitute
+    @TargetElement(onlyWith = JDK11OrEarlier.class)
+    static Target_java_lang_invoke_MemberName resolve(Target_java_lang_invoke_MemberName self, Class<?> caller, boolean speculativeResolve) throws LinkageError, ClassNotFoundException {
+        return Util_java_lang_invoke_MethodHandleNatives.resolve(self, caller, speculativeResolve);
+    }
+
+    @Delete
+    private static native void copyOutBootstrapArguments(Class<?> caller, int[] indexInfo, int start, int end, Object[] buf, int pos, boolean resolve, Object ifNotAvailable);
+
+    @Substitute
+    private static void clearCallSiteContext(Target_java_lang_invoke_MethodHandleNatives_CallSiteContext context) {
+        throw unimplemented("CallSiteContext not supported");
+    }
+
+    @AnnotateOriginal
+    static native boolean refKindIsMethod(byte refKind);
+
+    @AnnotateOriginal
+    static native String refKindName(byte refKind);
+
+    // JDK 17
+
+    @Substitute
+    @TargetElement(onlyWith = JDK17OrLater.class)
+    static Target_java_lang_invoke_MemberName resolve(Target_java_lang_invoke_MemberName self, Class<?> caller, int lookupMode, boolean speculativeResolve)
+                    throws LinkageError, ClassNotFoundException {
+        Class<?> declaringClass = self.getDeclaringClass();
+        Target_java_lang_invoke_MemberName resolved = Util_java_lang_invoke_MethodHandleNatives.resolve(self, caller, speculativeResolve);
+        assert resolved == null || resolved.reflectAccess != null || resolved.intrinsic != null;
+        if (resolved != null && resolved.reflectAccess != null && caller != null &&
+                        !Util_java_lang_invoke_MethodHandleNatives.verifyAccess(declaringClass, resolved.reflectAccess.getDeclaringClass(), resolved.reflectAccess.getModifiers(), caller,
+                                        lookupMode)) {
+            throw new IllegalAccessError(resolved + " is not accessible from " + caller);
+        }
+        return resolved;
+    }
+}
+
+/**
+ * The method handles API looks up methods and fields in a different way than the reflection API.
+ * The specified member is searched in the given declaring class and its superclasses (like
+ * {@link Class#getMethod(String, Class[])}) but including private members (like
+ * {@link Class#getDeclaredMethod(String, Class[])}). We solve this by recursively looking up the
+ * declared methods of the declaring class and its superclasses.
+ * <p>
+ * Also, the C++ implementation of MethodHandleNatives does not perform access control as it was
+ * already performed by the JDK code calling invokeBasic. To avoid interferences with the access
+ * control infrastructure, methods, constructors, and fields are made accessible via
+ * {@code setAccessible0(boolean)} of {@link AccessibleObject}.
+ */
+final class Util_java_lang_invoke_MethodHandleNatives {
+    private static final Method SET_ACCESSIBLE0 = ReflectionUtil.lookupMethod(AccessibleObject.class, "setAccessible0", boolean.class);
+
+    static Method lookupMethod(Class<?> declaringClazz, String name, Class<?>[] parameterTypes) throws NoSuchMethodException {
+        return lookupMethod(declaringClazz, name, parameterTypes, null);
+    }
+
+    private static Method lookupMethod(Class<?> declaringClazz, String name, Class<?>[] parameterTypes, NoSuchMethodException originalException) throws NoSuchMethodException {
+        try {
+            Method result = declaringClazz.getDeclaredMethod(name, parameterTypes);
+            forceAccess(result);
+            return result;
+        } catch (NoSuchMethodException e) {
+            Class<?> superClass = declaringClazz.getSuperclass();
+            NoSuchMethodException newOriginalException = originalException == null ? e : originalException;
+            if (superClass == null) {
+                throw newOriginalException;
+            } else {
+                return lookupMethod(superClass, name, parameterTypes, newOriginalException);
+            }
+        }
+    }
+
+    static Field lookupField(Class<?> declaringClazz, String name) throws NoSuchFieldException {
+        return lookupField(declaringClazz, name, null);
+    }
+
+    private static Field lookupField(Class<?> declaringClazz, String name, NoSuchFieldException originalException) throws NoSuchFieldException {
+        try {
+            Field result = declaringClazz.getDeclaredField(name);
+            forceAccess(result);
+            return result;
+        } catch (NoSuchFieldException e) {
+            Class<?> superClass = declaringClazz.getSuperclass();
+            NoSuchFieldException newOriginalException = originalException == null ? e : originalException;
+            if (superClass == null) {
+                throw newOriginalException;
+            } else {
+                return lookupField(superClass, name, newOriginalException);
+            }
+        }
+    }
+
+    private static void forceAccess(AccessibleObject target) {
+        try {
+            SET_ACCESSIBLE0.invoke(target, true);
+        } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
+            throw VMError.shouldNotReachHere(e);
+        }
+    }
+
+    @SuppressWarnings("unused")
+    public static Target_java_lang_invoke_MemberName resolve(Target_java_lang_invoke_MemberName self, Class<?> caller, boolean speculativeResolve)
+                    throws LinkageError, ClassNotFoundException {
+        if (self.reflectAccess != null) {
+            return self;
+        }
+        Class<?> declaringClass = self.getDeclaringClass();
+        if (declaringClass == null) {
+            return null;
+        }
+
+        /* Intrinsic methods */
+        self.intrinsic = MethodHandleIntrinsicImpl.resolve(self);
+        if (self.intrinsic != null) {
+            self.flags |= ((MethodHandleIntrinsicImpl) self.intrinsic).variant.flags;
+            return self;
+        }
+
+        /* Fill the member through reflection */
+        try {
+            if (self.isMethod()) {
+                Class<?>[] parameterTypes = self.getMethodType().parameterArray();
+                Method method = Util_java_lang_invoke_MethodHandleNatives.lookupMethod(declaringClass, self.name, parameterTypes);
+                if (method.getReturnType() != self.getMethodType().returnType()) {
+                    /* Method handle lookup also checks return type */
+                    throw new NoSuchMethodException(SubstrateUtil.cast(declaringClass, DynamicHub.class).methodToString(self.name, parameterTypes));
+                }
+                self.reflectAccess = method;
+                self.flags |= method.getModifiers();
+            } else if (self.isConstructor()) {
+                Constructor<?> constructor = declaringClass.getDeclaredConstructor(self.getMethodType().parameterArray());
+                forceAccess(constructor);
+                self.reflec
