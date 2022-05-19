@@ -326,4 +326,83 @@ final class Util_java_lang_invoke_MethodHandleNatives {
             } else if (self.isConstructor()) {
                 Constructor<?> constructor = declaringClass.getDeclaredConstructor(self.getMethodType().parameterArray());
                 forceAccess(constructor);
-                self.reflec
+                self.reflectAccess = constructor;
+                self.flags |= constructor.getModifiers();
+            } else if (self.isField()) {
+                Field field = Util_java_lang_invoke_MethodHandleNatives.lookupField(declaringClass, self.name);
+                if (field.getType() != self.getFieldType()) {
+                    /* Method handle lookup also checks field type */
+                    throw new NoSuchFieldException(declaringClass.getName() + "." + self.name);
+                }
+                self.reflectAccess = field;
+                self.flags |= field.getModifiers();
+            }
+            return self;
+        } catch (NoSuchMethodException e) {
+            if (speculativeResolve) {
+                return null;
+            } else {
+                throw new NoSuchMethodError(e.getMessage());
+            }
+        } catch (NoSuchFieldException e) {
+            if (speculativeResolve) {
+                return null;
+            } else {
+                throw new NoSuchFieldError(e.getMessage());
+            }
+        }
+    }
+
+    private static Method verifyAccess;
+
+    static boolean verifyAccess(Class<?> refc, Class<?> defc, int mods, Class<?> lookupClass, int allowedModes) {
+        assert JavaVersionUtil.JAVA_SPEC >= 17;
+        if (verifyAccess == null) {
+            try {
+                verifyAccess = VerifyAccess.class.getDeclaredMethod("isMemberAccessible", Class.class, Class.class, int.class, Class.class, Class.class, int.class);
+            } catch (NoSuchMethodException e) {
+                throw shouldNotReachHere();
+            }
+        }
+        try {
+            return (boolean) verifyAccess.invoke(null, refc, defc, mods, lookupClass, null, allowedModes);
+        } catch (IllegalAccessException | InvocationTargetException e) {
+            throw new GraalError(e);
+        }
+    }
+}
+
+@TargetClass(className = "java.lang.invoke.MethodHandleNatives", innerClass = "Constants")
+final class Target_java_lang_invoke_MethodHandleNatives_Constants {
+    // Checkstyle: stop
+    @Alias static int MN_IS_METHOD;
+    @Alias static int MN_IS_CONSTRUCTOR;
+    @Alias static int MN_IS_FIELD;
+    @Alias static int MN_IS_TYPE;
+    @Alias static int MN_CALLER_SENSITIVE;
+    @Alias static int MN_REFERENCE_KIND_SHIFT;
+    @Alias static int MN_REFERENCE_KIND_MASK;
+    // The SEARCH_* bits are not for MN.flags but for the matchFlags argument of MHN.getMembers:
+    @Alias static int MN_SEARCH_SUPERCLASSES;
+    @Alias static int MN_SEARCH_INTERFACES;
+
+    /**
+     * Constant pool reference-kind codes, as used by CONSTANT_MethodHandle CP entries.
+     */
+    @Alias static byte REF_NONE;  // null value
+    @Alias static byte REF_getField;
+    @Alias static byte REF_getStatic;
+    @Alias static byte REF_putField;
+    @Alias static byte REF_putStatic;
+    @Alias static byte REF_invokeVirtual;
+    @Alias static byte REF_invokeStatic;
+    @Alias static byte REF_invokeSpecial;
+    @Alias static byte REF_newInvokeSpecial;
+    @Alias static byte REF_invokeInterface;
+    @Alias static byte REF_LIMIT;
+    // Checkstyle: resume
+}
+
+@TargetClass(className = "java.lang.invoke.MethodHandleNatives", innerClass = "CallSiteContext")
+final class Target_java_lang_invoke_MethodHandleNatives_CallSiteContext {
+}
