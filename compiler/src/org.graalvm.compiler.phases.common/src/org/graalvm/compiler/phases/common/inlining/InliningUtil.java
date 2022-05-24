@@ -248,4 +248,137 @@ public class InliningUtil extends ValueMergeUtil {
         if (!success) {
             inliningMsg = "not " + inliningMsg;
         }
-        logInlining(d
+        logInlining(debug, inliningMsg, args);
+    }
+
+    @SuppressWarnings("try")
+    private static void logInlining(DebugContext debug, final String msg, final Object... args) {
+        try (DebugContext.Scope s = debug.scope(inliningDecisionsScopeString)) {
+            // Can't use log here since we are varargs
+            if (debug.isLogEnabled()) {
+                debug.logv(msg, args);
+            }
+        }
+    }
+
+    @SuppressWarnings("try")
+    private static boolean shouldLogMethod(DebugContext debug) {
+        try (DebugContext.Scope s = debug.scope(inliningDecisionsScopeString)) {
+            return debug.isLogEnabled();
+        }
+    }
+
+    private static String methodName(ResolvedJavaMethod method, Invoke invoke) {
+        if (invoke != null && invoke.stateAfter() != null) {
+            return methodName(invoke.stateAfter(), invoke.bci()) + ": " + method.format("%H.%n(%p):%r") + " (" + method.getCodeSize() + " bytes)";
+        } else {
+            return method.format("%H.%n(%p):%r") + " (" + method.getCodeSize() + " bytes)";
+        }
+    }
+
+    private static String methodName(InlineInfo info) {
+        if (info == null) {
+            return "null";
+        } else if (info.invoke() != null && info.invoke().stateAfter() != null) {
+            return methodName(info.invoke().stateAfter(), info.invoke().bci()) + ": " + info.toString();
+        } else {
+            return info.toString();
+        }
+    }
+
+    private static String methodName(FrameState frameState, int bci) {
+        StringBuilder sb = new StringBuilder();
+        if (frameState.outerFrameState() != null) {
+            sb.append(methodName(frameState.outerFrameState(), frameState.outerFrameState().bci));
+            sb.append("->");
+        }
+        ResolvedJavaMethod method = frameState.getMethod();
+        sb.append(method != null ? method.format("%h.%n") : "?");
+        sb.append("@").append(bci);
+        return sb.toString();
+    }
+
+    public static void replaceInvokeCallTarget(Invoke invoke, StructuredGraph graph, InvokeKind invokeKind, ResolvedJavaMethod targetMethod) {
+        MethodCallTargetNode oldCallTarget = (MethodCallTargetNode) invoke.callTarget();
+        MethodCallTargetNode newCallTarget = graph.add(new MethodCallTargetNode(invokeKind, targetMethod, oldCallTarget.arguments().toArray(ValueNode.EMPTY_ARRAY), oldCallTarget.returnStamp(),
+                        oldCallTarget.getTypeProfile()));
+        invoke.asNode().replaceFirstInput(oldCallTarget, newCallTarget);
+    }
+
+    public static PiNode createAnchoredReceiver(StructuredGraph graph, GuardingNode anchor, ResolvedJavaType commonType, ValueNode receiver, boolean exact) {
+        return createAnchoredReceiver(graph, anchor, receiver,
+                        exact ? StampFactory.objectNonNull(TypeReference.createExactTrusted(commonType)) : StampFactory.objectNonNull(TypeReference.createTrusted(graph.getAssumptions(), commonType)));
+    }
+
+    private static PiNode createAnchoredReceiver(StructuredGraph graph, GuardingNode anchor, ValueNode receiver, Stamp stamp) {
+        // to avoid that floating reads on receiver fields float above the type check
+        return graph.unique(new PiNode(receiver, stamp, (ValueNode) anchor));
+    }
+
+    /**
+     * @return null iff the check succeeds, otherwise a (non-null) descriptive message.
+     */
+    public static String checkInvokeConditions(Invoke invoke) {
+        if (invoke.predecessor() == null || !invoke.asNode().isAlive()) {
+            return "the invoke is dead code";
+        }
+        if (!(invoke.callTarget() instanceof MethodCallTargetNode)) {
+            return "the invoke has already been lowered, or has been created as a low-level node";
+        }
+        MethodCallTargetNode callTarget = (MethodCallTargetNode) invoke.callTarget();
+        if (callTarget.targetMethod() == null) {
+            return "target method is null";
+        }
+        assert invoke.stateAfter() != null : invoke;
+        if (!invoke.useForInlining()) {
+            return "the invoke is marked to be not used for inlining";
+        }
+        ValueNode receiver = callTarget.receiver();
+        if (receiver != null && receiver.isConstant() && receiver.isNullConstant()) {
+            return "receiver is null";
+        }
+        return null;
+    }
+
+    /**
+     * Performs an actual inlining, thereby replacing the given invoke with the given
+     * {@code inlineGraph}.
+     *
+     * @param invoke the invoke that will be replaced
+     * @param inlineGraph the graph that the invoke will be replaced with
+     * @param receiverNullCheck true if a null check needs to be generated for non-static inlinings,
+     *            false if no such check is required
+     * @param inlineeMethod the actual method being inlined. Maybe be null for snippets.
+     */
+    @SuppressWarnings("try")
+    public static UnmodifiableEconomicMap<Node, Node> inline(Invoke invoke, StructuredGraph inlineGraph, boolean receiverNullCheck, ResolvedJavaMethod inlineeMethod) {
+        try {
+            return inline(invoke, inlineGraph, receiverNullCheck, inlineeMethod, "reason not specified", "phase not specified");
+        } catch (GraalError ex) {
+            ex.addContext("inlining into", invoke.asNode().graph().method());
+            ex.addContext("inlinee", inlineGraph.method());
+            throw ex;
+        }
+    }
+
+    public static UnmodifiableEconomicMap<Node, Node> inline(Invoke invoke, StructuredGraph inlineGraph, boolean receiverNullCheck, ResolvedJavaMethod inlineeMethod, String reason, String phase) {
+        return inline(invoke, inlineGraph, receiverNullCheck, inlineeMethod, reason, phase, NoReturnAction);
+    }
+
+    /**
+     * Performs an actual inlining, thereby replacing the given invoke with the given
+     * {@code inlineGraph}.
+     *
+     * @param invoke the invoke that will be replaced
+     * @param inlineGraph the graph that the invoke will be replaced with
+     * @param receiverNullCheck true if a null check needs to be generated for non-static inlinings,
+     *            false if no such check is required
+     * @param inlineeMethod the actual method being inlined. Maybe be null for snippets.
+     * @param reason the reason for inlining, used in tracing
+     * @param phase the phase that invoked inlining
+     */
+    @SuppressWarnings("try")
+    public static UnmodifiableEconomicMap<Node, Node> inline(Invoke invoke, StructuredGraph inlineGraph, boolean receiverNullCheck, ResolvedJavaMethod inlineeMethod, String reason, String phase,
+                    InlineeReturnAction returnAction) {
+        FixedNode invokeNode = invoke.asFixedNode();
+        Structure
