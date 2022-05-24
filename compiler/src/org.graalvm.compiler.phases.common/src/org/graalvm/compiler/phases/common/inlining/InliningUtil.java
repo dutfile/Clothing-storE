@@ -381,4 +381,136 @@ public class InliningUtil extends ValueMergeUtil {
     public static UnmodifiableEconomicMap<Node, Node> inline(Invoke invoke, StructuredGraph inlineGraph, boolean receiverNullCheck, ResolvedJavaMethod inlineeMethod, String reason, String phase,
                     InlineeReturnAction returnAction) {
         FixedNode invokeNode = invoke.asFixedNode();
-        Structure
+        StructuredGraph graph = invokeNode.graph();
+        final NodeInputList<ValueNode> parameters = invoke.callTarget().arguments();
+
+        assert inlineGraph.getGuardsStage().ordinal() >= graph.getGuardsStage().ordinal();
+        assert invokeNode.graph().isBeforeStage(StageFlag.FLOATING_READS) : "inline isn't handled correctly after floating reads phase";
+
+        if (receiverNullCheck && !((MethodCallTargetNode) invoke.callTarget()).isStatic()) {
+            nonNullReceiver(invoke);
+        }
+
+        ArrayList<Node> nodes = new ArrayList<>(inlineGraph.getNodes().count());
+        ArrayList<ReturnNode> returnNodes = new ArrayList<>(4);
+        ArrayList<Invoke> partialIntrinsicExits = new ArrayList<>();
+        UnwindNode unwindNode = null;
+        final StartNode entryPointNode = inlineGraph.start();
+        FixedNode firstCFGNode = entryPointNode.next();
+        if (firstCFGNode == null) {
+            throw new IllegalStateException("Inlined graph is in invalid state: " + inlineGraph);
+        }
+        for (Node node : inlineGraph.getNodes()) {
+            if (node == entryPointNode || (node == entryPointNode.stateAfter() && node.hasExactlyOneUsage()) || node instanceof ParameterNode) {
+                // Do nothing.
+            } else {
+                nodes.add(node);
+                if (node instanceof ReturnNode) {
+                    returnNodes.add((ReturnNode) node);
+                } else if (node instanceof Invoke) {
+                    Invoke invokeInInlineGraph = (Invoke) node;
+                    if (invokeInInlineGraph.bci() == BytecodeFrame.UNKNOWN_BCI) {
+                        ResolvedJavaMethod target1 = inlineeMethod;
+                        ResolvedJavaMethod target2 = invokeInInlineGraph.callTarget().targetMethod();
+                        assert target1.equals(target2) : String.format("invoke in inlined method expected to be partial intrinsic exit (i.e., call to %s), not a call to %s",
+                                        target1.format("%H.%n(%p)"), target2.format("%H.%n(%p)"));
+                        partialIntrinsicExits.add(invokeInInlineGraph);
+                    }
+                } else if (node instanceof UnwindNode) {
+                    assert unwindNode == null;
+                    unwindNode = (UnwindNode) node;
+                }
+            }
+        }
+
+        final AbstractBeginNode prevBegin = AbstractBeginNode.prevBegin(invokeNode);
+        DuplicationReplacement localReplacement = new DuplicationReplacement() {
+
+            @Override
+            public Node replacement(Node node) {
+                if (node instanceof ParameterNode) {
+                    return parameters.get(((ParameterNode) node).index());
+                } else if (node == entryPointNode) {
+                    return prevBegin;
+                }
+                return node;
+            }
+        };
+
+        assert invokeNode.successors().first() != null : invoke;
+        assert invokeNode.predecessor() != null;
+
+        Mark mark = graph.getMark();
+        // Instead, attach the inlining log of the child graph to the current inlining log.
+        EconomicMap<Node, Node> duplicates;
+        InliningLog inliningLog = graph.getInliningLog();
+        try (InliningLog.UpdateScope scope = InliningLog.openDefaultUpdateScope(inliningLog)) {
+            duplicates = graph.addDuplicates(nodes, inlineGraph, inlineGraph.getNodeCount(), localReplacement);
+            graph.notifyInliningDecision(invoke, true, phase, duplicates, inlineGraph.getInliningLog(), inlineGraph.getOptimizationLog(), inlineeMethod, reason);
+        }
+
+        FrameState stateAfter = invoke.stateAfter();
+        assert stateAfter == null || stateAfter.isAlive();
+
+        FrameState stateAtExceptionEdge = null;
+        if (invoke instanceof InvokeWithExceptionNode) {
+            InvokeWithExceptionNode invokeWithException = ((InvokeWithExceptionNode) invoke);
+            if (unwindNode != null) {
+                ExceptionObjectNode obj = (ExceptionObjectNode) invokeWithException.exceptionEdge();
+                stateAtExceptionEdge = obj.stateAfter();
+            }
+        }
+
+        updateSourcePositions(invoke, inlineGraph, duplicates, !Objects.equals(inlineGraph.method(), inlineeMethod), mark);
+        if (stateAfter != null) {
+            processFrameStates(invoke, inlineGraph, duplicates, stateAtExceptionEdge, returnNodes.size() > 1);
+            int callerLockDepth = stateAfter.nestedLockDepth();
+            if (callerLockDepth != 0) {
+                for (MonitorIdNode original : inlineGraph.getNodes(MonitorIdNode.TYPE)) {
+                    MonitorIdNode monitor = (MonitorIdNode) duplicates.get(original);
+                    processMonitorId(invoke.stateAfter(), monitor);
+                }
+            }
+        } else {
+            assert checkContainsOnlyInvalidOrAfterFrameState(duplicates);
+        }
+
+        firstCFGNode = (FixedNode) duplicates.get(firstCFGNode);
+        for (int i = 0; i < returnNodes.size(); i++) {
+            returnNodes.set(i, (ReturnNode) duplicates.get(returnNodes.get(i)));
+        }
+        for (Invoke exit : partialIntrinsicExits) {
+            // A partial intrinsic exit must be replaced with a call to
+            // the intrinsified method.
+            Invoke dup = (Invoke) duplicates.get(exit.asNode());
+            dup.setBci(invoke.bci());
+        }
+        if (unwindNode != null) {
+            unwindNode = (UnwindNode) duplicates.get(unwindNode);
+        }
+
+        finishInlining(invoke, graph, firstCFGNode, returnNodes, unwindNode, inlineGraph, returnAction);
+        GraphUtil.killCFG(invokeNode);
+
+        return duplicates;
+    }
+
+    /**
+     * Inline {@code inlineGraph} into the current replacing the node {@code Invoke} and return the
+     * set of nodes which should be canonicalized. The set should only contain nodes which modified
+     * by the inlining since the current graph and {@code inlineGraph} are expected to already be
+     * canonical.
+     *
+     * @param invoke
+     * @param inlineGraph
+     * @param receiverNullCheck
+     * @param inlineeMethod
+     * @return the set of nodes to canonicalize
+     */
+    @SuppressWarnings("try")
+    public static EconomicSet<Node> inlineForCanonicalization(Invoke invoke, StructuredGraph inlineGraph, boolean receiverNullCheck, ResolvedJavaMethod inlineeMethod, String reason, String phase) {
+        return inlineForCanonicalization(invoke, inlineGraph, receiverNullCheck, inlineeMethod, null, reason, phase);
+    }
+
+    public static EconomicSet<Node> inlineForCanonicalization(Invoke invoke, StructuredGraph inlineGraph, boolean receiverNullCheck, ResolvedJavaMethod inlineeMethod,
+                    Consumer<UnmodifiableEconomicMap<Node, Node>> duplicatesConsumer, Strin
