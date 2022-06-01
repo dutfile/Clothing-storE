@@ -877,4 +877,119 @@ public class InliningUtil extends ValueMergeUtil {
                 frameState.setOuterFrameState(outerFrameState);
             }
             return frameState;
-      
+        }
+    }
+
+    private static FrameState handleAfterBciFrameState(FrameState frameState, Invoke invoke, boolean alwaysDuplicateStateAfter) {
+        FrameState stateAtReturn = invoke.stateAfter();
+        JavaKind invokeReturnKind = invoke.asNode().getStackKind();
+        FrameState stateAfterReturn = stateAtReturn;
+        if (frameState.getCode() == null) {
+            // This is a frame state for a side effect within an intrinsic
+            // that was parsed for post-parse intrinsification
+            for (Node usage : frameState.usages()) {
+                if (usage instanceof ForeignCall) {
+                    // A foreign call inside an intrinsic needs to have
+                    // the BCI of the invoke being intrinsified
+                    ForeignCall foreign = (ForeignCall) usage;
+                    foreign.setBci(invoke.bci());
+                }
+            }
+        }
+
+        /*
+         * Inlining util can be used to inline a replacee graph that has a different return kind
+         * than the original call, i.e., a non void return for a void method, in this case we simply
+         * use the state after discarding the return value
+         */
+        boolean voidReturnMismatch = frameState.stackSize() > 0 && stateAfterReturn.stackSize() == 0;
+
+        if (voidReturnMismatch) {
+            stateAfterReturn = stateAfterReturn.duplicateWithVirtualState();
+        } else {
+            // pop return kind from invoke's stateAfter and replace with this frameState's return
+            // value (top of stack)
+            assert !frameState.rethrowException() : frameState;
+            if (frameState.stackSize() > 0 && (alwaysDuplicateStateAfter || stateAfterReturn.stackAt(0) != frameState.stackAt(0))) {
+                // A non-void return value.
+                stateAfterReturn = stateAtReturn.duplicateModified(invokeReturnKind, invokeReturnKind, frameState.stackAt(0), frameState.virtualObjectMappings());
+            } else {
+                // A void return value.
+                stateAfterReturn = stateAtReturn.duplicate();
+            }
+        }
+        assert stateAfterReturn.bci != BytecodeFrame.UNKNOWN_BCI;
+        // Return value does no longer need to be limited by the monitor exit.
+        for (MonitorExitNode n : frameState.usages().filter(MonitorExitNode.class)) {
+            n.clearEscapedValue();
+        }
+
+        frameState.replaceAndDelete(stateAfterReturn);
+        return stateAfterReturn;
+    }
+
+    static boolean checkInlineeFrameState(Invoke invoke, ResolvedJavaMethod inlinedMethod, FrameState frameState) {
+        assert frameState.bci != BytecodeFrame.AFTER_EXCEPTION_BCI : frameState;
+        assert frameState.bci != BytecodeFrame.BEFORE_BCI : frameState;
+        assert frameState.bci != BytecodeFrame.UNKNOWN_BCI : frameState;
+        if (frameState.bci != BytecodeFrame.INVALID_FRAMESTATE_BCI) {
+            ResolvedJavaMethod method = frameState.getMethod();
+            if (method.equals(inlinedMethod)) {
+                // Normal inlining expects all outermost inlinee frame states to
+                // denote the inlinee method
+            } else if (method.equals(invoke.callTarget().targetMethod())) {
+                GraalError.shouldNotReachHere("method subsitutions are gone"); // ExcludeFromJacocoGeneratedReport
+            } else if (method.getName().equals(inlinedMethod.getName())) {
+                GraalError.shouldNotReachHere("method subsitutions are gone"); // ExcludeFromJacocoGeneratedReport
+            } else {
+                throw new AssertionError(String.format("inlinedMethod=%s frameState.method=%s frameState=%s invoke.method=%s", inlinedMethod, method, frameState,
+                                invoke.callTarget().targetMethod()));
+            }
+        }
+        return true;
+    }
+
+    private static final ValueNode[] NO_ARGS = ValueNode.EMPTY_ARRAY;
+
+    private static boolean isStateAfterException(FrameState frameState) {
+        return frameState.bci == BytecodeFrame.AFTER_EXCEPTION_BCI || (frameState.bci == BytecodeFrame.UNWIND_BCI && !frameState.getMethod().isSynchronized());
+    }
+
+    @SuppressWarnings("try")
+    public static FrameState handleMissingAfterExceptionFrameState(FrameState nonReplaceableFrameState, Invoke invoke, EconomicMap<Node, Node> replacements, boolean alwaysDuplicateStateAfter) {
+        StructuredGraph graph = nonReplaceableFrameState.graph();
+        NodeWorkList workList = graph.createNodeWorkList();
+        workList.add(nonReplaceableFrameState);
+        for (Node node : workList) {
+            FrameState fs = (FrameState) node;
+            for (Node usage : fs.usages().snapshot()) {
+                if (!usage.isAlive()) {
+                    continue;
+                }
+                if (usage instanceof FrameState) {
+                    workList.add(usage);
+                } else {
+                    StateSplit stateSplit = (StateSplit) usage;
+                    FixedNode fixedStateSplit = stateSplit.asFixedNode();
+                    if (fixedStateSplit instanceof AbstractMergeNode) {
+                        AbstractMergeNode merge = (AbstractMergeNode) fixedStateSplit;
+                        while (merge.isAlive()) {
+                            AbstractEndNode end = merge.forwardEnds().first();
+                            try (DebugCloseable position = end.withNodeSourcePosition()) {
+                                DeoptimizeNode deoptimizeNode = addDeoptimizeNode(graph, DeoptimizationAction.InvalidateRecompile, DeoptimizationReason.NotCompiledExceptionHandler);
+                                end.replaceAtPredecessor(deoptimizeNode);
+                                GraphUtil.killCFG(end);
+                            }
+                        }
+                    } else if (fixedStateSplit instanceof ExceptionObjectNode) {
+                        /**
+                         * The target invoke does not have an exception edge. This means that the
+                         * bytecode parser made the wrong assumption of making an exception for the
+                         * partial intrinsic exit. We therefore replace the WithExceptionNode with a
+                         * non throwing version -- the deoptimization occurs when the invoke throws.
+                         */
+                        WithExceptionNode oldException = (WithExceptionNode) fixedStateSplit.predecessor();
+                        FixedNode newNode = oldException.replaceWithNonThrowing();
+                        if (replacements != null && oldException != newNode) {
+                            replacements.put(oldException, newNode);
+             
