@@ -770,4 +770,111 @@ public class InliningUtil extends ValueMergeUtil {
             }
             if (isSubstitution && invokePos == null) {
                 // There's no caller information so the source position for this node will be
-                // invalid, so it s
+                // invalid, so it should be cleared.
+                value.clearNodeSourcePosition();
+            } else {
+                NodeSourcePosition oldPos = cursor.getKey().getNodeSourcePosition();
+                if (oldPos != null) {
+                    NodeSourcePosition updatedPos = posMap.get(oldPos);
+                    if (updatedPos == null) {
+                        if (inlineeRoot == null) {
+                            assert (inlineeRoot = oldPos.getRootMethod()) != null;
+                        } else {
+                            assert oldPos.verifyRootMethod(inlineeRoot);
+                        }
+                        updatedPos = oldPos.addCaller(oldPos.getSourceLanguage(), invokePos, isSubstitution);
+                        posMap.put(oldPos, updatedPos);
+                    }
+                    value.setNodeSourcePosition(updatedPos);
+
+                    if (value instanceof DeoptimizingGuard) {
+                        ((DeoptimizingGuard) value).addCallerToNoDeoptSuccessorPosition(updatedPos.getCaller());
+                    }
+                } else {
+                    if (isSubstitution) {
+                        /*
+                         * If no other position is provided at least attribute the substituted node
+                         * to the original invoke.
+                         */
+                        value.setNodeSourcePosition(invokePos);
+                    }
+                }
+            }
+        }
+        assert invokeGraph.verifySourcePositions(false);
+    }
+
+    public static void processMonitorId(FrameState stateAfter, MonitorIdNode monitorIdNode) {
+        if (stateAfter != null) {
+            int callerLockDepth = stateAfter.nestedLockDepth();
+            monitorIdNode.setLockDepth(monitorIdNode.getLockDepth() + callerLockDepth);
+        }
+    }
+
+    protected static void processFrameStates(Invoke invoke, StructuredGraph inlineGraph, EconomicMap<Node, Node> duplicates, FrameState stateAtExceptionEdge,
+                    boolean alwaysDuplicateStateAfter) {
+        FrameState stateAtReturn = invoke.stateAfter();
+        FrameState outerFrameState = null;
+        JavaKind invokeReturnKind = invoke.asNode().getStackKind();
+        EconomicMap<Node, Node> replacements = EconomicMap.create(Equivalence.IDENTITY);
+        for (FrameState original : inlineGraph.getNodes(FrameState.TYPE)) {
+            FrameState frameState = (FrameState) duplicates.get(original);
+            if (frameState != null && frameState.isAlive()) {
+                if (outerFrameState == null) {
+                    outerFrameState = stateAtReturn.duplicateModifiedDuringCall(invoke.bci(), invokeReturnKind);
+                }
+                processFrameState(frameState, invoke, replacements, inlineGraph.method(), stateAtExceptionEdge, outerFrameState, alwaysDuplicateStateAfter, invoke.callTarget().targetMethod(),
+                                invoke.callTarget().arguments());
+            }
+        }
+        // If processing the frame states replaced any nodes, update the duplicates map.
+        duplicates.replaceAll((key, value) -> replacements.containsKey(value) ? replacements.get(value) : value);
+    }
+
+    public static FrameState processFrameState(FrameState frameState, Invoke invoke, EconomicMap<Node, Node> replacements, ResolvedJavaMethod inlinedMethod, FrameState stateAtExceptionEdge,
+                    FrameState outerFrameState,
+                    boolean alwaysDuplicateStateAfter, ResolvedJavaMethod invokeTargetMethod, List<ValueNode> invokeArgsList) {
+        assert outerFrameState == null || !outerFrameState.isDeleted() : outerFrameState;
+        final FrameState stateAtReturn = invoke.stateAfter();
+        JavaKind invokeReturnKind = invoke.asNode().getStackKind();
+
+        if (frameState.bci == BytecodeFrame.AFTER_BCI) {
+            return handleAfterBciFrameState(frameState, invoke, alwaysDuplicateStateAfter);
+        } else if (stateAtExceptionEdge != null && isStateAfterException(frameState)) {
+            // pop exception object from invoke's stateAfter and replace with this frameState's
+            // exception object (top of stack)
+            FrameState stateAfterException = stateAtExceptionEdge;
+            if (frameState.stackSize() > 0 && stateAtExceptionEdge.stackAt(0) != frameState.stackAt(0)) {
+                stateAfterException = stateAtExceptionEdge.duplicateModified(JavaKind.Object, JavaKind.Object, frameState.stackAt(0), frameState.virtualObjectMappings());
+            }
+            frameState.replaceAndDelete(stateAfterException);
+            return stateAfterException;
+        } else if ((frameState.bci == BytecodeFrame.UNWIND_BCI && frameState.graph().getGuardsStage() == GuardsStage.FLOATING_GUARDS) ||
+                        frameState.bci == BytecodeFrame.AFTER_EXCEPTION_BCI) {
+            /*
+             * This path converts the frame states relevant for exception unwinding to
+             * deoptimization. This is only allowed in configurations when Graal compiles code for
+             * speculative execution (e.g., JIT compilation in HotSpot) but not when compiled code
+             * must be deoptimization free (e.g., AOT compilation for native image generation).
+             * There is currently no global flag in StructuredGraph to distinguish such modes, but
+             * the GuardsStage during inlining indicates the mode in which Graal operates.
+             */
+            handleMissingAfterExceptionFrameState(frameState, invoke, replacements, alwaysDuplicateStateAfter);
+            return frameState;
+        } else if (frameState.bci == BytecodeFrame.BEFORE_BCI) {
+            // This is an intrinsic. Deoptimizing within an intrinsic
+            // must re-execute the intrinsified invocation
+            assert frameState.outerFrameState() == null;
+            ValueNode[] invokeArgs = invokeArgsList.isEmpty() ? NO_ARGS : invokeArgsList.toArray(new ValueNode[invokeArgsList.size()]);
+            FrameState stateBeforeCall = stateAtReturn.duplicateModifiedBeforeCall(invoke.bci(), invokeReturnKind, invokeTargetMethod.getSignature().toParameterKinds(!invokeTargetMethod.isStatic()),
+                            invokeArgs, frameState.virtualObjectMappings());
+            frameState.replaceAndDelete(stateBeforeCall);
+            return stateBeforeCall;
+        } else {
+            // only handle the outermost frame states
+            if (frameState.outerFrameState() == null) {
+                assert checkInlineeFrameState(invoke, inlinedMethod, frameState);
+                frameState.setOuterFrameState(outerFrameState);
+            }
+            return frameState;
+      
