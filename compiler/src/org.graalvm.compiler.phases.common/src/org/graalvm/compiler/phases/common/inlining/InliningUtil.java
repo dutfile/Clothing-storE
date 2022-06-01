@@ -513,4 +513,136 @@ public class InliningUtil extends ValueMergeUtil {
     }
 
     public static EconomicSet<Node> inlineForCanonicalization(Invoke invoke, StructuredGraph inlineGraph, boolean receiverNullCheck, ResolvedJavaMethod inlineeMethod,
-                    Consumer<UnmodifiableEconomicMap<Node, Node>> duplicatesConsumer, Strin
+                    Consumer<UnmodifiableEconomicMap<Node, Node>> duplicatesConsumer, String reason, String phase) {
+        return inlineForCanonicalization(invoke, inlineGraph, receiverNullCheck, inlineeMethod, duplicatesConsumer, reason, phase, NoReturnAction);
+    }
+
+    @SuppressWarnings("try")
+    public static EconomicSet<Node> inlineForCanonicalization(Invoke invoke, StructuredGraph inlineGraph, boolean receiverNullCheck, ResolvedJavaMethod inlineeMethod,
+                    Consumer<UnmodifiableEconomicMap<Node, Node>> duplicatesConsumer, String reason, String phase, InlineeReturnAction action) {
+        assert inlineGraph.isSubstitution() || invoke.asNode().graph().getSpeculationLog() == inlineGraph.getSpeculationLog();
+        EconomicSetNodeEventListener listener = new EconomicSetNodeEventListener();
+        /*
+         * This code relies on the fact that Graph.addDuplicates doesn't trigger the
+         * NodeEventListener to track only nodes which were modified into the process of inlining
+         * the graph into the current graph.
+         */
+        try (NodeEventScope nes = invoke.asNode().graph().trackNodeEvents(listener)) {
+            UnmodifiableEconomicMap<Node, Node> duplicates = InliningUtil.inline(invoke, inlineGraph, receiverNullCheck, inlineeMethod, reason, phase, action);
+            if (duplicatesConsumer != null) {
+                duplicatesConsumer.accept(duplicates);
+            }
+        }
+        return listener.getNodes();
+    }
+
+    /**
+     * Pre-processing hook for special handling of inlinee return nodes during inlining.
+     */
+    public static class InlineeReturnAction {
+        /**
+         * Processes the inlined {@code returns} to derive the set of {@link ReturnNode}s to be
+         * merged and connected with the original invoke's successor.
+         *
+         * @return the returns that are to be merged and connected with the original invoke's
+         *         successor. This may include {@link ReturnNode}s not in {@code returns}.
+         */
+        public List<ReturnNode> processInlineeReturns(List<ReturnNode> returns) {
+            return returns;
+        }
+    }
+
+    public static InlineeReturnAction NoReturnAction = new InlineeReturnAction();
+
+    @SuppressWarnings("try")
+    private static ValueNode finishInlining(Invoke invoke, StructuredGraph graph, FixedNode firstNode, List<ReturnNode> returnNodes, UnwindNode unwindNode,
+                    StructuredGraph inlineGraph, InlineeReturnAction inlineeReturnAction) {
+
+        List<ReturnNode> processedReturns = inlineeReturnAction.processInlineeReturns(returnNodes);
+
+        FixedNode invokeNode = invoke.asFixedNode();
+        FrameState stateAfter = invoke.stateAfter();
+        invokeNode.replaceAtPredecessor(firstNode);
+
+        if (invoke instanceof InvokeWithExceptionNode) {
+            InvokeWithExceptionNode invokeWithException = ((InvokeWithExceptionNode) invoke);
+            if (unwindNode != null && unwindNode.isAlive()) {
+                assert unwindNode.predecessor() != null;
+                assert invokeWithException.exceptionEdge().successors().count() == 1;
+                ExceptionObjectNode obj = (ExceptionObjectNode) invokeWithException.exceptionEdge();
+                /*
+                 * The exception object node is a begin node, i.e., it can be used as an anchor for
+                 * other nodes, thus we need to re-route them to a valid anchor, i.e. the begin node
+                 * of the unwind block.
+                 */
+                assert obj.usages().filter(x -> x instanceof GuardedNode && ((GuardedNode) x).getGuard() == obj).count() == 0 : "Must not have guards attached to an exception object node";
+                AbstractBeginNode replacementAnchor = AbstractBeginNode.prevBegin(unwindNode);
+                assert replacementAnchor != null;
+                // guard case should never happen, see above
+                obj.replaceAtUsages(replacementAnchor, InputType.Anchor, InputType.Guard);
+                obj.replaceAtUsages(unwindNode.exception(), InputType.Value);
+
+                Node n = obj.next();
+                obj.setNext(null);
+                unwindNode.replaceAndDelete(n);
+
+                obj.replaceAtPredecessor(null);
+                obj.safeDelete();
+            } else {
+                invokeWithException.killExceptionEdge();
+            }
+        } else {
+            if (unwindNode != null && unwindNode.isAlive()) {
+                try (DebugCloseable position = unwindNode.withNodeSourcePosition()) {
+                    DeoptimizeNode deoptimizeNode = addDeoptimizeNode(graph, DeoptimizationAction.InvalidateRecompile, DeoptimizationReason.NotCompiledExceptionHandler);
+                    unwindNode.replaceAndDelete(deoptimizeNode);
+                }
+            }
+        }
+
+        ValueNode returnValue;
+        if (!processedReturns.isEmpty()) {
+            FixedNode next = invoke.next();
+            invoke.setNext(null);
+            if (processedReturns.size() == 1) {
+                ReturnNode returnNode = processedReturns.get(0);
+                Pair<ValueNode, FixedNode> returnAnchorPair = replaceInvokeAtUsages(invokeNode, returnNode.result(), next);
+                returnValue = returnAnchorPair.getLeft();
+                returnNode.replaceAndDelete(returnAnchorPair.getRight());
+            } else {
+                MergeNode merge = graph.add(new MergeNode());
+                merge.setStateAfter(stateAfter);
+                ValueNode mergedReturn = mergeReturns(merge, processedReturns);
+                Pair<ValueNode, FixedNode> returnAnchorPair = replaceInvokeAtUsages(invokeNode, mergedReturn, merge);
+                returnValue = returnAnchorPair.getLeft();
+                assert returnAnchorPair.getRight() == merge;
+                if (merge.isPhiAtMerge(mergedReturn)) {
+                    fixFrameStates(graph, merge, mergedReturn, returnValue);
+                }
+                merge.setNext(next);
+            }
+        } else {
+            returnValue = null;
+            invokeNode.replaceAtUsages(null);
+            GraphUtil.killCFG(invoke.next());
+        }
+
+        // Copy inlined methods from inlinee to caller
+        graph.updateMethods(inlineGraph);
+
+        if (inlineGraph.hasUnsafeAccess()) {
+            graph.markUnsafeAccess();
+        }
+        assert inlineGraph.getSpeculationLog() == null ||
+                        inlineGraph.getSpeculationLog() == graph.getSpeculationLog() : "Only the root graph should have a speculation log";
+
+        return returnValue;
+    }
+
+    /**
+     * Replaces invoke's usages with the provided return value while also insuring the new value's
+     * stamp is not weaker than the original invoke's stamp.
+     *
+     * @return new return and the anchoring values
+     */
+    public static Pair<ValueNode, FixedNode> replaceInvokeAtUsages(ValueNode invokeNode
