@@ -1113,4 +1113,35 @@ public class InliningUtil extends ValueMergeUtil {
         assert typeProfile.getNotRecordedProbability() == 0.0D;
         FrameState frameState = invoke.stateAfter();
         assert frameState != null;
-        ProfilingInfo profilingInfo = invoke.asNode().graph().getProfilingInfo(frameState.getCode()
+        ProfilingInfo profilingInfo = invoke.asNode().graph().getProfilingInfo(frameState.getCode().getMethod());
+        return FALLBACK_DEOPT_SPECULATION.createSpeculationReason(frameState.getMethod(), invoke.bci(),
+                        profilingInfo == null ? TriState.FALSE : profilingInfo.getExceptionSeen(invoke.bci()),
+                        new ReceiverTypeSpeculationContext(typeProfile));
+    }
+
+    private static class ReceiverTypeSpeculationContext implements SpeculationReasonGroup.SpeculationContextObject {
+        private final JavaTypeProfile typeProfile;
+
+        ReceiverTypeSpeculationContext(JavaTypeProfile typeProfile) {
+            this.typeProfile = typeProfile;
+        }
+
+        @Override
+        public void accept(Visitor v) {
+            for (JavaTypeProfile.ProfiledType profiledType : typeProfile.getTypes()) {
+                // We speculate on the profiled types. When the speculation fails, we expect to see
+                // a new receiver type in the recompilation. Hence, the probability of each profiled
+                // type won't matter here.
+                v.visitObject(profiledType.getType());
+            }
+        }
+    }
+
+    /**
+     * This method exclude InstrumentationNode from inlining heuristics.
+     */
+    public static int getNodeCount(StructuredGraph graph) {
+        return graph.getNodeCount();
+    }
+
+}
