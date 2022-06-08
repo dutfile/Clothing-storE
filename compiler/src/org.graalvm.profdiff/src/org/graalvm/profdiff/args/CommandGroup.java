@@ -69,4 +69,44 @@ public class CommandGroup extends Argument {
     }
 
     /**
-     * Gets the command that was selected in the parsed 
+     * Gets the command that was selected in the parsed argument list.
+     */
+    public Command getSelectedCommand() {
+        return selectedCommand;
+    }
+
+    /**
+     * Returns the command with the given name, or {@code null} if there is no such command.
+     *
+     * @param commandName the name of the command
+     * @return the command with the given name or {@code null}
+     */
+    public Command getCommandByName(String commandName) {
+        return commands.get(commandName);
+    }
+
+    /**
+     * Creates a usage string listing the commands of this group and their help strings.
+     *
+     * @return the usage string listing the commands
+     */
+    public String formatCommandsHelp() {
+        Formatter fmt = new Formatter();
+        fmt.format("available commands:%n");
+        for (Command command : commands.getValues()) {
+            fmt.format("  %-30s %s%n", command.getName(), command.getDescription());
+        }
+        return fmt.toString();
+    }
+
+    @Override
+    int parse(String[] args, int offset) throws InvalidArgumentException, UnknownArgumentException, MissingArgumentException {
+        String command = args[offset];
+        selectedCommand = commands.get(args[offset]);
+        if (selectedCommand == null) {
+            throw new InvalidArgumentException(getName(), "invalid command name: " + command);
+        }
+        selectedCommand.getArgumentParser().parse(Arrays.copyOfRange(args, offset + 1, args.length));
+        return args.length;
+    }
+}
