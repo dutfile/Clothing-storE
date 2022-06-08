@@ -88,3 +88,59 @@ public class CreateExceptionStub extends SnippetStub {
     }
 
     protected static Object createException(Register threadRegister, Class<? extends Throwable> exception) {
+        Word message = WordFactory.zero();
+        return createException(threadRegister, exception, message);
+    }
+
+    protected static Object createException(Register threadRegister, Class<? extends Throwable> exception, Word message) {
+        Word thread = registerAsWord(threadRegister);
+        int deoptimized = throwAndPostJvmtiException(THROW_AND_POST_JVMTI_EXCEPTION, thread, classAsCString(exception), message);
+        return handleExceptionReturn(thread, deoptimized);
+    }
+
+    protected static Object createException(Register threadRegister, Class<? extends Throwable> exception, KlassPointer klass) {
+        Word thread = registerAsWord(threadRegister);
+        int deoptimized = throwKlassExternalNameException(THROW_KLASS_EXTERNAL_NAME_EXCEPTION, thread, classAsCString(exception), klass);
+        return handleExceptionReturn(thread, deoptimized);
+    }
+
+    protected static Object createException(Register threadRegister, Class<? extends Throwable> exception, KlassPointer objKlass, KlassPointer targetKlass) {
+        Word thread = registerAsWord(threadRegister);
+        int deoptimized = throwClassCastException(THROW_CLASS_CAST_EXCEPTION, thread, classAsCString(exception), objKlass, targetKlass);
+        return handleExceptionReturn(thread, deoptimized);
+    }
+
+    private static Object handleExceptionReturn(Word thread, int deoptimized) {
+        Object clearPendingException = clearPendingException(thread);
+        // alwayDeoptimize is a testing option to force a deopt here but the code pattern should
+        // keep both the deopt and return paths, so include a test against the exception which we
+        // know should always succeed.
+        if ((alwayDeoptimize(INJECTED_OPTIONVALUES) && clearPendingException != null) ||
+                        (reportsDeoptimization(GraalHotSpotVMConfig.INJECTED_VMCONFIG) && deoptimized != 0)) {
+            DeoptimizeWithExceptionInCallerNode.deopt(clearPendingException);
+        }
+        return clearPendingException;
+    }
+
+    private static final HotSpotForeignCallDescriptor THROW_AND_POST_JVMTI_EXCEPTION = new HotSpotForeignCallDescriptor(SAFEPOINT, REEXECUTABLE, any(), "throw_and_post_jvmti_exception", int.class,
+                    Word.class, Word.class, Word.class);
+    private static final HotSpotForeignCallDescriptor THROW_KLASS_EXTERNAL_NAME_EXCEPTION = new HotSpotForeignCallDescriptor(SAFEPOINT, REEXECUTABLE, any(), "throw_klass_external_name_exception",
+                    int.class, Word.class, Word.class, KlassPointer.class);
+    private static final HotSpotForeignCallDescriptor THROW_CLASS_CAST_EXCEPTION = new HotSpotForeignCallDescriptor(SAFEPOINT, REEXECUTABLE, any(), "throw_class_cast_exception", int.class, Word.class,
+                    Word.class, KlassPointer.class, KlassPointer.class);
+
+    @NodeIntrinsic(StubForeignCallNode.class)
+    private static native int throwAndPostJvmtiException(@ConstantNodeParameter ForeignCallDescriptor d, Word thread, Word type, Word message);
+
+    @NodeIntrinsic(StubForeignCallNode.class)
+    private static native int throwKlassExternalNameException(@ConstantNodeParameter ForeignCallDescriptor d, Word thread, Word type, KlassPointer klass);
+
+    @NodeIntrinsic(StubForeignCallNode.class)
+    private static native int throwClassCastException(@ConstantNodeParameter ForeignCallDescriptor d, Word thread, Word type, KlassPointer objKlass, KlassPointer targetKlass);
+
+    public static void registerForeignCalls(GraalHotSpotVMConfig c, HotSpotForeignCallsProviderImpl foreignCalls) {
+        foreignCalls.registerForeignCall(THROW_AND_POST_JVMTI_EXCEPTION, c.throwAndPostJvmtiExceptionAddress, NativeCall);
+        foreignCalls.registerForeignCall(THROW_KLASS_EXTERNAL_NAME_EXCEPTION, c.throwKlassExternalNameExceptionAddress, NativeCall);
+        foreignCalls.registerForeignCall(THROW_CLASS_CAST_EXCEPTION, c.throwClassCastExceptionAddress, NativeCall);
+    }
+}
