@@ -196,4 +196,193 @@ public class FilterProfileAdapter implements FilterProfile {
     }
 
     @Override
-    public void
+    public void setName(String profileName) throws IOException {
+        String oN = getName();
+        dFolder.rename(profileName);
+        propSupport.firePropertyChange(PROP_NAME, oN, profileName);
+    }
+
+    /**
+     * Note that this only sets a temporary name. Will be overriden if the
+     * underlying storage changes. Mainly used to provide standardized
+     * name for the "All filters" profile.
+     * 
+     * @param profileName 
+     */
+    void setDisplayName(String profileName) {
+        String oN = getName();
+        dFolder.getNodeDelegate().setDisplayName(profileName);
+        propSupport.firePropertyChange(PROP_NAME, oN, profileName);
+    }
+
+    @Override
+    public FilterSequence getAllFilters() {
+        init();
+        return profileFilters;
+    }
+
+    private void init() {
+        synchronized (this) {
+            if (initialized) {
+                return;
+            }
+        }
+        refresh();
+        synchronized (this) {
+            initialized = true;
+        }
+    }
+
+    @Override
+    public FilterSequence getSelectedFilters() {
+        init();
+        return sequence;
+    }
+
+    private synchronized void postRefresh() {
+        if (refreshTask != null) {
+            refreshTask.cancel();
+        }
+        refreshTask = REFRESH_RP.post(this::refresh, 100);
+    }
+    
+    private FileObject getDefaultProfileFolder() {
+        return storage.getProfileFolder(root.getDefaultProfile());
+    }
+
+    @Override
+    public Filter addSharedFilter(Filter f) throws IOException {
+        FileObject fo = f.getLookup().lookup(FileObject.class);
+        if (fo == null || fo.getParent() != getDefaultProfileFolder()) {
+            throw new IOException("Invalid shared filter");
+        }
+        if (fo.getParent() == getProfileFolder()) {
+            // our own filter, will be refresh()ed
+            return f;
+        }
+        FileObject ff = DataShadow.create(DataFolder.findFolder(getProfileFolder()), fo.getName(), DataObject.find(fo)).getPrimaryFile();
+        Filter result = createFilter(ff);
+        refresh();
+        return result;
+    }
+
+    void refresh() {
+        List<Filter> newFilters = new ArrayList<>();
+        List<Filter> newAllFilters = new ArrayList<>();
+        List<Filter> oldAllFilters;
+        Set<Filter> oldFilterSet = new HashSet<>();
+        Set<Filter> oldAllFilterSet = new HashSet<>();
+        Set<FileObject> current = new HashSet<>();
+        Map<FileObject, FileChangeListener> fLs;
+        synchronized (this) {
+            fLs = weakRL;
+            chainsListener.changed = false;
+            List<FileObject> children = FileUtil.getOrder(Arrays.asList(profileFolder.getChildren()), false);
+            for (FileObject f : children) {
+                Filter filter = createFilter(f);
+                if (filter == null) {
+                    continue;
+                }
+                if (Boolean.TRUE.equals(f.getAttribute(ENABLED_ID))) {
+                    newFilters.add(filter);
+                }
+                newAllFilters.add(filter);
+                current.add(f);
+            }
+            oldAllFilters = profileFilters.getFilters();
+            
+            Collection<FileObject> toUnregister = new ArrayList<>(fLs.keySet());
+            toUnregister.removeAll(current);
+            for (FileObject f : toUnregister) {
+                f.removeFileChangeListener(fLs.remove(f));
+            }
+            current.removeAll(fLs.keySet());
+        }
+        oldFilterSet.addAll(newFilters);
+        oldAllFilterSet.addAll(oldAllFilters);
+        profileFilters.replaceFilters(newAllFilters);
+        sequence.replaceFilters(newFilters);
+
+        if (chainsListener.changed) {
+            boolean filtersChanged = false;
+            if (!oldFilterSet.containsAll(newFilters)) {
+                filtersChanged = true;
+            } else {
+                oldFilterSet.removeAll(newFilters);
+                filtersChanged = oldFilterSet.isEmpty();
+            }
+
+            boolean allFiltersChanged = false;
+            if (!oldAllFilterSet.containsAll(newAllFilters)) {
+                allFiltersChanged = true;
+            } else {
+                oldAllFilterSet.removeAll(newAllFilters);
+                allFiltersChanged = oldAllFilterSet.isEmpty();
+            }
+            if (allFiltersChanged) {
+                propSupport.firePropertyChange(PROP_FILTERS, oldAllFilters, newAllFilters); 
+            } else {
+                propSupport.firePropertyChange(PROP_FILTER_ORDER, null, null);
+            }
+            if (filtersChanged) {
+                propSupport.firePropertyChange(PROP_ENABLED_FILTERS, null, null);
+            }
+        }
+    }
+
+    protected Filter createFilter(FileObject fo) {
+        return storage.createFilter(fo, this);
+    }
+
+    @NbBundle.Messages({
+        "FILTER_ErrorNoStorage=Could not access the filter storage.",
+        "# {0} - filter name",
+        "FILTER_NotFound=Filder {0} is not part of the profile"
+    })
+    @Override
+    public void moveDown(Filter f) throws IOException {
+        changeOrder(f, true);
+    }
+
+    private void changeOrder(Filter f, boolean down) throws IOException {
+        FileObject storage = f.getLookup().lookup(FileObject.class);
+        if (storage == null) {
+            throw new IOException(Bundle.FILTER_ErrorNoStorage());
+        }
+        FileObject profile = storage.getParent();
+        if (profile != profileFolder) {
+            throw new IOException(Bundle.FILTER_ErrorNoStorage());
+        }
+        List<Filter> filters = new ArrayList<>(profileFilters.getFilters());
+        int index = filters.indexOf(f);
+        if (index == -1) {
+            throw new IOException(Bundle.FILTER_NotFound(f.getName()));
+        }
+        int nIndex = index + (down ? 1 : -1);
+        if (nIndex < 0 || nIndex >= filters.size()) {
+            return;
+        }
+        filters.remove(f);
+        filters.add(nIndex, f);
+        setFilterOrder(filters);
+    }
+
+    void setFilterOrder(List<Filter> filters) throws IOException {
+        List<FileObject> filterOrder = new ArrayList<>(filters.size());
+        for (Filter x : filters) {
+            FileObject s = x.getLookup().lookup(FileObject.class);
+            if (s != null) {
+                filterOrder.add(s);
+            }
+        }
+        List<FileObject> children = new ArrayList<>(
+                        FileUtil.getOrder(Arrays.asList(profileFolder.getChildren()), false));
+        children.removeAll(filterOrder);
+        children.addAll(filterOrder);
+        FileUtil.setOrder(children);
+        propSupport.firePropertyChange(PROP_FILTER_ORDER, null, null);
+    }
+
+    @Override
+    public void setEnabled(Filter f, boolean state) throws IOException {
+        Fi
