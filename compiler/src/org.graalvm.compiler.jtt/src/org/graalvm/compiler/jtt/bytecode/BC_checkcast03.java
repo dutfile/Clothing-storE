@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2015, 2018, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,22 +22,40 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
+package org.graalvm.compiler.jtt.bytecode;
 
-package com.oracle.svm.core.option;
+import org.junit.Test;
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+import org.graalvm.compiler.jtt.JTTTest;
 
-@Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.FIELD})
-public @interface BundleMember {
-    Role role();
+/**
+ * Tests the checkcast works, when casting an array of interface.
+ */
+public class BC_checkcast03 extends JTTTest {
 
-    enum Role {
-        Input,
-        Output,
-        Ignore
+    public interface IObject {
+
+    }
+
+    private static class BaseClass {
+
+    }
+
+    private static class TestClass extends BaseClass implements IObject {
+    }
+
+    static TestClass[] a1 = {new TestClass()};
+
+    public static BaseClass[] getBaseClassArray() {
+        return a1;
+    }
+
+    public static IObject[] test() {
+        return (IObject[]) getBaseClassArray();
+    }
+
+    @Test
+    public void run0() throws Throwable {
+        runTest("test");
     }
 }

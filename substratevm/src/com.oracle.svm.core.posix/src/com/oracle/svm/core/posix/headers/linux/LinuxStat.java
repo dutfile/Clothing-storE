@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2013, 2017, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,22 +22,38 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
+package com.oracle.svm.core.posix.headers.linux;
 
-package com.oracle.svm.core.option;
+import org.graalvm.nativeimage.c.CContext;
+import org.graalvm.nativeimage.c.function.CFunction;
+import org.graalvm.nativeimage.c.struct.CField;
+import org.graalvm.nativeimage.c.struct.CStruct;
+import org.graalvm.word.PointerBase;
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+import com.oracle.svm.core.posix.headers.PosixDirectives;
 
-@Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.FIELD})
-public @interface BundleMember {
-    Role role();
+// Checkstyle: stop
 
-    enum Role {
-        Input,
-        Output,
-        Ignore
+/**
+ * Definitions manually translated from the C header file sys/stat.h.
+ */
+@CContext(PosixDirectives.class)
+public class LinuxStat {
+
+    @CStruct(addStructKeyword = true)
+    public interface stat64 extends PointerBase {
+        @CField
+        long st_ino();
+
+        @CField
+        long st_size();
+    }
+
+    @CFunction
+    public static native int fstat64(int fd, stat64 buf);
+
+    public static class NoTransitions {
+        @CFunction(transition = CFunction.Transition.NO_TRANSITION)
+        public static native int fstat64(int fd, stat64 buf);
     }
 }
