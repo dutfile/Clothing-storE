@@ -105,4 +105,138 @@ class ProgressReporterJsonHelper {
     public Path printToFile() {
         recordSystemFixedValues();
         String description = "image statistics in json";
-        return ReportUt
+        return ReportUtils.report(description, jsonOutputFile.toAbsolutePath(), out -> {
+            try {
+                new JsonWriter(out).print(statsHolder);
+            } catch (IOException e) {
+                throw VMError.shouldNotReachHere("Failed to create " + jsonOutputFile, e);
+            }
+        }, false);
+    }
+
+    interface JsonMetric {
+        void record(ProgressReporterJsonHelper helper, Object value);
+    }
+
+    enum ImageDetailKey implements JsonMetric {
+        TOTAL_SIZE(null, null, "total_bytes"),
+        CODE_AREA_SIZE("code_area", null, "bytes"),
+        NUM_COMP_UNITS("code_area", null, "compilation_units"),
+        IMAGE_HEAP_SIZE("image_heap", null, "bytes"),
+        IMAGE_HEAP_OBJECT_COUNT("image_heap", "objects", "count"),
+        DEBUG_INFO_SIZE("debug_info", null, "bytes"),
+        IMAGE_HEAP_RESOURCE_COUNT("image_heap", "resources", "count"),
+        RESOURCE_SIZE_BYTES("image_heap", "resources", "bytes"),
+        RUNTIME_COMPILED_METHODS_COUNT("runtime_compiled_methods", null, "count"),
+        GRAPH_ENCODING_SIZE("runtime_compiled_methods", null, "graph_encoding_bytes");
+
+        private String bucket;
+        private String jsonKey;
+        private String subBucket;
+
+        ImageDetailKey(String bucket, String subBucket, String key) {
+            this.bucket = bucket;
+            this.jsonKey = key;
+            this.subBucket = subBucket;
+        }
+
+        @Override
+        public void record(ProgressReporterJsonHelper helper, Object value) {
+            helper.putImageDetails(this, value);
+        }
+    }
+
+    enum ResourceUsageKey implements JsonMetric {
+        CPU_LOAD("cpu", "load"),
+        CPU_CORES_TOTAL("cpu", "total_cores"),
+        GC_COUNT("garbage_collection", "count"),
+        GC_SECS("garbage_collection", "total_secs"),
+        PEAK_RSS("memory", "peak_rss_bytes"),
+        MEMORY_TOTAL("memory", "system_total"),
+        TOTAL_SECS(null, "total_secs");
+
+        private String bucket;
+        private String jsonKey;
+
+        ResourceUsageKey(String bucket, String key) {
+            this.bucket = bucket;
+            this.jsonKey = key;
+        }
+
+        @Override
+        public void record(ProgressReporterJsonHelper helper, Object value) {
+            helper.putResourceUsage(this, value);
+        }
+    }
+
+    enum AnalysisResults implements JsonMetric {
+        TYPES_TOTAL("types", "total"),
+        TYPES_REACHABLE("types", "reachable"),
+        TYPES_JNI("types", "jni"),
+        TYPES_REFLECT("types", "reflection"),
+        METHOD_TOTAL("methods", "total"),
+        METHOD_REACHABLE("methods", "reachable"),
+        METHOD_JNI("methods", "jni"),
+        METHOD_REFLECT("methods", "reflection"),
+        FIELD_TOTAL("fields", "total"),
+        FIELD_REACHABLE("fields", "reachable"),
+        FIELD_JNI("fields", "jni"),
+        FIELD_REFLECT("fields", "reflection"),
+
+        // TODO GR-42148: remove deprecated entries in a future release
+        DEPRECATED_CLASS_TOTAL("classes", "total"),
+        DEPRECATED_CLASS_REACHABLE("classes", "reachable"),
+        DEPRECATED_CLASS_JNI("classes", "jni"),
+        DEPRECATED_CLASS_REFLECT("classes", "reflection");
+
+        private String key;
+        private String bucket;
+
+        AnalysisResults(String bucket, String key) {
+            this.key = key;
+            this.bucket = bucket;
+        }
+
+        public String jsonKey() {
+            return key;
+        }
+
+        public String bucket() {
+            return bucket;
+        }
+
+        @Override
+        public void record(ProgressReporterJsonHelper helper, Object value) {
+            if (value instanceof Integer) {
+                helper.putAnalysisResults(this, (Integer) value);
+            } else if (value instanceof Long) {
+                helper.putAnalysisResults(this, (Long) value);
+            } else {
+                VMError.shouldNotReachHere("Imcompatible type of 'value': " + value.getClass());
+            }
+        }
+    }
+
+    enum GeneralInfo implements JsonMetric {
+        IMAGE_NAME("name"),
+        JAVA_VERSION("java_version"),
+        GRAALVM_VERSION("graalvm_version"),
+        GC("garbage_collector"),
+        CC("c_compiler");
+
+        private String key;
+
+        GeneralInfo(String key) {
+            this.key = key;
+        }
+
+        public String jsonKey() {
+            return key;
+        }
+
+        @Override
+        public void record(ProgressReporterJsonHelper helper, Object value) {
+            helper.putGeneralInfo(this, (String) value);
+        }
+    }
+}
