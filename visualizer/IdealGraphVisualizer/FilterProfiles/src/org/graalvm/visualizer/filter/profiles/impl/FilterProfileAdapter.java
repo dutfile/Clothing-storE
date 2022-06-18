@@ -385,4 +385,162 @@ public class FilterProfileAdapter implements FilterProfile {
 
     @Override
     public void setEnabled(Filter f, boolean state) throws IOException {
-        Fi
+        FileObject storage = f.getLookup().lookup(FileObject.class);
+        if (storage == null || storage.getParent() != profileFolder) {
+            throw new IOException(Bundle.FILTER_ErrorNoStorage());
+        }
+        boolean nowState = getSelectedFilters().getFilters().contains(f);
+        if (nowState != state) {
+            storage.setAttribute(ENABLED_ID, state);
+            postRefresh();
+        }
+    }
+
+    @Override
+    public void moveUp(Filter f) throws IOException {
+        changeOrder(f, false);
+    }
+
+    @Override
+    public List<Filter> getProfileFilters() {
+        init();
+        return profileFilters.getFilters();
+    }
+
+    FileObject getProfileFolder() {
+        return profileFolder;
+    }
+
+    @NbBundle.Messages({
+        "ERROR_FilterAlreadyPresent=The filter is already present.",
+        "# {0} - filter content type",
+        "ERROR_UnknownExtensionForMime=A file cannot be created for filter content {0}.",
+        "# {0} - filter class",
+        "ERROR_UnknownFilterType=A file cannot be created for filter class {0}.",})
+    void createRootFilter(Filter f) throws IOException {
+        FileObject storage = f.getLookup().lookup(FileObject.class);
+        if (storage != null) {
+            FileObject source = DataShadow.findOriginal(storage);
+            if (source == null) {
+                source = storage;
+            }
+            if (source.getParent() == getDefaultProfileFolder() || source.getParent() == getProfileFolder()) {
+                throw new IOException(Bundle.ERROR_FilterAlreadyPresent());
+            }
+
+            DataObject orig = DataObject.find(source);
+            getDefaultProfileFolder().getFileSystem().runAtomicAction(() -> {
+                DataObject o = orig.copy(DataFolder.findFolder(getDefaultProfileFolder()));
+                o.rename(f.getName());
+            });
+            return;
+        }
+        CustomFilter cf = f.getLookup().lookup(CustomFilter.class);
+        if (cf == null) {
+            throw new IOException(Bundle.ERROR_UnknownExtensionForMime(f.getClass().getName()));
+        }
+        List<String> exts = FileUtil.getMIMETypeExtensions(cf.getMimeType());
+        if (exts.isEmpty()) {
+            throw new IOException(Bundle.ERROR_UnknownExtensionForMime(cf.getMimeType()));
+        }
+        FileObject folder = getDefaultProfileFolder();
+        folder.getFileSystem().runAtomicAction(() -> {
+            try (OutputStream out = folder.createAndOpen(cf.getName() + "." + exts.get(0));
+                            InputStream in = new ByteArrayInputStream(cf.getCode().getBytes())) {
+                FileUtil.copy(in, out);
+            }
+        });
+    }
+
+    @NbBundle.Messages({
+        "# {0} - I/O message text",
+        "PROFILE_CannotAddFilter=Could not add filter: {0}"
+    })
+    void addProfileFilter(Filter filter) {
+        FileObject storage = filter.getLookup().lookup(FileObject.class);
+        if (storage == null) {
+            throw new IllegalArgumentException(Bundle.FILTER_ErrorNoStorage());
+        }
+        // avoid linking to links go for the original:
+        FileObject original;
+        try {
+            original = DataShadow.findOriginal(storage);
+        } catch (IOException ex) {
+            throw new IllegalArgumentException(ex);
+        }
+        if (original == null) {
+            original = storage;
+        }
+        if (original.getParent() != getDefaultProfileFolder()) {
+            throw new IllegalArgumentException(Bundle.FILTER_ErrorNoStorage());
+        }
+        try {
+            DataShadow.create(dFolder, filter.getName(), DataObject.find(original));
+        } catch (IOException ex) {
+            throw new IllegalArgumentException(Bundle.PROFILE_CannotAddFilter(ex.getLocalizedMessage()), ex);
+        }
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = 3;
+        hash = 97 * hash + Objects.hashCode(this.profileFolder);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final FilterProfileAdapter other = (FilterProfileAdapter) obj;
+        return Objects.equals(this.profileFolder, other.profileFolder);
+    }
+
+    static class ChangedL implements ChangedListener<FilterChain> {
+        volatile boolean changed;
+
+        @Override
+        public void changed(FilterChain source) {
+            changed = true;
+        }
+    }
+
+    @Override
+    public String toString() {
+        return "Profile[" + profileFolder.getName() + "]";
+    }
+    
+    private void handleFileRenamed(FileObject f, String newName) {
+        try {
+            List<Filter> filters = getProfileFilters();
+            setFilterOrder(filters);
+            Filter filter = storage.getFilter(f);
+            if (filter != null) {
+                CustomFilter cf = Filters.lookupFilter(filter, CustomFilter.class);
+                if (cf != null) {
+                    cf.setName(newName);
+                }
+            }
+        } catch (IOException ex) {
+            Exceptions.printStackTrace(ex);
+        }
+    }
+
+    /**
+     * Provides access to replaceFilters.
+     */
+    private static class ProfileFilterChain extends FilterChain {
+        @Override
+        public void replaceFilters(List<Filter> newFilters) {
+            super.replaceFilters(newFilters);
+        }
+    }
+
+}
