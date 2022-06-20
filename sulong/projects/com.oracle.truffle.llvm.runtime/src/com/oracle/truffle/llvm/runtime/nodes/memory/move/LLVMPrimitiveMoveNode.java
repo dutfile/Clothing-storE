@@ -297,4 +297,39 @@ public abstract class LLVMPrimitiveMoveNode extends LLVMNode {
         @Specialization(guards = "doCustomCopy(sourcePtr, destPtr, copyTargetLib)")
         Object customCopy(LLVMPointer sourcePtr, LLVMPointer destPtr,
                         @CachedLibrary(limit = "3") LLVMCopyTargetLibrary copyTargetLib) {
-            copyTargetLib.copyFrom(g
+            copyTargetLib.copyFrom(getReceiver(destPtr), getReceiver(sourcePtr), length);
+            return null;
+        }
+
+        @Specialization(guards = {"!doCustomCopy(sourcePtr, destPtr, copyTargetLib)", "useMemMoveIntrinsic(sourcePtr, destPtr, asForeignLib)"})
+        Object delegateToMemMove(LLVMPointer sourcePtr, LLVMPointer destPtr,
+                        @SuppressWarnings("unused") @CachedLibrary(limit = "3") LLVMCopyTargetLibrary copyTargetLib,
+                        @SuppressWarnings("unused") @CachedLibrary(limit = "3") LLVMAsForeignLibrary asForeignLib) {
+            memMoveNode.executeWithTarget(destPtr, sourcePtr, length);
+            return null;
+        }
+
+        @Specialization(guards = {"!doCustomCopy(sourcePtr, destPtr, copyTargetLib)", "!useMemMoveIntrinsic(sourcePtr, destPtr, asForeignLib)", "copyDirection(sourcePtr, destPtr) > 0"})
+        Object primitiveMoveInForwardDir(LLVMPointer sourcePtr, LLVMPointer destPtr,
+                        @SuppressWarnings("unused") @CachedLibrary(limit = "3") LLVMCopyTargetLibrary copyTargetLib,
+                        @SuppressWarnings("unused") @CachedLibrary(limit = "3") LLVMAsForeignLibrary asForeignLib) {
+            primitiveMoveNode.executeWithTarget(sourcePtr, destPtr, true);
+            return null;
+        }
+
+        @Specialization(guards = {"!doCustomCopy(sourcePtr, destPtr, copyTargetLib)", "!useMemMoveIntrinsic(sourcePtr, destPtr, asForeignLib)", "copyDirection(sourcePtr, destPtr) < 0"})
+        Object primitiveMoveInBackwardDir(LLVMPointer sourcePtr, LLVMPointer destPtr,
+                        @SuppressWarnings("unused") @CachedLibrary(limit = "3") LLVMCopyTargetLibrary copyTargetLib,
+                        @SuppressWarnings("unused") @CachedLibrary(limit = "3") LLVMAsForeignLibrary asForeignLib) {
+            primitiveMoveNode.executeWithTarget(sourcePtr.increment(length), destPtr.increment(length), false);
+            return null;
+        }
+
+        @Specialization(guards = {"!doCustomCopy(sourcePtr, destPtr, copyTargetLib)", "!useMemMoveIntrinsic(sourcePtr, destPtr, asForeignLib)", "copyDirection(sourcePtr, destPtr) == 0"})
+        Object noOp(@SuppressWarnings("unused") LLVMPointer sourcePtr, @SuppressWarnings("unused") LLVMPointer destPtr,
+                        @SuppressWarnings("unused") @CachedLibrary(limit = "3") LLVMCopyTargetLibrary copyTargetLib,
+                        @SuppressWarnings("unused") @CachedLibrary(limit = "3") LLVMAsForeignLibrary asForeignLib) {
+            return null;
+        }
+    }
+}
