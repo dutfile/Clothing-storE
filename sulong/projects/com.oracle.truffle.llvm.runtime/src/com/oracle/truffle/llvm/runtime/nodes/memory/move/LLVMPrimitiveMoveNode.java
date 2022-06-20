@@ -169,4 +169,132 @@ public abstract class LLVMPrimitiveMoveNode extends LLVMNode {
     }
 
     /**
-     * The head of the {
+     * The head of the {@link LLVMPrimitiveMoveNode load/store nodes chain}. It intercepts
+     * situations that cannot be handled by the chain and must be handled specifically. In
+     * particular, there are two cases:
+     * <ol>
+     * <li>the targets exporting {@link LLVMCopyTargetLibrary}: it concerns va_list objects that do
+     * not support sequential reads/writes, but can copy from one to another using the
+     * {@link LLVMCopyTargetLibrary}.</li>
+     * <li>foreign managed objects: the copying mechanism uses the fallback implementation of
+     * {@link com.oracle.truffle.llvm.runtime.library.internal.LLVMManagedReadLibrary} and
+     * {@link com.oracle.truffle.llvm.runtime.library.internal.LLVMManagedWriteLibrary} that is
+     * built on top of the interop. However, the fallback implementation is not compatible with the
+     * sequential reads/writes either, and therefore the original memmove intrinsic must be used
+     * instead.</li>
+     * </ol>
+     */
+    @NodeChild(value = "source", type = LLVMExpressionNode.class)
+    @NodeChild(value = "destination", type = LLVMExpressionNode.class)
+    public abstract static class HeadNode extends LLVMExpressionNode {
+
+        private final long length;
+        @Child private LLVMPrimitiveMoveNode primitiveMoveNode;
+        @Child private LLVMMemMoveNode memMoveNode;
+
+        protected HeadNode(long length, LLVMPrimitiveMoveNode primitiveMoveNode, LLVMMemMoveNode memMoveNode) {
+            this.length = length;
+            this.primitiveMoveNode = primitiveMoveNode;
+            this.memMoveNode = memMoveNode;
+        }
+
+        public abstract Object executeWithTarget(LLVMPointer sourcePtr, LLVMPointer destPtr);
+
+        boolean doCustomCopy(LLVMPointer sourcePtr, LLVMPointer destPtr, LLVMCopyTargetLibrary copyTargetLib) {
+            Object src;
+            Object dest;
+            src = getReceiver(sourcePtr);
+            if (src == null) {
+                return false;
+            }
+            dest = getReceiver(destPtr);
+            if (dest == null) {
+                return false;
+            }
+            return copyTargetLib.canCopyFrom(dest, src, length);
+        }
+
+        /**
+         * The receiver of {@link LLVMCopyTargetLibrary#canCopyFrom(Object, Object, long)}} invoked
+         * in the guard expressions needs to be an object exporting {@link LLVMCopyTargetLibrary},
+         * not {@link LLVMManagedPointer}, such as
+         * {@link com.oracle.truffle.llvm.runtime.nodes.intrinsics.llvm.aarch64.linux.LLVMLinuxAarch64VaListStorage}.
+         * <p>
+         * N.B. The {@code LLVMLinuxAarch64VaListStorage.canCopyFrom} method returns {@code true} if
+         * the source is another {@code LLVMLinuxAarch64VaListStorage} or a native pointer, as both
+         * are valid sources to copy from. The {@code copyFrom} implementation then uses
+         * {@link com.oracle.truffle.llvm.runtime.nodes.intrinsics.llvm.va.LLVMVaListLibrary#copy(Object, Object, Frame)},
+         * where the source argument becomes the receiver of
+         * {@link com.oracle.truffle.llvm.runtime.nodes.intrinsics.llvm.va.LLVMVaListLibrary#copy}:
+         * one for handling "object->object" ({@code LLVMLinuxAarch64VaListStorage.copy} message)
+         * and "native->object" ({@code LLVMLinuxAarch64VaListStorage.NativeVAListWrapper.copy}
+         * message).
+         */
+        private static Object getReceiver(LLVMPointer receiverPtr) {
+            Object recv;
+            if (LLVMManagedPointer.isInstance(receiverPtr)) {
+                if (LLVMManagedPointer.cast(receiverPtr).getOffset() != 0) {
+                    return null;
+                }
+                recv = LLVMManagedPointer.cast(receiverPtr).getObject();
+            } else {
+                recv = receiverPtr;
+            }
+            return recv;
+        }
+
+        boolean useMemMoveIntrinsic(LLVMPointer sourcePtr, LLVMPointer destPtr, LLVMAsForeignLibrary asForeignLib) {
+            if (LLVMManagedPointer.isInstance(sourcePtr)) {
+                if (LLVMManagedPointer.cast(sourcePtr).getOffset() != 0) {
+                    return true;
+                }
+                Object recv = LLVMManagedPointer.cast(sourcePtr).getObject();
+                if (asForeignLib.isForeign(recv)) {
+                    return true;
+                }
+            }
+            if (LLVMManagedPointer.isInstance(destPtr)) {
+                if (LLVMManagedPointer.cast(destPtr).getOffset() != 0) {
+                    return true;
+                }
+                Object recv = LLVMManagedPointer.cast(destPtr).getObject();
+                if (asForeignLib.isForeign(recv)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        short copyDirection(LLVMPointer sourcePtr, LLVMPointer destPtr) {
+            if (LLVMManagedPointer.isInstance(sourcePtr) && LLVMManagedPointer.isInstance(destPtr)) {
+                LLVMManagedPointer managedSourcePtr = LLVMManagedPointer.cast(sourcePtr);
+                LLVMManagedPointer managedDestPtr = LLVMManagedPointer.cast(destPtr);
+                if (managedSourcePtr.getObject() == managedDestPtr.getObject()) {
+                    if (managedSourcePtr.getOffset() == managedDestPtr.getOffset()) {
+                        return 0;
+                    } else if (managedSourcePtr.getOffset() < managedDestPtr.getOffset() &&
+                                    managedSourcePtr.getOffset() + length > managedDestPtr.getOffset()) {
+                        return -1;
+                    } else {
+                        return 1;
+                    }
+                }
+            } else if (LLVMNativePointer.isInstance(sourcePtr) && LLVMNativePointer.isInstance(destPtr)) {
+                LLVMNativePointer nativeSourcePtr = LLVMNativePointer.cast(sourcePtr);
+                LLVMNativePointer nativeDestPtr = LLVMNativePointer.cast(destPtr);
+                if (nativeSourcePtr.asNative() == nativeDestPtr.asNative()) {
+                    return 0;
+                } else if (nativeSourcePtr.asNative() < nativeDestPtr.asNative() &&
+                                nativeSourcePtr.asNative() + length > nativeDestPtr.asNative()) {
+                    return -1;
+                } else {
+                    return 1;
+                }
+            }
+            return 1;
+        }
+
+        @Specialization(guards = "doCustomCopy(sourcePtr, destPtr, copyTargetLib)")
+        Object customCopy(LLVMPointer sourcePtr, LLVMPointer destPtr,
+                        @CachedLibrary(limit = "3") LLVMCopyTargetLibrary copyTargetLib) {
+            copyTargetLib.copyFrom(g
