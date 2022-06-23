@@ -73,4 +73,8 @@ public class WasmCustomSection {
      * 
      * @return data of the custom section.
      */
-    public byte[]
+    public byte[] data() {
+        return data;
+    }
+
+}
