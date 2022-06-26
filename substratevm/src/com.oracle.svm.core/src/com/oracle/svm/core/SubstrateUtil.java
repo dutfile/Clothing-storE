@@ -254,4 +254,146 @@ public class SubstrateUtil {
 
     /**
      * Similar to {@link String#split(String)} but with a fixed separator string instead of a
-     * regular expression. This avoids making regular expression cod
+     * regular expression. This avoids making regular expression code reachable.
+     */
+    public static String[] split(String value, String separator) {
+        return split(value, separator, 0);
+    }
+
+    /**
+     * Similar to {@link String#split(String, int)} but with a fixed separator string instead of a
+     * regular expression. This avoids making regular expression code reachable.
+     */
+    public static String[] split(String value, String separator, int limit) {
+        return StringUtil.split(value, separator, limit);
+    }
+
+    public static String toHex(byte[] data) {
+        return LambdaUtils.toHex(data);
+    }
+
+    public static String digest(String value) {
+        return LambdaUtils.digest(value);
+    }
+
+    /**
+     * Convenience method that unwraps the method details and delegates to the currently registered
+     * UniqueShortNameProvider image singleton with the significant exception that it always passes
+     * null for the class loader.
+     *
+     * @param m a method whose unique short name is required
+     * @return a unique short name for the method
+     */
+    public static String uniqueShortName(ResolvedJavaMethod m) {
+        return UniqueShortNameProvider.singleton().uniqueShortName(null, m.getDeclaringClass(), m.getName(), m.getSignature(), m.isConstructor());
+    }
+
+    /**
+     * Delegate to the corresponding method of the currently registered UniqueShortNameProvider
+     * image singleton.
+     *
+     * @param loader the class loader for the method's owning class
+     * @param declaringClass the method's declaring class
+     * @param methodName the method's name
+     * @param methodSignature the method's signature
+     * @param isConstructor true if the method is a constructor otherwise false
+     * @return a unique short name for the method
+     */
+    public static String uniqueShortName(ClassLoader loader, ResolvedJavaType declaringClass, String methodName, Signature methodSignature, boolean isConstructor) {
+        return UniqueShortNameProvider.singleton().uniqueShortName(loader, declaringClass, methodName, methodSignature, isConstructor);
+    }
+
+    /**
+     * Delegate to the corresponding method of the currently registered UniqueShortNameProvider
+     * image singleton.
+     *
+     * @param m a member whose unique short name is required
+     * @return a unique short name for the member
+     */
+    public static String uniqueShortName(Member m) {
+        return UniqueShortNameProvider.singleton().uniqueShortName(m);
+    }
+
+    /**
+     * Generate a unique short name to be used as the selector for a stub method which invokes the
+     * supplied target method. Note that the returned name must be derived using the name and class
+     * of the target method even though the stub method will be owned to another class. This ensures
+     * that any two stubs which target corresponding methods whose selector name is identical will
+     * end up with different stub names.
+     *
+     * @param m a stub target method for which a unique stub method selector name is required
+     * @return a unique stub name for the method
+     */
+    public static String uniqueStubName(ResolvedJavaMethod m) {
+        String shortName = UniqueShortNameProvider.singleton().uniqueShortName(null, m.getDeclaringClass(), m.getName(), m.getSignature(), m.isConstructor());
+        return stripPackage(m.getDeclaringClass().toJavaName()) + "_" +
+                        (m.isConstructor() ? "constructor" : m.getName()) + "_" +
+                        SubstrateUtil.digest(shortName);
+
+    }
+
+    /**
+     * Returns a unique identifier for a class loader that can be folded into the unique short name
+     * of methods where needed in order to disambiguate name collisions that can arise when the same
+     * class bytecode is loaded by more than one loader.
+     *
+     * @param loader The loader whose identifier is to be returned.
+     * @return A unique identifier for the classloader or the empty string when the loader is one of
+     *         the special set whose method names do not need qualification.
+     */
+    public static String classLoaderNameAndId(ClassLoader loader) {
+        if (loader == null) {
+            return "";
+        }
+        try {
+            return (String) classLoaderNameAndId.get(loader);
+        } catch (IllegalAccessException e) {
+            throw VMError.shouldNotReachHere("Cannot reflectively access ClassLoader.nameAndId");
+        }
+    }
+
+    private static Field classLoaderNameAndId = ReflectionUtil.lookupField(ClassLoader.class, "nameAndId");
+
+    /**
+     * Mangle the given method name according to our image's (default) mangling convention. A rough
+     * requirement is that symbol names are valid symbol name tokens for the assembler. (This is
+     * necessary to use them in linker command lines, which we currently do in
+     * NativeImageGenerator.) These are of the form '[a-zA-Z\._\$][a-zA-Z0-9\$_]*'. We use the
+     * underscore sign as an escape character. It is always followed by four hex digits representing
+     * the escaped character in natural (big-endian) order. We do not allow the dollar sign, even
+     * though it is legal, because it has special meaning in some shells and disturbs command lines.
+     *
+     * @param methodName a string to mangle
+     * @return a mangled version of methodName
+     */
+    @Platforms(Platform.HOSTED_ONLY.class)
+    public static String mangleName(String methodName) {
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < methodName.length(); ++i) {
+            char c = methodName.charAt(i);
+            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (i == 0 && c == '.') || (i > 0 && c >= '0' && c <= '9')) {
+                // it's legal in this position
+                out.append(c);
+            } else if (c == '_') {
+                out.append("__");
+            } else {
+                out.append('_');
+                out.append(String.format("%04x", (int) c));
+            }
+        }
+        String mangled = out.toString();
+        assert mangled.matches("[a-zA-Z\\._][a-zA-Z0-9_]*");
+        /*-
+         * To demangle, the following pipeline works for me (assuming no multi-byte characters):
+         *
+         * sed -r 's/\_([0-9a-f]{4})/\n\1\n/g' | sed -r 's#^[0-9a-f]{2}([0-9a-f]{2})#/usr/bin/printf "\\x\1"#e' | tr -d '\n'
+         *
+         * It's not strictly correct if the first characters after an escape sequence
+         * happen to match ^[0-9a-f]{2}, but hey....
+         */
+        return mangled;
+    }
+
+    private static final Method isHiddenMethod = JavaVersionUtil.JAVA_SPEC >= 17 ? ReflectionUtil.lookupMethod(Class.class, "isHidden") : null;
+
+    public s
