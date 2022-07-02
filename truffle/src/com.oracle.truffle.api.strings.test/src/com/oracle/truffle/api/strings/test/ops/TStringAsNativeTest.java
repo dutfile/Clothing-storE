@@ -90,4 +90,26 @@ public class TStringAsNativeTest extends TStringTestBase {
                     Assert.assertSame(compact, node.execute((TruffleString) a, PointerObject::create, encoding, true, true));
                     Assert.assertSame(inflate, node.execute((TruffleString) a, PointerObject::create, encoding, false, true));
                     Assert.assertNotSame(compact, node.execute((TruffleString) a, PointerObject::create, encoding, true, false));
-               
+                    Assert.assertNotSame(inflate, node.execute((TruffleString) a, PointerObject::create, encoding, false, false));
+                }
+                Assert.assertTrue(compact.isNative());
+                Assert.assertTrue(inflate.isNative());
+                Assert.assertTrue(compactNoCache.isNative());
+                Assert.assertTrue(inflateNoCache.isNative());
+                assertBytesEqual(compact, encoding, array);
+                assertBytesEqual(inflate, encoding, array);
+                assertBytesEqual(compactNoCache, encoding, array);
+                assertBytesEqual(inflateNoCache, encoding, array);
+                Assert.assertEquals(naturalStride, inflate.getStringCompactionLevelUncached(encoding).getLog2());
+                Assert.assertEquals(naturalStride, inflateNoCache.getStringCompactionLevelUncached(encoding).getLog2());
+                Assert.assertEquals(compactStride, compact.getStringCompactionLevelUncached(encoding).getLog2());
+                Assert.assertEquals(compactStride, compactNoCache.getStringCompactionLevelUncached(encoding).getLog2());
+            }
+        });
+    }
+
+    @Test
+    public void testNull() throws Exception {
+        checkNullSE((s, e) -> node.execute((TruffleString) s, PointerObject::create, e, true, true));
+    }
+}
