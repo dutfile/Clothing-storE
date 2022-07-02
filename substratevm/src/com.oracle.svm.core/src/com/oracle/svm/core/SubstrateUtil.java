@@ -396,4 +396,47 @@ public class SubstrateUtil {
 
     private static final Method isHiddenMethod = JavaVersionUtil.JAVA_SPEC >= 17 ? ReflectionUtil.lookupMethod(Class.class, "isHidden") : null;
 
-    public s
+    public static boolean isHiddenClass(Class<?> javaClass) {
+        if (JavaVersionUtil.JAVA_SPEC >= 17) {
+            try {
+                return (boolean) isHiddenMethod.invoke(javaClass);
+            } catch (IllegalAccessException | InvocationTargetException e) {
+                throw VMError.shouldNotReachHere(e);
+            }
+        }
+        return false;
+    }
+
+    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+    public static boolean isHiddenClass(DynamicHub hub) {
+        if (JavaVersionUtil.JAVA_SPEC >= 17) {
+            return hub.isHidden();
+        }
+        return false;
+    }
+
+    public static int arrayTypeDimension(Class<?> clazz) {
+        int dimension = 0;
+        Class<?> componentType = clazz;
+        while (componentType.isArray()) {
+            componentType = componentType.getComponentType();
+            dimension++;
+        }
+        return dimension;
+    }
+
+    public static int arrayTypeDimension(ResolvedJavaType arrayType) {
+        int dimension = 0;
+        ResolvedJavaType componentType = arrayType;
+        while (componentType.isArray()) {
+            componentType = componentType.getComponentType();
+            dimension++;
+        }
+        return dimension;
+    }
+
+    public static String stripPackage(String qualifiedClassName) {
+        /* Anonymous classes can contain a '/' which can lead to an invalid binary name. */
+        return qualifiedClassName.substring(qualifiedClassName.lastIndexOf(".") + 1).replace("/", "");
+    }
+}
