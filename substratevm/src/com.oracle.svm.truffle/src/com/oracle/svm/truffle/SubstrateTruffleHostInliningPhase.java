@@ -41,4 +41,58 @@ import jdk.vm.ci.meta.ResolvedJavaMethod;
 /**
  * Overrides the behavior of the Truffle host inlining phase taking into account that SVM does not
  * need any graph caching as all graphs are already parsed. Also enables the use of this phase for
- * methods that are runtime compiled in addition to meth
+ * methods that are runtime compiled in addition to methods annotated with
+ * {@link BytecodeInterpreterSwitch}.
+ */
+@Platforms(Platform.HOSTED_ONLY.class)
+public final class SubstrateTruffleHostInliningPhase extends TruffleHostInliningPhase {
+
+    private final TruffleFeature truffleFeature = ImageSingletons.lookup(TruffleFeature.class);
+
+    SubstrateTruffleHostInliningPhase(CanonicalizerPhase canonicalizer) {
+        super(canonicalizer);
+    }
+
+    @Override
+    protected StructuredGraph parseGraph(HighTierContext context, StructuredGraph graph, ResolvedJavaMethod method) {
+        return ((HostedMethod) method).compilationInfo.createGraph(graph.getDebug(), CompilationIdentifier.INVALID_COMPILATION_ID, true);
+    }
+
+    /**
+     * Determines whether a method should be used for host inlining. We use the set of runtime
+     * compiled methods collected by the {@link TruffleFeature} for that.
+     */
+    @Override
+    protected boolean isEnabledFor(ResolvedJavaMethod method) {
+        HostedMethod hostedMethod = ((HostedMethod) method);
+        if (hostedMethod.isDeoptTarget()) {
+            // do not treat deopt targets as interpreter methods
+            // they generally should not perform any optimization to simplify deoptimization
+            return false;
+        } else if (super.isEnabledFor(method)) {
+            return true;
+        } else if (truffleFeature.runtimeCompiledMethods.contains(translateMethod(method)) &&
+                        isTruffleBoundary(method) == null) {
+            return true;
+        }
+        return false;
+    }
+
+    @Override
+    protected String isTruffleBoundary(ResolvedJavaMethod targetMethod) {
+        ResolvedJavaMethod translatedMethod = translateMethod(targetMethod);
+        String boundary = super.isTruffleBoundary(targetMethod);
+        if (boundary != null) {
+            return boundary;
+        } else if (truffleFeature.isBlocklisted(translatedMethod)) {
+            return "SVM block listed";
+        } else {
+            return null;
+        }
+    }
+
+    @Override
+    protected ResolvedJavaMethod translateMethod(ResolvedJavaMethod method) {
+        return ((HostedMethod) method).getWrapped();
+    }
+}
