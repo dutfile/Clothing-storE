@@ -33,4 +33,39 @@ import org.graalvm.word.PointerBase;
 //Checkstyle: stop
 
 /**
- * Definition
+ * Definitions manually translated from the C header file sys/times.h.
+ */
+@CContext(PosixDirectives.class)
+public class Times {
+
+    @CStruct(addStructKeyword = true)
+    public interface tms extends PointerBase {
+
+        @CField
+        long tms_utime();
+
+        @CField
+        void set_tms_utime(long value);
+
+        @CField
+        long tms_stime();
+
+        @CField
+        void set_tms_stime(long value);
+
+        @CField
+        long tms_cutime();
+
+        @CField
+        void set_tms_cutime(long value);
+
+        @CField
+        long tms_cstime();
+
+        @CField
+        void set_tms_cstime(long value);
+    }
+
+    @CFunction
+    public static native long times(tms tp);
+}
