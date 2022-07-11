@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2019, 2019, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,61 +22,25 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-/*
- */
-package org.graalvm.compiler.jtt.lang;
+package com.oracle.svm.core.graal.snippets.amd64;
 
-import org.junit.Test;
+import java.util.Map;
 
-import org.graalvm.compiler.jtt.JTTTest;
+import org.graalvm.compiler.graph.Node;
+import org.graalvm.compiler.options.OptionValues;
+import org.graalvm.compiler.phases.util.Providers;
 
-public final class Long_lessEqual02 extends JTTTest {
+import com.oracle.svm.core.graal.snippets.ArithmeticSnippets;
+import com.oracle.svm.core.graal.snippets.NodeLoweringProvider;
 
-    public static boolean test(long i) {
-        if (i <= 5L) {
-            return true;
-        }
-        return false;
+final class AMD64ArithmeticSnippets extends ArithmeticSnippets {
+
+    @SuppressWarnings("unused")
+    public static void registerLowerings(OptionValues options, Providers providers, Map<Class<? extends Node>, NodeLoweringProvider<?>> lowerings) {
+        new AMD64ArithmeticSnippets(options, providers, lowerings);
     }
 
-    @Test
-    public void run0() throws Throwable {
-        runTest("test", -9223372036854775808L);
+    private AMD64ArithmeticSnippets(OptionValues options, Providers providers, Map<Class<? extends Node>, NodeLoweringProvider<?>> lowerings) {
+        super(options, providers, lowerings, true);
     }
-
-    @Test
-    public void run1() throws Throwable {
-        runTest("test", -2L);
-    }
-
-    @Test
-    public void run2() throws Throwable {
-        runTest("test", -1L);
-    }
-
-    @Test
-    public void run3() throws Throwable {
-        runTest("test", 0L);
-    }
-
-    @Test
-    public void run4() throws Throwable {
-        runTest("test", 4L);
-    }
-
-    @Test
-    public void run5() throws Throwable {
-        runTest("test", 5L);
-    }
-
-    @Test
-    public void run6() throws Throwable {
-        runTest("test", 6L);
-    }
-
-    @Test
-    public void run7() throws Throwable {
-        runTest("test", 9223372036854775807L);
-    }
-
 }
