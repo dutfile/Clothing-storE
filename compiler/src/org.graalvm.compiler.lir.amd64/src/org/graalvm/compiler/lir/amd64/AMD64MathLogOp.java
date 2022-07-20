@@ -281,4 +281,125 @@ public final class AMD64MathLogOp extends AMD64MathIntrinsicUnaryOp {
         masm.subl(rax, rcx);
         masm.cvtsi2sdl(xmm7, rax);
         masm.mulsd(xmm1, xmm0);
-        masm.movq(xmm6, recordExternalAddress(crb, log2));   
+        masm.movq(xmm6, recordExternalAddress(crb, log2));             // 0xfefa3800, 0x3fa62e42
+        masm.movdqu(xmm3, recordExternalAddress(crb, coeff));          // 0x92492492, 0x3fc24924,
+                                                                       // 0x00000000, 0xbfd00000
+        masm.subsd(xmm5, xmm2);
+        masm.andl(rdx, 16711680);
+        masm.shrl(rdx, 12);
+        masm.movdqu(xmm0, new AMD64Address(r11, rdx, Stride.S1));
+        masm.movdqu(xmm4, recordExternalAddress(crb, coeff16));        // 0x3d6fb175, 0xbfc5555e,
+                                                                       // 0x55555555, 0x3fd55555
+        masm.addsd(xmm1, xmm5);
+        masm.movdqu(xmm2, recordExternalAddress(crb, coeff32));        // 0x9999999a, 0x3fc99999,
+                                                                       // 0x00000000, 0xbfe00000
+        masm.mulsd(xmm6, xmm7);
+        if (masm.supports(AMD64.CPUFeature.SSE3)) {
+            masm.movddup(xmm5, xmm1);
+        } else {
+            masm.movdqu(xmm5, xmm1);
+            masm.movlhps(xmm5, xmm5);
+        }
+        masm.mulsd(xmm7, recordExternalAddress(crb, log28));           // 0x93c76730, 0x3ceef357
+        masm.mulsd(xmm3, xmm1);
+        masm.addsd(xmm0, xmm6);
+        masm.mulpd(xmm4, xmm5);
+        masm.mulpd(xmm5, xmm5);
+        if (masm.supports(AMD64.CPUFeature.SSE3)) {
+            masm.movddup(xmm6, xmm0);
+        } else {
+            masm.movdqu(xmm6, xmm0);
+            masm.movlhps(xmm6, xmm6);
+        }
+        masm.addsd(xmm0, xmm1);
+        masm.addpd(xmm4, xmm2);
+        masm.mulpd(xmm3, xmm5);
+        masm.subsd(xmm6, xmm0);
+        masm.mulsd(xmm4, xmm1);
+        masm.pshufd(xmm2, xmm0, 238);
+        masm.addsd(xmm1, xmm6);
+        masm.mulsd(xmm5, xmm5);
+        masm.addsd(xmm7, xmm2);
+        masm.addpd(xmm4, xmm3);
+        masm.addsd(xmm1, xmm7);
+        masm.mulpd(xmm4, xmm5);
+        masm.addsd(xmm1, xmm4);
+        masm.pshufd(xmm5, xmm4, 238);
+        masm.addsd(xmm1, xmm5);
+        masm.addsd(xmm0, xmm1);
+        masm.jmp(block9);
+
+        masm.bind(block0);
+        masm.movq(xmm0, new AMD64Address(rsp, 0));
+        masm.movq(xmm1, new AMD64Address(rsp, 0));
+        masm.addl(rax, 16);
+        masm.cmplAndJcc(rax, 32768, ConditionFlag.AboveEqual, block2, false);
+        masm.cmplAndJcc(rax, 16, ConditionFlag.Below, block3, false);
+
+        masm.bind(block4);
+        masm.addsd(xmm0, xmm0);
+        masm.jmp(block9);
+
+        masm.bind(block5);
+        masm.jcc(AMD64Assembler.ConditionFlag.Above, block4);
+        masm.cmplAndJcc(rdx, 0, ConditionFlag.Above, block4, false);
+        masm.jmp(block6);
+
+        masm.bind(block3);
+        masm.xorpd(xmm1, xmm1);
+        masm.addsd(xmm1, xmm0);
+        masm.movdl(rdx, xmm1);
+        masm.psrlq(xmm1, 32);
+        masm.movdl(rcx, xmm1);
+        masm.orl(rdx, rcx);
+        masm.cmplAndJcc(rdx, 0, ConditionFlag.Equal, block7, false);
+        masm.xorpd(xmm1, xmm1);
+        masm.movl(rax, 18416);
+        masm.pinsrw(xmm1, rax, 3);
+        masm.mulsd(xmm0, xmm1);
+        masm.movdqu(xmm1, xmm0);
+        masm.pextrw(rax, xmm0, 3);
+        masm.por(xmm0, xmm2);
+        masm.psrlq(xmm0, 27);
+        masm.movl(rcx, 18416);
+        masm.psrld(xmm0, 2);
+        masm.rcpps(xmm0, xmm0);
+        masm.psllq(xmm1, 12);
+        masm.pshufd(xmm6, xmm5, 228);
+        masm.psrlq(xmm1, 12);
+        masm.jmp(block1);
+
+        masm.bind(block2);
+        masm.movdl(rdx, xmm1);
+        masm.psrlq(xmm1, 32);
+        masm.movdl(rcx, xmm1);
+        masm.addl(rcx, rcx);
+        masm.cmplAndJcc(rcx, -2097152, ConditionFlag.AboveEqual, block5, false);
+        masm.orl(rdx, rcx);
+        masm.cmplAndJcc(rdx, 0, ConditionFlag.Equal, block7, false);
+
+        masm.bind(block6);
+        masm.xorpd(xmm1, xmm1);
+        masm.xorpd(xmm0, xmm0);
+        masm.movl(rax, 32752);
+        masm.pinsrw(xmm1, rax, 3);
+        masm.mulsd(xmm0, xmm1);
+        masm.movl(new AMD64Address(rsp, 16), 3);
+        masm.jmp(block8);
+        masm.bind(block7);
+        masm.xorpd(xmm1, xmm1);
+        masm.xorpd(xmm0, xmm0);
+        masm.movl(rax, 49136);
+        masm.pinsrw(xmm0, rax, 3);
+        masm.divsd(xmm0, xmm1);
+        masm.movl(new AMD64Address(rsp, 16), 2);
+
+        masm.bind(block8);
+        masm.movq(new AMD64Address(rsp, 8), xmm0);
+
+        masm.movq(xmm0, new AMD64Address(rsp, 8));
+
+        masm.bind(block9);
+        masm.addq(rsp, 24);
+    }
+}
