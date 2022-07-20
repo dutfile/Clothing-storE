@@ -80,4 +80,21 @@ public final class LocalVariableTable extends Attribute implements LocalVariable
 
     /**
      * Gets a copy of the array of {@link Local}s that was passed to this object's constructor.
-   
+     */
+    public Local[] getLocals() {
+        return locals.clone();
+    }
+
+    /**
+     * Gets a description of all the local variables live at the bytecode index {@code bci}.
+     */
+    public Local[] getLocalsAt(int bci) {
+        List<Local> result = new ArrayList<>();
+        for (Local l : locals) {
+            if (l.getStartBCI() <= bci && bci <= l.getEndBCI()) {
+                result.add(l);
+            }
+        }
+        return result.toArray(Local.EMPTY_ARRAY);
+    }
+}
