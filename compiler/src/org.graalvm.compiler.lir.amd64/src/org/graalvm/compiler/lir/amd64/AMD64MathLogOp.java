@@ -147,4 +147,138 @@ public final class AMD64MathLogOp extends AMD64MathIntrinsicUnaryOp {
             0x3fd522ae, 0x8164c759, 0x3d2ebe70, 0x9e173000, 0x3fd4c9e0,
             0x1b0ad8a4, 0xbd2e2089, 0xc271c800, 0x3fd4718d, 0x0967d675,
             0xbd2f27ce, 0x23d5e800, 0x3fd419b4, 0xec90e09d, 0x3d08e436,
-            0x77333000, 0x3fd3c252, 0xb606bd5c, 0x3d183b54, 
+            0x77333000, 0x3fd3c252, 0xb606bd5c, 0x3d183b54, 0x76be1000,
+            0x3fd36b67, 0xb0f177c8, 0x3d116ecd, 0xe1d36000, 0x3fd314f1,
+            0xd3213cb8, 0xbd28e27a, 0x7cdc9000, 0x3fd2bef0, 0x4a5004f4,
+            0x3d2a9cfa, 0x1134d800, 0x3fd26962, 0xdf5bb3b6, 0x3d2c93c1,
+            0x6d0eb800, 0x3fd21445, 0xba46baea, 0x3d0a87de, 0x635a6800,
+            0x3fd1bf99, 0x5147bdb7, 0x3d2ca6ed, 0xcbacf800, 0x3fd16b5c,
+            0xf7a51681, 0x3d2b9acd, 0x8227e800, 0x3fd1178e, 0x63a5f01c,
+            0xbd2c210e, 0x67616000, 0x3fd0c42d, 0x163ceae9, 0x3d27188b,
+            0x604d5800, 0x3fd07138, 0x16ed4e91, 0x3cf89cdb, 0x5626c800,
+            0x3fd01eae, 0x1485e94a, 0xbd16f08c, 0x6cb3b000, 0x3fcf991c,
+            0xca0cdf30, 0x3d1bcbec, 0xe4dd0000, 0x3fcef5ad, 0x65bb8e11,
+            0xbcca2115, 0xffe71000, 0x3fce530e, 0x6041f430, 0x3cc21227,
+            0xb0d49000, 0x3fcdb13d, 0xf715b035, 0xbd2aff2a, 0xf2656000,
+            0x3fcd1037, 0x75b6f6e4, 0xbd084a7e, 0xc6f01000, 0x3fcc6ffb,
+            0xc5962bd2, 0xbcf1ec72, 0x383be000, 0x3fcbd087, 0x595412b6,
+            0xbd2d4bc4, 0x575bd000, 0x3fcb31d8, 0x4eace1aa, 0xbd0c358d,
+            0x3c8ae000, 0x3fca93ed, 0x50562169, 0xbd287243, 0x07089000,
+            0x3fc9f6c4, 0x6865817a, 0x3d29904d, 0xdcf70000, 0x3fc95a5a,
+            0x58a0ff6f, 0x3d07f228, 0xeb390000, 0x3fc8beaf, 0xaae92cd1,
+            0xbd073d54, 0x6551a000, 0x3fc823c1, 0x9a631e83, 0x3d1e0ddb,
+            0x85445000, 0x3fc7898d, 0x70914305, 0xbd1c6610, 0x8b757000,
+            0x3fc6f012, 0xe59c21e1, 0xbd25118d, 0xbe8c1000, 0x3fc6574e,
+            0x2c3c2e78, 0x3d19cf8b, 0x6b544000, 0x3fc5bf40, 0xeb68981c,
+            0xbd127023, 0xe4a1b000, 0x3fc527e5, 0xe5697dc7, 0x3d2633e8,
+            0x8333b000, 0x3fc4913d, 0x54fdb678, 0x3d258379, 0xa5993000,
+            0x3fc3fb45, 0x7e6a354d, 0xbd2cd1d8, 0xb0159000, 0x3fc365fc,
+            0x234b7289, 0x3cc62fa8, 0x0c868000, 0x3fc2d161, 0xcb81b4a1,
+            0x3d039d6c, 0x2a49c000, 0x3fc23d71, 0x8fd3df5c, 0x3d100d23,
+            0x7e23f000, 0x3fc1aa2b, 0x44389934, 0x3d2ca78e, 0x8227e000,
+            0x3fc1178e, 0xce2d07f2, 0x3d21ef78, 0xb59e4000, 0x3fc08598,
+            0x7009902c, 0xbd27e5dd, 0x39dbe000, 0x3fbfe891, 0x4fa10afd,
+            0xbd2534d6, 0x830a2000, 0x3fbec739, 0xafe645e0, 0xbd2dc068,
+            0x63844000, 0x3fbda727, 0x1fa71733, 0x3d1a8940, 0x01bc4000,
+            0x3fbc8858, 0xc65aacd3, 0x3d2646d1, 0x8dad6000, 0x3fbb6ac8,
+            0x2bf768e5, 0xbd139080, 0x40b1c000, 0x3fba4e76, 0xb94407c8,
+            0xbd0e42b6, 0x5d594000, 0x3fb9335e, 0x3abd47da, 0x3d23115c,
+            0x2f40e000, 0x3fb8197e, 0xf96ffdf7, 0x3d0f80dc, 0x0aeac000,
+            0x3fb700d3, 0xa99ded32, 0x3cec1e8d, 0x4d97a000, 0x3fb5e95a,
+            0x3c5d1d1e, 0xbd2c6906, 0x5d208000, 0x3fb4d311, 0x82f4e1ef,
+            0xbcf53a25, 0xa7d1e000, 0x3fb3bdf5, 0xa5db4ed7, 0x3d2cc85e,
+            0xa4472000, 0x3fb2aa04, 0xae9c697d, 0xbd20b6e8, 0xd1466000,
+            0x3fb1973b, 0x560d9e9b, 0xbd25325d, 0xb59e4000, 0x3fb08598,
+            0x7009902c, 0xbd17e5dd, 0xc006c000, 0x3faeea31, 0x4fc93b7b,
+            0xbd0e113e, 0xcdddc000, 0x3faccb73, 0x47d82807, 0xbd1a68f2,
+            0xd0fb0000, 0x3faaaef2, 0x353bb42e, 0x3d20fc1a, 0x149fc000,
+            0x3fa894aa, 0xd05a267d, 0xbd197995, 0xf2d4c000, 0x3fa67c94,
+            0xec19afa2, 0xbd029efb, 0xd42e0000, 0x3fa466ae, 0x75bdfd28,
+            0xbd2c1673, 0x2f8d0000, 0x3fa252f3, 0xe021b67b, 0x3d283e9a,
+            0x89e74000, 0x3fa0415d, 0x5cf1d753, 0x3d0111c0, 0xec148000,
+            0x3f9c63d2, 0x3f9eb2f3, 0x3d2578c6, 0x28c90000, 0x3f984925,
+            0x325a0c34, 0xbd2aa0ba, 0x25980000, 0x3f9432a9, 0x928637fe,
+            0x3d098139, 0x58938000, 0x3f902056, 0x06e2f7d2, 0xbd23dc5b,
+            0xa3890000, 0x3f882448, 0xda74f640, 0xbd275577, 0x75890000,
+            0x3f801015, 0x999d2be8, 0xbd10c76b, 0x59580000, 0x3f700805,
+            0xcb31c67b, 0x3d2166af, 0x00000000, 0x00000000, 0x00000000,
+            0x80000000
+            // @formatter:on
+    });
+
+    private static ArrayDataPointerConstant log2 = pointerConstant(8, new int[]{
+            // @formatter:off
+            0xfefa3800, 0x3fa62e42,
+    });
+    private static ArrayDataPointerConstant log28 = pointerConstant(8, new int[]{
+            0x93c76730, 0x3ceef357
+            // @formatter:on
+    });
+
+    private static ArrayDataPointerConstant coeff = pointerConstant(16, new int[]{
+            // @formatter:off
+            0x92492492, 0x3fc24924, 0x00000000, 0xbfd00000,
+    });
+    private static ArrayDataPointerConstant coeff16 = pointerConstant(16, new int[]{
+            0x3d6fb175, 0xbfc5555e, 0x55555555, 0x3fd55555,
+    });
+    private static ArrayDataPointerConstant coeff32 = pointerConstant(16, new int[]{
+            0x9999999a, 0x3fc99999, 0x00000000, 0xbfe00000
+            // @formatter:on
+    });
+
+    @Override
+    public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
+        // registers,
+        // input: xmm0
+        // scratch: xmm1, xmm2, xmm3, xmm4, xmm5, xmm6, xmm7
+        // rax, rdx, rcx, r8, r11
+        Label block0 = new Label();
+        Label block1 = new Label();
+        Label block2 = new Label();
+        Label block3 = new Label();
+        Label block4 = new Label();
+        Label block5 = new Label();
+        Label block6 = new Label();
+        Label block7 = new Label();
+        Label block8 = new Label();
+        Label block9 = new Label();
+
+        masm.subq(rsp, 24);
+        masm.movsd(new AMD64Address(rsp, 0), xmm0);
+        masm.movq(rax, 0x3ff0000000000000L);
+        masm.movdq(xmm2, rax);
+        masm.movq(rdx, 0x77f0000000000000L);
+        masm.movdq(xmm3, rdx);
+        masm.movl(rcx, 32768);
+        masm.movdl(xmm4, rcx);
+        masm.movq(r8, 0xffffe00000000000L);
+        masm.movdq(xmm5, r8);
+        masm.movdqu(xmm1, xmm0);
+        masm.pextrw(rax, xmm0, 3);
+        masm.por(xmm0, xmm2);
+        masm.movl(rcx, 16352);
+        masm.psrlq(xmm0, 27);
+        masm.leaq(r11, recordExternalAddress(crb, lTbl));
+        masm.psrld(xmm0, 2);
+        masm.rcpps(xmm0, xmm0);
+        masm.psllq(xmm1, 12);
+        masm.pshufd(xmm6, xmm5, 228);
+        masm.psrlq(xmm1, 12);
+        masm.subl(rax, 16);
+        masm.cmplAndJcc(rax, 32736, ConditionFlag.AboveEqual, block0, false);
+
+        masm.bind(block1);
+        masm.paddd(xmm0, xmm4);
+        masm.por(xmm1, xmm3);
+        masm.movdl(rdx, xmm0);
+        masm.psllq(xmm0, 29);
+        masm.pand(xmm5, xmm1);
+        masm.pand(xmm0, xmm6);
+        masm.subsd(xmm1, xmm5);
+        masm.mulpd(xmm5, xmm0);
+        masm.andl(rax, 32752);
+        masm.subl(rax, rcx);
+        masm.cvtsi2sdl(xmm7, rax);
+        masm.mulsd(xmm1, xmm0);
+        masm.movq(xmm6, recordExternalAddress(crb, log2));   
