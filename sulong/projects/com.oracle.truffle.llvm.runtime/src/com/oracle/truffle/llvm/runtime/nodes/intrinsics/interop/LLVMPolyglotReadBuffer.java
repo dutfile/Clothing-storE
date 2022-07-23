@@ -306,3 +306,20 @@ public abstract class LLVMPolyglotReadBuffer extends LLVMNode {
                 try {
                     long bits = loadOffset.executeWithTarget(pointer, byteOffset);
                     return Double.longBitsToDouble(isNativeOrder(order) ? bits : Long.reverseBytes(bits));
+                } catch (UnexpectedResultException ex) {
+                    throwUnsupported(pointer, byteOffset);
+                    return 0;
+                }
+            } else {
+                exception.enter();
+                throw InvalidBufferOffsetException.create(byteOffset, Double.BYTES);
+            }
+        }
+
+        @Fallback
+        public double unsupported(LLVMPointer receiver, @SuppressWarnings("unused") ByteOrder order, long byteOffset) throws UnsupportedMessageException {
+            throwUnsupported(receiver, byteOffset);
+            return 0;
+        }
+    }
+}
