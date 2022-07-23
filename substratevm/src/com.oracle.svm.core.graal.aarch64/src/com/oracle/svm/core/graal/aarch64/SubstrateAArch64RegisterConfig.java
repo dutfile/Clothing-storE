@@ -127,4 +127,169 @@ public class SubstrateAArch64RegisterConfig implements SubstrateRegisterConfig {
         generalParameterRegs = new RegisterArray(r0, r1, r2, r3, r4, r5, r6, r7);
         fpParameterRegs = new RegisterArray(v0, v1, v2, v3, v4, v5, v6, v7);
 
-        nativeP
+        nativeParamsStackOffset = 0;
+
+        ArrayList<Register> regs = new ArrayList<>(allRegisters.asList());
+        regs.remove(ReservedRegisters.singleton().getFrameRegister()); // sp
+        regs.remove(zr);
+        // Scratch registers.
+        regs.remove(r8);
+        regs.remove(r9);
+        if (preserveFramePointer) {
+            regs.remove(fp); // r29
+        }
+        /*
+         * R31 is not a "real" register - depending on the instruction, this encoding is either zr
+         * or sp.
+         */
+        regs.remove(r31);
+        /*
+         * If enabled, the heapBaseRegister and threadRegister are r27 and r28, respectively. See
+         * AArch64ReservedRegisters and ReservedRegisters for more information.
+         */
+        regs.remove(ReservedRegisters.singleton().getHeapBaseRegister());
+        regs.remove(ReservedRegisters.singleton().getThreadRegister());
+        /*
+         * Darwin and Windows specify that r18 is a platform-reserved register:
+         *
+         * https://developer.apple.com/documentation/xcode/writing-arm64-code-for-apple-platforms
+         *
+         * https://docs.microsoft.com/en-us/cpp/build/arm64-windows-abi-conventions
+         *
+         * Android uses r18 for maintaining a shadow call stack:
+         *
+         * https://developer.android.com/ndk/guides/abis#arm64-v8a
+         */
+        if (Platform.includedIn(Platform.DARWIN.class) || Platform.includedIn(Platform.WINDOWS.class) || Platform.includedIn(Platform.ANDROID.class)) {
+            regs.remove(r18);
+        }
+        allocatableRegs = new RegisterArray(regs);
+
+        switch (config) {
+            case NORMAL:
+                calleeSaveRegisters = new RegisterArray();
+                break;
+
+            case NATIVE_TO_JAVA:
+                calleeSaveRegisters = new RegisterArray(r19, r20, r21, r22, r23, r24, r25, r26, r27, r28,
+                                v8, v9, v10, v11, v12, v13, v14, v15);
+                break;
+
+            default:
+                throw shouldNotReachHere();
+
+        }
+        attributesMap = RegisterAttributes.createMap(this, AArch64.allRegisters);
+    }
+
+    @Override
+    public Register getReturnRegister(JavaKind kind) {
+        switch (kind) {
+            case Boolean:
+            case Byte:
+            case Char:
+            case Short:
+            case Int:
+            case Long:
+            case Object:
+                return r0;
+            case Float:
+            case Double:
+                return v0;
+            case Void:
+                return null;
+            default:
+                throw shouldNotReachHere();
+        }
+    }
+
+    @Override
+    public RegisterArray getAllocatableRegisters() {
+        return allocatableRegs;
+    }
+
+    @Override
+    public RegisterArray getCalleeSaveRegisters() {
+        return calleeSaveRegisters;
+    }
+
+    @Override
+    public RegisterArray getCallerSaveRegisters() {
+        return getAllocatableRegisters();
+    }
+
+    @Override
+    public boolean areAllAllocatableRegistersCallerSaved() {
+        return true;
+    }
+
+    @Override
+    public RegisterAttributes[] getAttributesMap() {
+        return attributesMap;
+    }
+
+    @Override
+    public RegisterArray getCallingConventionRegisters(Type t, JavaKind kind) {
+        throw VMError.unimplemented();
+    }
+
+    public boolean shouldPreserveFramePointer() {
+        return preserveFramePointer;
+    }
+
+    private int javaStackParameterAssignment(ValueKindFactory<?> valueKindFactory, AllocatableValue[] locations, int index, JavaKind kind, int currentStackOffset, boolean isOutgoing) {
+        /* All parameters within Java are assigned slots of at least 8 bytes */
+        ValueKind<?> valueKind = valueKindFactory.getValueKind(kind.getStackKind());
+        int alignment = Math.max(valueKind.getPlatformKind().getSizeInBytes(), target.wordSize);
+        locations[index] = StackSlot.get(valueKind, currentStackOffset, !isOutgoing);
+        return currentStackOffset + alignment;
+    }
+
+    /**
+     * The Linux calling convention expects stack arguments to be aligned to at least 8 bytes, but
+     * any unused padding bits have unspecified values.
+     *
+     * For more details, see <a
+     * href=https://github.com/ARM-software/abi-aa/blob/d6e9abbc5e9cdcaa0467d8187eec0049b44044c4/aapcs64/aapcs64.rst#parameter-passing-rules>the
+     * AArch64 procedure call standard</a>.
+     */
+    private int linuxNativeStackParameterAssignment(ValueKindFactory<?> valueKindFactory, AllocatableValue[] locations, int index, JavaKind kind, int currentStackOffset, boolean isOutgoing) {
+        ValueKind<?> valueKind = valueKindFactory.getValueKind(isOutgoing ? kind.getStackKind() : kind);
+        int alignment = Math.max(kind.getByteCount(), target.wordSize);
+        locations[index] = StackSlot.get(valueKind, currentStackOffset, !isOutgoing);
+        return currentStackOffset + alignment;
+    }
+
+    /**
+     * The Darwin calling convention expects stack arguments to be aligned to the argument kind.
+     *
+     * For more details, see <a
+     * href=https://developer.apple.com/documentation/xcode/writing-arm64-code-for-apple-platforms>https://developer.apple.com/documentation/xcode/writing-arm64-code-for-apple-platforms</a>.
+     */
+    private static int darwinNativeStackParameterAssignment(ValueKindFactory<?> valueKindFactory, AllocatableValue[] locations, int index, JavaKind kind, int currentStackOffset, boolean isOutgoing) {
+        int paramByteSize = kind.getByteCount();
+        int alignedStackOffset = NumUtil.roundUp(currentStackOffset, paramByteSize);
+        locations[index] = StackSlot.get(valueKindFactory.getValueKind(kind), alignedStackOffset, !isOutgoing);
+        return alignedStackOffset + paramByteSize;
+    }
+
+    @Override
+    public CallingConvention getCallingConvention(Type t, JavaType returnType, JavaType[] parameterTypes, ValueKindFactory<?> valueKindFactory) {
+        SubstrateCallingConventionType type = (SubstrateCallingConventionType) t;
+        boolean isEntryPoint = type.nativeABI() && !type.outgoing;
+
+        AllocatableValue[] locations = new AllocatableValue[parameterTypes.length];
+
+        int currentGeneral = 0;
+        int currentFP = 0;
+
+        /*
+         * We have to reserve a slot between return address and outgoing parameters for the deopt
+         * frame handle. Exception: calls to native methods.
+         */
+        int currentStackOffset = (type.nativeABI() ? nativeParamsStackOffset : target.wordSize);
+
+        JavaKind[] kinds = new JavaKind[locations.length];
+        for (int i = 0; i < parameterTypes.length; i++) {
+            JavaKind kind = ObjectLayout.getCallSignatureKind(isEntryPoint, (ResolvedJavaType) parameterTypes[i], metaAccess, target);
+         
