@@ -292,4 +292,80 @@ public class SubstrateAArch64RegisterConfig implements SubstrateRegisterConfig {
         JavaKind[] kinds = new JavaKind[locations.length];
         for (int i = 0; i < parameterTypes.length; i++) {
             JavaKind kind = ObjectLayout.getCallSignatureKind(isEntryPoint, (ResolvedJavaType) parameterTypes[i], metaAccess, target);
-         
+            kinds[i] = kind;
+
+            Register register = null;
+            if (type.kind == SubstrateCallingConventionKind.ForwardReturnValue) {
+                VMError.guarantee(i == 0, "Method with calling convention ForwardReturnValue cannot have more than one parameter");
+                register = getReturnRegister(kind);
+            } else {
+                switch (kind) {
+                    case Byte:
+                    case Boolean:
+                    case Short:
+                    case Char:
+                    case Int:
+                    case Long:
+                    case Object:
+                        if (currentGeneral < generalParameterRegs.size()) {
+                            register = generalParameterRegs.get(currentGeneral++);
+                        }
+                        break;
+                    case Float:
+                    case Double:
+                        if (currentFP < fpParameterRegs.size()) {
+                            register = fpParameterRegs.get(currentFP++);
+                        }
+                        break;
+                    default:
+                        throw shouldNotReachHere();
+                }
+
+            }
+            if (register != null) {
+                /*
+                 * The AArch64 procedure call standard does not require subword (i.e., boolean,
+                 * byte, char, short) values to be extended to 32 bits. Hence, for incoming native
+                 * calls, we can only assume the bits sizes as specified in the standard.
+                 *
+                 * Since within the graal compiler subwords are already extended to 32 bits, we save
+                 * extended values in outgoing calls.
+                 *
+                 * Darwin deviates from the call standard and requires the caller to extend subword
+                 * values.
+                 */
+                boolean useJavaKind = isEntryPoint && (Platform.includedIn(Platform.LINUX.class) || Platform.includedIn(Platform.WINDOWS.class));
+                locations[i] = register.asValue(valueKindFactory.getValueKind(useJavaKind ? kind : kind.getStackKind()));
+            } else {
+                if (type.nativeABI()) {
+                    if (Platform.includedIn(Platform.LINUX.class)) {
+                        currentStackOffset = linuxNativeStackParameterAssignment(valueKindFactory, locations, i, kind, currentStackOffset, type.outgoing);
+                    } else if (Platform.includedIn(Platform.DARWIN.class)) {
+                        currentStackOffset = darwinNativeStackParameterAssignment(valueKindFactory, locations, i, kind, currentStackOffset, type.outgoing);
+                    } else {
+                        throw VMError.shouldNotReachHere();
+                    }
+                } else {
+                    currentStackOffset = javaStackParameterAssignment(valueKindFactory, locations, i, kind, currentStackOffset, type.outgoing);
+                }
+            }
+        }
+
+        JavaKind returnKind = returnType == null ? JavaKind.Void : ObjectLayout.getCallSignatureKind(isEntryPoint, (ResolvedJavaType) returnType, metaAccess, target);
+        AllocatableValue returnLocation = returnKind == JavaKind.Void ? Value.ILLEGAL : getReturnRegister(returnKind).asValue(valueKindFactory.getValueKind(returnKind.getStackKind()));
+        return new SubstrateCallingConvention(type, kinds, currentStackOffset, returnLocation, locations);
+    }
+
+    @Override
+    public RegisterArray filterAllocatableRegisters(PlatformKind kind, RegisterArray registers) {
+        ArrayList<Register> list = new ArrayList<>();
+        for (Register reg : registers) {
+            if (target.arch.canStoreValue(reg.getRegisterCategory(), kind)) {
+                list.add(reg);
+            }
+        }
+
+        return new RegisterArray(list);
+    }
+
+}
