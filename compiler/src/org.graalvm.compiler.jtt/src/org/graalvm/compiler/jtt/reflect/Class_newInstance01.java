@@ -15,4 +15,39 @@
  * accompanied this code).
  *
  * You should have received a copy of the GNU General Public License version
- * 2 along wit
+ * 2 along with this work; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+ *
+ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
+ * or visit www.oracle.com if you need additional information or have any
+ * questions.
+ */
+/*
+ */
+package org.graalvm.compiler.jtt.reflect;
+
+import org.junit.Test;
+
+import org.graalvm.compiler.jtt.JTTTest;
+
+public final class Class_newInstance01 extends JTTTest {
+
+    @SuppressWarnings({"deprecation", "unused"})
+    public static boolean test(int i) throws IllegalAccessException, InstantiationException {
+        if (i == 0) {
+            return Class_newInstance01.class.newInstance() != null;
+        }
+        return false;
+    }
+
+    @Test
+    public void run0() throws Throwable {
+        runTest("test", 0);
+    }
+
+    @Test
+    public void run1() throws Throwable {
+        runTest("test", 1);
+    }
+
+}
