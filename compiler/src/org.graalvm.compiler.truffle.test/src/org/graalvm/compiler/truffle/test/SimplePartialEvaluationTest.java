@@ -156,4 +156,112 @@ public class SimplePartialEvaluationTest extends PartialEvaluationTest {
         int x = builder.addSlot(FrameSlotKind.Int, "x", null);
         FrameDescriptor fd = builder.build();
 
-        AbstractTestNode result = new BlockTestNode(new AbstractTestNode[]{new StoreLocalTestNode(x, new C
+        AbstractTestNode result = new BlockTestNode(new AbstractTestNode[]{new StoreLocalTestNode(x, new ConstantTestNode(42)), new LoadLocalTestNode(x)});
+        assertPartialEvalEquals(SimplePartialEvaluationTest::constant42, new RootTestNode(fd, "localVariable", result));
+    }
+
+    @Test
+    public void unrollUntilReturnNoLoop() {
+        FrameDescriptor fd = new FrameDescriptor();
+        UnrollingTestNode t = new UnrollingTestNode(5);
+        AbstractTestNode result = new AddTestNode(t.new FullUnrollUntilReturnNoLoop(), new ConstantTestNode(37));
+        assertPartialEvalEquals(SimplePartialEvaluationTest::constant42, new RootTestNode(fd, "unrollUntilReturnNoLoop", result));
+    }
+
+    @Test
+    public void unrollSimple() {
+        FrameDescriptor fd = new FrameDescriptor();
+        final int loopIterations = 5;
+        UnrollingTestNode t = new UnrollingTestNode(loopIterations);
+        AbstractTestNode result = new AddTestNode(t.new UnrollOnlyExample(), new ConstantTestNode(37));
+        compileHelper("Test", new RootTestNode(fd, "simpleUnroll", result), new Object[]{});
+        StructuredGraph peResult = lastCompiledGraph;
+
+        Assert.assertEquals(UnrollingTestNode.INSIDE_LOOP_MARKER, loopIterations, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.INSIDE_LOOP_MARKER));
+        Assert.assertEquals(UnrollingTestNode.AFTER_LOOP_MARKER, 1, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.AFTER_LOOP_MARKER));
+    }
+
+    @Test
+    public void explodeSimple() {
+        FrameDescriptor fd = new FrameDescriptor();
+        final int loopIterations = 5;
+        UnrollingTestNode t = new UnrollingTestNode(loopIterations);
+        AbstractTestNode result = new AddTestNode(t.new ExplodeAlongLoopEndExample(), new ConstantTestNode(37));
+        compileHelper("Test", new RootTestNode(fd, "simpleUnroll", result), new Object[]{});
+        StructuredGraph peResult = lastCompiledGraph;
+
+        Assert.assertEquals(UnrollingTestNode.INSIDE_LOOP_MARKER, 31, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.INSIDE_LOOP_MARKER));
+        Assert.assertEquals(UnrollingTestNode.AFTER_LOOP_MARKER, 1, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.AFTER_LOOP_MARKER));
+    }
+
+    @Test
+    public void unrollUntilReturnConsecutiveLoops() {
+        FrameDescriptor fd = new FrameDescriptor();
+        final int loopIterations = 5;
+        UnrollingTestNode t = new UnrollingTestNode(loopIterations);
+        AbstractTestNode result = new AddTestNode(t.new FullUnrollUntilReturnConsecutiveLoops(), new ConstantTestNode(37));
+        compileHelper("Test", new RootTestNode(fd, "consecutiveLoops", result), new Object[]{});
+        StructuredGraph peResult = lastCompiledGraph;
+
+        Assert.assertEquals(UnrollingTestNode.INSIDE_LOOP_MARKER, loopIterations * 2, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.INSIDE_LOOP_MARKER));
+        Assert.assertEquals(UnrollingTestNode.OUTSIDE_LOOP_MARKER, loopIterations * 2, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.OUTSIDE_LOOP_MARKER));
+        // +1: the original exit
+        Assert.assertEquals(UnrollingTestNode.AFTER_LOOP_MARKER, 1, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.AFTER_LOOP_MARKER));
+    }
+
+    @Test
+    public void unrollUntilReturnNestedLoops() {
+        FrameDescriptor fd = new FrameDescriptor();
+        final int loopIterations = 2;
+        UnrollingTestNode t = new UnrollingTestNode(loopIterations);
+        AbstractTestNode result = new AddTestNode(t.new FullUnrollUntilReturnNestedLoops(), new ConstantTestNode(37));
+        compileHelper("Test", new RootTestNode(fd, "nestedLoopExplosion", result), new Object[]{});
+        StructuredGraph peResult = lastCompiledGraph;
+
+        Assert.assertEquals(UnrollingTestNode.INSIDE_LOOP_MARKER, loopIterations * loopIterations, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.INSIDE_LOOP_MARKER));
+        Assert.assertEquals(UnrollingTestNode.OUTSIDE_LOOP_MARKER, loopIterations * loopIterations, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.OUTSIDE_LOOP_MARKER));
+        // +1: the original exit
+        Assert.assertEquals(UnrollingTestNode.AFTER_LOOP_MARKER, 1, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.AFTER_LOOP_MARKER));
+    }
+
+    @Test
+    public void unrollUntilReturnNestedLoopsContinueOuter01() {
+        FrameDescriptor fd = new FrameDescriptor();
+        final int loopIterations = 2;
+        UnrollingTestNode t = new UnrollingTestNode(loopIterations);
+        AbstractTestNode result = new AddTestNode(t.new FullUnrollUntilReturnNestedLoopsContinueOuter01(), new ConstantTestNode(37), true);
+        compileHelper("Test", new RootTestNode(fd, "nestedLoopExplosion", result, true), new Object[]{});
+        StructuredGraph peResult = lastCompiledGraph;
+
+        Assert.assertEquals(UnrollingTestNode.INSIDE_LOOP_MARKER, 4, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.INSIDE_LOOP_MARKER));
+        Assert.assertEquals(UnrollingTestNode.AFTER_LOOP_MARKER, 1/* forced explosion */, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.AFTER_LOOP_MARKER));
+    }
+
+    @Test
+    public void unrollUntilReturnNestedLoopsContinueOuter02() {
+        FrameDescriptor fd = new FrameDescriptor();
+        final int loopIterations = 2;
+        UnrollingTestNode t = new UnrollingTestNode(loopIterations);
+        AbstractTestNode result = new AddTestNode(t.new FullUnrollUntilReturnNestedLoopsContinueOuter02(), new ConstantTestNode(37), true);
+        compileHelper("Test", new RootTestNode(fd, "nestedLoopExplosion", result, true), new Object[]{});
+        StructuredGraph peResult = lastCompiledGraph;
+
+        Assert.assertEquals(UnrollingTestNode.INSIDE_LOOP_MARKER, 8, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.INSIDE_LOOP_MARKER));
+        Assert.assertEquals(UnrollingTestNode.AFTER_LOOP_MARKER, 1, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.AFTER_LOOP_MARKER));
+    }
+
+    @Test
+    public void unrollUntilReturnNestedLoopsContinueOuter03() {
+        FrameDescriptor fd = new FrameDescriptor();
+        final int loopIterations = 2;
+        UnrollingTestNode t = new UnrollingTestNode(loopIterations);
+        AbstractTestNode result = new AddTestNode(t.new FullUnrollUntilReturnNestedLoopsContinueOuter03(), new ConstantTestNode(37), true);
+        compileHelper("Test", new RootTestNode(fd, "nestedLoopExplosion", result, true), new Object[]{});
+        StructuredGraph peResult = lastCompiledGraph;
+
+        Assert.assertEquals(UnrollingTestNode.INSIDE_LOOP_MARKER, 4, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.INSIDE_LOOP_MARKER));
+        Assert.assertEquals(UnrollingTestNode.AFTER_LOOP_MARKER, 1, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.AFTER_LOOP_MARKER));
+    }
+
+    @Test
+    public void unrollU
