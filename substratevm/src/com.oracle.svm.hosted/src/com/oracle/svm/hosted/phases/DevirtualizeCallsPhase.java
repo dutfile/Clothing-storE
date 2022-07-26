@@ -77,3 +77,72 @@ public class DevirtualizeCallsPhase extends Phase {
                      * manually constructed graphs.
                      */
                     unreachableInvoke(graph, invoke, callTarget);
+                    continue;
+                }
+
+                JavaMethodProfile methodProfile = callTarget.getMethodProfile();
+                if (methodProfile != null) {
+                    if (methodProfile.getMethods().length == 0) {
+                        unreachableInvoke(graph, invoke, callTarget);
+                    } else if (methodProfile.getMethods().length == 1) {
+                        if (callTarget.invokeKind().isIndirect()) {
+                            singleCallee((HostedMethod) methodProfile.getMethods()[0].getMethod(), graph, invoke, callTarget);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private final boolean parseOnce = SubstrateOptions.parseOnce();
+
+    private void unreachableInvoke(StructuredGraph graph, Invoke invoke, SubstrateMethodCallTargetNode callTarget) {
+        assert !parseOnce : "Must be done by StrengthenGraphs";
+
+        /*
+         * The invoke has no callee, i.e., it is unreachable. We just insert a always-failing guard
+         * before the invoke and let dead code elimination remove the invoke and everything after
+         * the invoke.
+         */
+        if (!callTarget.isStatic()) {
+            InliningUtil.nonNullReceiver(invoke);
+        }
+        HostedMethod targetMethod = (HostedMethod) callTarget.targetMethod();
+        String message = String.format("The call to %s is not reachable when called from %s.%n", targetMethod.format("%H.%n(%P)"), graph.method().format("%H.%n(%P)"));
+        AnalysisSpeculation speculation = new AnalysisSpeculation(new AnalysisSpeculationReason(message));
+        FixedGuardNode node = new FixedGuardNode(LogicConstantNode.forBoolean(true, graph), DeoptimizationReason.UnreachedCode, DeoptimizationAction.None, speculation, true);
+        graph.addBeforeFixed(invoke.asFixedNode(), graph.add(node));
+        graph.getDebug().dump(DebugContext.VERY_DETAILED_LEVEL, graph, "After dead invoke %s", invoke);
+    }
+
+    private void singleCallee(HostedMethod singleCallee, StructuredGraph graph, Invoke invoke, SubstrateMethodCallTargetNode callTarget) {
+        assert !parseOnce : "Must be done by StrengthenGraphs";
+
+        if (ImageBuildStatistics.Options.CollectImageBuildStatistics.getValue(graph.getOptions())) {
+            /* Detect devirtualization of the invoke. */
+            ImageBuildStatistics.counters().incDevirtualizedInvokeCounter();
+        }
+
+        /*
+         * The invoke has only one callee, i.e., the call can be devirtualized to this callee. This
+         * allows later inlining of the callee.
+         *
+         * We have to be careful to guard the improvement of the receiver type that is implied by
+         * the devirtualization: The callee assumes that the receiver type is the type that declares
+         * the callee. While this is true for all parts of the callee, it does not necessarily hold
+         * for all parts of the caller. So we need to ensure that after a possible inlining no parts
+         * of the callee float out to parts of the caller where the receiver type assumption does
+         * not hold. Since we do not know where in the caller a possible type check is performed, we
+         * anchor the receiver to the place of the original invoke.
+         */
+        ValueAnchorNode anchor = graph.add(new ValueAnchorNode(null));
+        graph.addBeforeFixed(invoke.asFixedNode(), anchor);
+        Stamp anchoredReceiverStamp = StampFactory.object(TypeReference.createWithoutAssumptions(singleCallee.getDeclaringClass()));
+        ValueNode anchoredReceiver = graph.unique(new PiNode(invoke.getReceiver(), anchoredReceiverStamp, anchor));
+        invoke.callTarget().replaceFirstInput(invoke.getReceiver(), anchoredReceiver);
+
+        assert callTarget.invokeKind() == InvokeKind.Virtual || callTarget.invokeKind() == InvokeKind.Interface;
+        callTarget.setInvokeKind(InvokeKind.Special);
+        callTarget.setTargetMethod(singleCallee);
+    }
+}
