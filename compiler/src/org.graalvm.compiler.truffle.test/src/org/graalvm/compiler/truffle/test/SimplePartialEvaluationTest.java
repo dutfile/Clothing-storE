@@ -364,4 +364,138 @@ public class SimplePartialEvaluationTest extends PartialEvaluationTest {
             TTY.printf("after1 %d\n", effectAfter1);
             TTY.printf("after2 %d\n", effectAfter2);
             TTY.printf("after3 %d\n", effectAfter3);
-       
+            TTY.printf("after4 %d\n", effectAfter4);
+            TTY.printf("after5 %d\n", effectAfter5);
+            TTY.printf("after6 %d\n", effectAfter6);
+            TTY.printf("after7 %d\n", effectAfter7);
+            TTY.printf("after8 %d\n", effectAfter8);
+            TTY.printf("after9 %d\n", effectAfter9);
+            TTY.printf("after10 %d\n", effectAfter10);
+            TTY.printf("after11 %d\n", effectAfter11);
+            TTY.printf("after12 %d\n", effectAfter12);
+        }
+
+        Assert.assertEquals(effectBefore1, effectAfter1);
+        Assert.assertEquals(effectBefore2, effectAfter2);
+        Assert.assertEquals(effectBefore3, effectAfter3);
+        Assert.assertEquals(effectBefore4, effectAfter4);
+        Assert.assertEquals(effectBefore5, effectAfter5);
+        Assert.assertEquals(effectBefore6, effectAfter6);
+        Assert.assertEquals(effectBefore7, effectAfter7);
+        Assert.assertEquals(effectBefore8, effectAfter8);
+        Assert.assertEquals(effectBefore9, effectAfter9);
+        Assert.assertEquals(effectBefore10, effectAfter10);
+        Assert.assertEquals(effectBefore11, effectAfter11);
+        Assert.assertEquals(effectBefore12, effectAfter12);
+
+        Assert.assertEquals(resBefore, resAfter);
+
+        Assert.assertEquals(UnrollingTestNode.OUTER_LOOP_INSIDE_LOOP_MARKER, 1554, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.OUTER_LOOP_INSIDE_LOOP_MARKER));
+        Assert.assertEquals(UnrollingTestNode.CONTINUE_LOOP_MARKER, 4356, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.CONTINUE_LOOP_MARKER));
+        Assert.assertEquals(UnrollingTestNode.AFTER_LOOP_MARKER, 1, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.AFTER_LOOP_MARKER));
+    }
+
+    @Test
+    public void unrollUntilReturnNestedLoopsContinueOuter07() {
+        FrameDescriptor fd = new FrameDescriptor();
+        final int loopIterations = 2;
+        UnrollingTestNode t = new UnrollingTestNode(loopIterations);
+        AbstractTestNode result = new AddTestNode(t.new FullUnrollUntilReturnNestedLoops(), new ConstantTestNode(37));
+        compileHelper("Test", new RootTestNode(fd, "nestedLoopExplosion", result), new Object[]{});
+        StructuredGraph peResult = lastCompiledGraph;
+
+        Assert.assertEquals(UnrollingTestNode.INSIDE_LOOP_MARKER, 4, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.INSIDE_LOOP_MARKER));
+        Assert.assertEquals(UnrollingTestNode.AFTER_LOOP_MARKER, 1, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.AFTER_LOOP_MARKER));
+    }
+
+    @Test
+    public void unrollUntilReturn() {
+        FrameDescriptor fd = new FrameDescriptor();
+        final int loopIterations = 5;
+        UnrollingTestNode t = new UnrollingTestNode(loopIterations);
+        AbstractTestNode result = new AddTestNode(t.new FullUnrollUntilReturnExample(), new ConstantTestNode(37));
+        compileHelper("Test", new RootTestNode(fd, "unrollUntilReturn", result), new Object[]{});
+        StructuredGraph peResult = lastCompiledGraph;
+        //@formatter:off
+        /*
+         * 5 iterations with 1 end and 2 exits (one early return)
+         *
+         * iteration 1
+         *  exit1
+         *  iteration 2
+         *      exit1
+         *      iteration 3
+         *          exit1
+         *          iteration 4
+         *              exit1
+         *              iteration 5
+         *  exit2
+         *
+         */
+        //@formatter:on
+        Assert.assertEquals(UnrollingTestNode.INSIDE_LOOP_MARKER, loopIterations, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.INSIDE_LOOP_MARKER));
+        Assert.assertEquals(UnrollingTestNode.OUTSIDE_LOOP_MARKER, loopIterations, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.OUTSIDE_LOOP_MARKER));
+        // +1: the original exit
+        Assert.assertEquals(UnrollingTestNode.AFTER_LOOP_MARKER, 1, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.AFTER_LOOP_MARKER));
+    }
+
+    @Test
+    public void complexUnrollFullUnroll() {
+        FrameDescriptor fd = new FrameDescriptor();
+        final int loopIterations = 5;
+        UnrollingTestNode test = new UnrollingTestNode(loopIterations);
+        AbstractTestNode result = new AddTestNode(test.new Unroll0(), new ConstantTestNode(37));
+        try {
+            compileHelper("Test", new RootTestNode(fd, "nestedLoopExplosion", result), new Object[]{});
+            Assert.fail("Expected partial evaluation error!");
+        } catch (Throwable t) {
+            if (t.getCause() instanceof PermanentBailoutException && t.getMessage().contains("Partial evaluation did not reduce value to a constant, is a regular compiler node")) {
+                return;
+            }
+            Assert.fail("Unrolling sink paths without UNTIL_RETURN should not be supported.");
+        }
+    }
+
+    @Test
+    public void complexUnrollFullUnrollUntilReturn() {
+        FrameDescriptor fd = new FrameDescriptor();
+        final int loopIterations = 5;
+        UnrollingTestNode t = new UnrollingTestNode(loopIterations);
+        AbstractTestNode result = new AddTestNode(t.new Unroll01(), new ConstantTestNode(37));
+        compileHelper("Test", new RootTestNode(fd, "nestedLoopExplosion", result, true), new Object[]{});
+        StructuredGraph peResult = lastCompiledGraph;
+        //@formatter:off
+        /*
+         * 5 iterations with 2 ends and 3 exits
+         *
+         * iteration 1
+         *  end 1 & 2
+         *      iteration 2
+         *          end 1 & 2
+         *              iteration 3
+         *                  end 1 & end 2
+         *                      iteration 4
+         *                          end 1 & 2
+         *                              iteration 5
+         *                                  exit 1
+         *                                  exit 2
+         *                          exit 1
+         *                          exit 2
+         *                  exit 1
+         *                  exit 2
+         *          exit 1
+         *          exit 2
+         *  exit 1
+         *  exit 2
+         *  exit 2 [original, before unrolling, one]
+         */
+        //@formatter:on
+        Assert.assertEquals(UnrollingTestNode.INSIDE_LOOP_MARKER, loopIterations, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.INSIDE_LOOP_MARKER));
+        Assert.assertEquals(UnrollingTestNode.OUTSIDE_LOOP_MARKER, loopIterations, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.OUTSIDE_LOOP_MARKER));
+        // +1: the original exit
+        Assert.assertEquals(UnrollingTestNode.AFTER_LOOP_MARKER, loopIterations + 1, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.AFTER_LOOP_MARKER));
+    }
+
+    @Test
+    @SuppressWarnings("try")
+   
