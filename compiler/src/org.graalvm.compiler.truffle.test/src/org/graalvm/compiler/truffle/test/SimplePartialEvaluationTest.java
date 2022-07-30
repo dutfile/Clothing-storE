@@ -498,4 +498,150 @@ public class SimplePartialEvaluationTest extends PartialEvaluationTest {
 
     @Test
     @SuppressWarnings("try")
-   
+    public void complexUnrollFullExplodeUntilReturn() throws Exception {
+        FrameDescriptor fd = new FrameDescriptor();
+        final int loopIterations = 5;
+        UnrollingTestNode t = new UnrollingTestNode(loopIterations);
+        AbstractTestNode result = new AddTestNode(t.new Unroll02(), new ConstantTestNode(37));
+        compileHelper("Test", new RootTestNode(fd, "nestedLoopExplosion", result, true), new Object[]{});
+        StructuredGraph peResult = lastCompiledGraph;
+
+        //@formatter:off
+        /*
+         * 5 iterations with 2 ends and 3 exits
+         *
+         * iteration 1
+         *  end 1
+         *      iteration 2
+         *          end 1
+         *              iteration 3
+         *                  end 1
+         *                      iteration 4
+         *                          end 1
+         *                              iteration 5
+         *                                  exit 1
+         *                                  exit 2
+         *                          end 2
+         *                              iteration 5
+         *                                  exit 1
+         *                                  exit 2
+         *                  end 2
+         *                      iteration 4
+         *                          end 1
+         *                              iteration 5
+         *                                  exit 1
+         *                                  exit 2
+         *                          end 2
+         *                              iteration 5
+         *                                  exit 1
+         *                                  exit 2
+         *          end 2
+         *              iteration 3
+         *                  end 1
+         *                      iteration 4
+         *                          end 1
+         *                              iteration 5
+         *                                  exit 1
+         *                                  exit 2
+         *                          end 2
+         *                              iteration 5
+         *                                  exit 1
+         *                                  exit 2
+         *                  end 2
+         *                      iteration 4
+         *                          end 1
+         *                              iteration 5
+         *                                  exit 1
+         *                                  exit 2
+         *                          end 2
+         *                              iteration 5
+         *                                  exit 1
+         *                                  exit 2
+         *  end 2
+         *      iteration 2
+         *          end 1
+         *              iteration 3
+         *                  end 1
+         *                      iteration 4
+         *                          end 1
+         *                              iteration 5
+         *                                  exit 1
+         *                                  exit 2
+         *                          end 2
+         *                              iteration 5
+         *                                  exit 1
+         *                                  exit 2
+         *                  end 2
+         *                      iteration 4
+         *                          end 1
+         *                              iteration 5
+         *                                  exit 1
+         *                                  exit 2
+         *                          end 2
+         *                              iteration 5
+         *                                  exit 1
+         *                                  exit 2
+         *          end 2
+         *              iteration 3
+         *                  end 1
+         *                      iteration 4
+         *                          end 1
+         *                              iteration 5
+         *                                  exit 1
+         *                                  exit 2
+         *                          end 2
+         *                              iteration 5
+         *                                  exit 1
+         *                                  exit 2
+         *                  end 2
+         *                      iteration 4
+         *                          end 1
+         *                              iteration 5
+         *                                  exit 1
+         *                                  exit 2
+         *                          end 2
+         *                              iteration 5
+         *                                  exit 1
+         *                                  exit 2
+         */
+        //@formatter:on
+        Assert.assertEquals(UnrollingTestNode.INSIDE_LOOP_MARKER, 31, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.INSIDE_LOOP_MARKER));
+        Assert.assertEquals(UnrollingTestNode.OUTSIDE_LOOP_MARKER, 31, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.OUTSIDE_LOOP_MARKER));
+        Assert.assertEquals(UnrollingTestNode.AFTER_LOOP_MARKER, 63, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.AFTER_LOOP_MARKER));
+    }
+
+    @Test
+    public void longSequenceConstants() {
+        FrameDescriptor fd = new FrameDescriptor();
+        int length = 40;
+        AbstractTestNode[] children = new AbstractTestNode[length];
+        for (int i = 0; i < children.length; ++i) {
+            children[i] = new ConstantTestNode(42);
+        }
+
+        AbstractTestNode result = new BlockTestNode(children);
+        assertPartialEvalEquals(SimplePartialEvaluationTest::constant42, new RootTestNode(fd, "longSequenceConstants", result));
+    }
+
+    @Test
+    public void longAddConstants() {
+        FrameDescriptor fd = new FrameDescriptor();
+        AbstractTestNode result = new ConstantTestNode(2);
+        for (int i = 0; i < 20; ++i) {
+            result = new AddTestNode(result, new ConstantTestNode(2));
+        }
+        assertPartialEvalEquals(SimplePartialEvaluationTest::constant42, new RootTestNode(fd, "longAddConstants", result));
+    }
+
+    @Test
+    public void mixLocalAndAdd() {
+        var builder = FrameDescriptor.newBuilder();
+        int x = builder.addSlot(FrameSlotKind.Int, "x", null);
+        FrameDescriptor fd = builder.build();
+
+        AbstractTestNode result = new BlockTestNode(new AbstractTestNode[]{new StoreLocalTestNode(x, new ConstantTestNode(40)),
+                        new StoreLocalTestNode(x, new AddTestNode(new LoadLocalTestNode(x), new ConstantTestNode(2))), new LoadLocalTestNode(x)});
+        assertPartialEvalEquals(SimplePartialEvaluationTest::constant42, new RootTestNode(fd, "mixLocalAndAdd", result));
+    }
+
+    @Test
