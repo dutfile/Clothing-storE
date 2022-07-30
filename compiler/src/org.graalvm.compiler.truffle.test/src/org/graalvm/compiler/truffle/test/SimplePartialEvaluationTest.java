@@ -645,3 +645,138 @@ public class SimplePartialEvaluationTest extends PartialEvaluationTest {
     }
 
     @Test
+    public void loop() {
+        var builder = FrameDescriptor.newBuilder();
+        int x = builder.addSlot(FrameSlotKind.Int, "x", null);
+        FrameDescriptor fd = builder.build();
+
+        AbstractTestNode result = new BlockTestNode(new AbstractTestNode[]{new StoreLocalTestNode(x, new ConstantTestNode(0)),
+                        new LoopTestNode(7, new StoreLocalTestNode(x, new AddTestNode(new LoadLocalTestNode(x), new ConstantTestNode(6))))});
+        assertPartialEvalEquals(SimplePartialEvaluationTest::constant42, new RootTestNode(fd, "loop", result));
+    }
+
+    @Test
+    public void longLoop() {
+        var builder = FrameDescriptor.newBuilder();
+        int x = builder.addSlot(FrameSlotKind.Int, "x", null);
+        FrameDescriptor fd = builder.build();
+
+        AbstractTestNode result = new BlockTestNode(new AbstractTestNode[]{new StoreLocalTestNode(x, new ConstantTestNode(0)),
+                        new LoopTestNode(42, new StoreLocalTestNode(x, new AddTestNode(new LoadLocalTestNode(x), new ConstantTestNode(1))))});
+        RootTestNode rootNode = new RootTestNode(fd, "loop", result);
+        assertPartialEvalNoInvokes(rootNode);
+        assertPartialEvalEquals(SimplePartialEvaluationTest::constant42, rootNode);
+    }
+
+    @Test
+    public void lambda() {
+        FrameDescriptor fd = new FrameDescriptor();
+        AbstractTestNode result = new LambdaTestNode();
+        assertPartialEvalEquals(SimplePartialEvaluationTest::constant42, new RootTestNode(fd, "constantValue", result));
+    }
+
+    @Test
+    public void allowedRecursion() {
+        OptionValues graalOptions = TruffleCompilerRuntime.getRuntime().getGraalOptions(OptionValues.class);
+        /* Recursion depth just below the threshold that reports it as too deep recursion. */
+        FrameDescriptor fd = new FrameDescriptor();
+        AbstractTestNode result = new RecursionTestNode(PEGraphDecoder.Options.InliningDepthError.getValue(graalOptions) - 5);
+        assertPartialEvalEquals(SimplePartialEvaluationTest::constant42, new RootTestNode(fd, "allowedRecursion", result));
+    }
+
+    @Test(expected = BailoutException.class)
+    public void tooDeepRecursion() {
+        OptionValues graalOptions = TruffleCompilerRuntime.getRuntime().getGraalOptions(OptionValues.class);
+        /* Recursion depth just above the threshold that reports it as too deep recursion. */
+        FrameDescriptor fd = new FrameDescriptor();
+        AbstractTestNode result = new RecursionTestNode(PEGraphDecoder.Options.InliningDepthError.getValue(graalOptions));
+        assertPartialEvalEquals(SimplePartialEvaluationTest::constant42, new RootTestNode(fd, "tooDeepRecursion", result));
+    }
+
+    @Test
+    public void intrinsicStatic() {
+        /*
+         * The intrinsic for String.equals() is inlined early during bytecode parsing, because we
+         * call equals() on a value that has the static type String.
+         */
+        FrameDescriptor fd = new FrameDescriptor();
+        AbstractTestNode result = new StringEqualsNode("abc", "abf");
+        RootNode rootNode = new RootTestNode(fd, "intrinsicStatic", result);
+        OptimizedCallTarget compilable = compileHelper("intrinsicStatic", rootNode, new Object[0]);
+
+        Assert.assertEquals(42, compilable.call(new Object[0]));
+    }
+
+    @Test
+    public void intrinsicVirtual() {
+        /*
+         * The intrinsic for String.equals() is inlined late during Truffle partial evaluation,
+         * because we call equals() on a value that has the static type Object, but during partial
+         * evaluation the more precise type String is known.
+         */
+        FrameDescriptor fd = new FrameDescriptor();
+        AbstractTestNode result = new ObjectEqualsNode("abc", "abf");
+        RootNode rootNode = new RootTestNode(fd, "intrinsicVirtual", result);
+        OptimizedCallTarget compilable = compileHelper("intrinsicVirtual", rootNode, new Object[0]);
+
+        Assert.assertEquals(42, compilable.call(new Object[0]));
+    }
+
+    @Test
+    public void intrinsicHashCode() {
+        /*
+         * The intrinsic for Object.hashCode() is inlined late during Truffle partial evaluation,
+         * because we call hashCode() on a value whose exact type Object is only known during
+         * partial evaluation.
+         */
+        FrameDescriptor fd = new FrameDescriptor();
+        Object testObject = new Object();
+        AbstractTestNode result = new ObjectHashCodeNode(testObject);
+        RootNode rootNode = new RootTestNode(fd, "intrinsicHashCode", result);
+        OptimizedCallTarget compilable = compileHelper("intrinsicHashCode", rootNode, new Object[0]);
+
+        int actual = (Integer) compilable.call(new Object[0]);
+        int expected = testObject.hashCode();
+        Assert.assertEquals(expected, actual);
+    }
+
+    @Test
+    public void synchronizedExceptionMerge() {
+        /*
+         * Multiple non-inlineable methods with exception edges called from a synchronized method
+         * lead to a complicated Graal graph that involves the BytecodeFrame.UNWIND_BCI. This test
+         * checks that partial evaluation handles that case correctly.
+         */
+        FrameDescriptor fd = new FrameDescriptor();
+        AbstractTestNode result = new SynchronizedExceptionMergeNode();
+        RootNode rootNode = new RootTestNode(fd, "synchronizedExceptionMerge", result);
+        OptimizedCallTarget compilable = compileHelper("synchronizedExceptionMerge", rootNode, new Object[0]);
+
+        Assert.assertEquals(42, compilable.call(new Object[0]));
+    }
+
+    @Test
+    public void explodeLoopUntilReturn() {
+        FrameDescriptor fd = new FrameDescriptor();
+        AbstractTestNode result = new ExplodeLoopUntilReturnNode();
+        assertPartialEvalEquals(SimplePartialEvaluationTest::constant42, new RootTestNode(fd, "explodeLoopUntilReturn", result));
+    }
+
+    @Test
+    public void unrollLoopUntilReturn() {
+        FrameDescriptor fd = new FrameDescriptor();
+        AbstractTestNode result = new UnrollLoopUntilReturnNode();
+        assertPartialEvalEquals(SimplePartialEvaluationTest::constant42, new RootTestNode(fd, "unrollLoopUntilReturn", result));
+    }
+
+    @Test
+    public void explodeLoopUntilReturnWithThrow() {
+        FrameDescriptor fd = new FrameDescriptor();
+        AbstractTestNode result = new ExplodeLoopUntilReturnWithThrowNode();
+        assertPartialEvalEquals(SimplePartialEvaluationTest::constant42, new RootTestNode(fd, "explodeLoopUntilReturnWithThrow", result));
+    }
+
+    @Test
+    public void unrollLoopUntilReturnWithThrow() {
+        FrameDescriptor fd = new FrameDescriptor();
+        AbstractTestNode result = new UnrollLoopUntilReturnWithT
