@@ -779,4 +779,73 @@ public class SimplePartialEvaluationTest extends PartialEvaluationTest {
     @Test
     public void unrollLoopUntilReturnWithThrow() {
         FrameDescriptor fd = new FrameDescriptor();
-        AbstractTestNode result = new UnrollLoopUntilReturnWithT
+        AbstractTestNode result = new UnrollLoopUntilReturnWithThrowNode();
+        assertPartialEvalEquals(SimplePartialEvaluationTest::constant42, new RootTestNode(fd, "unrollLoopUntilReturnWithThrow", result));
+    }
+
+    @Test
+    public void intrinsicStringHashCodeFinal() {
+        /* The intrinsic for String.hashcode() triggers on constant strings. */
+        FrameDescriptor fd = new FrameDescriptor();
+        AbstractTestNode result = new StringHashCodeFinalNode("*");
+        /* The hash code of "*" is 42. */
+        assertPartialEvalEquals(SimplePartialEvaluationTest::constant42, new RootTestNode(fd, "intrinsicStringHashCodeFinal", result));
+    }
+
+    @Test
+    public void intrinsicStringHashCodeNonFinal() {
+        /*
+         * The intrinsic for String.hashcode() does not trigger on non-constant strings, so the
+         * method String.hashCode() must be inlined during partial evaluation (so there must not be
+         * an invoke after partial evaluation).
+         */
+        FrameDescriptor fd = new FrameDescriptor();
+        AbstractTestNode result = new StringHashCodeNonFinalNode("*");
+        assertPartialEvalNoInvokes(new RootTestNode(fd, "intrinsicStringHashCodeNonFinal", result));
+    }
+
+    @Test
+    public void inliningNullCheck1() {
+        FrameDescriptor fd = new FrameDescriptor();
+        AbstractTestNode result = new InliningNullCheckNode1();
+        RootNode rootNode = new RootTestNode(fd, "inliningNullCheck1", result);
+        OptimizedCallTarget compilable = compileHelper("inliningNullCheck1", rootNode, new Object[0]);
+
+        Assert.assertEquals(42, compilable.call(new Object[0]));
+    }
+
+    @Test
+    public void inliningNullCheck2() {
+        FrameDescriptor fd = new FrameDescriptor();
+        AbstractTestNode result = new InliningNullCheckNode2();
+        RootNode rootNode = new RootTestNode(fd, "inliningNullCheck2", result);
+        OptimizedCallTarget compilable = compileHelper("inliningNullCheck2", rootNode, new Object[0]);
+
+        Assert.assertEquals(42, compilable.call(new Object[0]));
+    }
+
+    @Test
+    public void loopExplosionPhi() {
+        FrameDescriptor fd = new FrameDescriptor();
+        AbstractTestNode result = new LoopExplosionPhiNode();
+        RootNode rootNode = new RootTestNode(fd, "loopExplosionPhi", result);
+        OptimizedCallTarget compilable = compileHelper("loopExplosionPhi", rootNode, new Object[0]);
+
+        Assert.assertEquals(1, compilable.call(new Object[0]));
+    }
+
+    @Test
+    public void partialIntrinsic() {
+        /*
+         * Object.notifyAll() is a partial intrinsic on JDK 11, i.e., the intrinsic calls the
+         * original implementation. Test that the call to the original implementation is not
+         * recursively inlined as an intrinsic again.
+         */
+        FrameDescriptor fd = new FrameDescriptor();
+        AbstractTestNode result = new PartialIntrinsicNode();
+        RootNode rootNode = new RootTestNode(fd, "partialIntrinsic", result);
+        OptimizedCallTarget compilable = compileHelper("partialIntrinsic", rootNode, new Object[0]);
+
+        Assert.assertEquals(42, compilable.call(new Object[0]));
+    }
+}
