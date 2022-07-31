@@ -21,4 +21,26 @@ else:
             # always used in mbstowcs() and wcstombs().
             def getpreferredencoding(do_setlocale=True):
                 return 'UTF-8'
-      
+        else:
+            def getpreferredencoding(do_setlocale=True):
+                if sys.flags.utf8_mode:
+                    return 'UTF-8'
+                # This path for legacy systems needs the more complex
+                # getdefaultlocale() function, import the full locale module.
+                import locale
+                return locale.getpreferredencoding(do_setlocale)
+    else:
+        def getpreferredencoding(do_setlocale=True):
+            assert not do_setlocale
+            if sys.flags.utf8_mode:
+                return 'UTF-8'
+            result = _locale.nl_langinfo(_locale.CODESET)
+            if not result and sys.platform == 'darwin':
+                # nl_langinfo can return an empty string
+                # when the setting has an invalid value.
+                # Default to UTF-8 in that case because
+                # UTF-8 is the default charset on OSX and
+                # returning nothing will crash the
+                # interpreter.
+                result = 'UTF-8'
+            return result
