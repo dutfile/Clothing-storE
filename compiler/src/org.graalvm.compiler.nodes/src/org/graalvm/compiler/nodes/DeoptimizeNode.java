@@ -119,4 +119,28 @@ public final class DeoptimizeNode extends AbstractDeoptimizeNode implements Lowe
     }
 
     @Override
-    public ValueNode getSpeculation(MetaAccessProvide
+    public ValueNode getSpeculation(MetaAccessProvider metaAccess) {
+        return ConstantNode.forConstant(metaAccess.encodeSpeculation(speculation), metaAccess, graph());
+    }
+
+    @Override
+    public Speculation getSpeculation() {
+        return speculation;
+    }
+
+    public boolean canFloat() {
+        return canFloat(getReason(), getAction());
+    }
+
+    /**
+     * Some combinations of reason and action should never be converted into floating guards as they
+     * need to be anchored in the control flow. If they are allowed to float they could move too
+     * high and would be executed under the wrong conditions.
+     */
+    public static boolean canFloat(DeoptimizationReason reason, DeoptimizationAction action) {
+        return action != DeoptimizationAction.None && reason != DeoptimizationReason.Unresolved;
+    }
+
+    @NodeIntrinsic
+    public static native void deopt(@ConstantNodeParameter DeoptimizationAction action, @ConstantNodeParameter DeoptimizationReason reason);
+}
