@@ -110,4 +110,37 @@ public enum PECoffMachine/* implements Integral */ {
  * IMAGE_REL_AMD64_SECREL7 0x000C  // 7 bit unsigned offset from base of section containing target
  * IMAGE_REL_AMD64_TOKEN 0x000D    // 32 bit metadata token
  * IMAGE_REL_AMD64_SREL32 0x000E   // 32 bit signed span-dependent value emitted into object
- * IMAGE_REL_AMD64_PAIR 0x000F IMAGE_REL_AMD64_SSPAN32 0x
+ * IMAGE_REL_AMD64_PAIR 0x000F IMAGE_REL_AMD64_SSPAN32 0x0010 // 32 bit signed span-dependent value applied at link time
+ */
+enum PECoffX86_64Relocation implements PECoffRelocationMethod {
+    ADDR64 {
+        @Override
+        public long toLong() {
+            return IMAGE_RELOCATION.IMAGE_REL_AMD64_ADDR64;
+        }
+    },
+    ADDR32 {
+        @Override
+        public long toLong() {
+            return IMAGE_RELOCATION.IMAGE_REL_AMD64_ADDR32;
+        }
+    },
+    SECREL {
+        @Override
+        public long toLong() {
+            return IMAGE_RELOCATION.IMAGE_REL_AMD64_SECREL;
+        }
+    },
+    SECTION {
+        @Override
+        public long toLong() {
+            return IMAGE_RELOCATION.IMAGE_REL_AMD64_SECTION;
+        }
+    },
+    REL32 {
+        @Override
+        public long toLong() {
+            return IMAGE_RELOCATION.IMAGE_REL_AMD64_REL32;
+        }
+    };
+}
