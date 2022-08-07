@@ -57,4 +57,43 @@ public class StepInArguments extends JSONBase {
 
     public StepInArguments setTargetId(Integer targetId) {
         jsonData.putOpt("targetId", targetId);
-        retur
+        return this;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (this.getClass() != obj.getClass()) {
+            return false;
+        }
+        StepInArguments other = (StepInArguments) obj;
+        if (this.getThreadId() != other.getThreadId()) {
+            return false;
+        }
+        if (!Objects.equals(this.getTargetId(), other.getTargetId())) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = 7;
+        hash = 29 * hash + Integer.hashCode(this.getThreadId());
+        if (this.getTargetId() != null) {
+            hash = 29 * hash + Integer.hashCode(this.getTargetId());
+        }
+        return hash;
+    }
+
+    public static StepInArguments create(Integer threadId) {
+        final JSONObject json = new JSONObject();
+        json.put("threadId", threadId);
+        return new StepInArguments(json);
+    }
+}
