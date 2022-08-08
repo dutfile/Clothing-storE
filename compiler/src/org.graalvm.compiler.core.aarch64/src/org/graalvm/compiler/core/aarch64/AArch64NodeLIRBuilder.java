@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2015, 2018, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,31 +22,31 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package org.graalvm.compiler.core.common;
 
-public abstract class FieldIntrospection<T> {
+package org.graalvm.compiler.core.aarch64;
 
-    private final Class<T> clazz;
+import org.graalvm.compiler.core.gen.NodeLIRBuilder;
+import org.graalvm.compiler.lir.gen.LIRGeneratorTool;
+import org.graalvm.compiler.nodes.StructuredGraph;
+import org.graalvm.compiler.nodes.ValueNode;
 
-    /**
-     * The set of fields in {@link #clazz} that do long belong to a more specific category.
-     */
-    protected Fields data;
+/**
+ * This class implements the AArch64 specific portion of the LIR generator.
+ */
+public abstract class AArch64NodeLIRBuilder extends NodeLIRBuilder {
 
-    public FieldIntrospection(Class<T> clazz) {
-        this.clazz = clazz;
+    public AArch64NodeLIRBuilder(StructuredGraph graph, LIRGeneratorTool lirGen, AArch64NodeMatchRules nodeMatchRules) {
+        super(graph, lirGen, nodeMatchRules);
     }
 
-    public Class<T> getClazz() {
-        return clazz;
+    @Override
+    protected boolean peephole(ValueNode valueNode) {
+        // No peephole optimizations for now
+        return false;
     }
 
-    /**
-     * Gets the fields in {@link #getClazz()} that do long belong to specific category.
-     */
-    public Fields getData() {
-        return data;
+    @Override
+    public AArch64LIRGenerator getLIRGeneratorTool() {
+        return (AArch64LIRGenerator) super.getLIRGeneratorTool();
     }
-
-    public abstract Fields[] getAllFields();
 }

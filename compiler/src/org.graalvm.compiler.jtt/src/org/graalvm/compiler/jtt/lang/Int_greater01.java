@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2007, 2018, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,31 +22,48 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package org.graalvm.compiler.core.common;
+/*
+ */
+package org.graalvm.compiler.jtt.lang;
 
-public abstract class FieldIntrospection<T> {
+import org.junit.Test;
 
-    private final Class<T> clazz;
+import org.graalvm.compiler.jtt.JTTTest;
 
-    /**
-     * The set of fields in {@link #clazz} that do long belong to a more specific category.
-     */
-    protected Fields data;
+public final class Int_greater01 extends JTTTest {
 
-    public FieldIntrospection(Class<T> clazz) {
-        this.clazz = clazz;
+    public static boolean test(int i) {
+        if (i > 0) {
+            return true;
+        }
+        return false;
     }
 
-    public Class<T> getClazz() {
-        return clazz;
+    @Test
+    public void run0() throws Throwable {
+        runTest("test", -2147483648);
     }
 
-    /**
-     * Gets the fields in {@link #getClazz()} that do long belong to specific category.
-     */
-    public Fields getData() {
-        return data;
+    @Test
+    public void run1() throws Throwable {
+        runTest("test", -2);
     }
 
-    public abstract Fields[] getAllFields();
-}
+    @Test
+    public void run2() throws Throwable {
+        runTest("test", -1);
+    }
+
+    @Test
+    public void run3() throws Throwable {
+        runTest("test", 0);
+    }
+
+    @Test
+    public void run4() throws Throwable {
+        runTest("test", 1);
+    }
+
+    @Test
+    public void run5() throws Throwable {
+ 
