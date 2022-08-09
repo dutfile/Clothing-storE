@@ -74,4 +74,55 @@ public class AMD64AddressLoweringTest extends GraalCompilerTest {
     public void convertBaseAndShiftedIndexToDisplacement() {
         ValueNode base = graph.addOrUniqueWithInputs(const64(1000));
         ValueNode index = graph.addOrUniqueWithInputs(new LeftShiftNode(const64(10), const32(1)));
-        AddressNode result 
+        AddressNode result = lowering.lower(base, index);
+        assertAddress(result, null, null, Stride.S2, 1020);
+    }
+
+    @Test
+    public void convertBaseAndNegatedShiftedIndexToDisplacement() {
+        ValueNode base = graph.addOrUniqueWithInputs(const64(1000));
+        ValueNode index = graph.addOrUniqueWithInputs(new NegateNode(new LeftShiftNode(const64(10), const32(2))));
+        AddressNode result = lowering.lower(base, index);
+        assertAddress(result, null, null, Stride.S4, 960);
+    }
+
+    @Test
+    public void convertNegatedBaseAndNegatedShiftedIndexToDisplacement() {
+        ValueNode base = graph.addOrUniqueWithInputs(new NegateNode(const64(1000)));
+        ValueNode index = graph.addOrUniqueWithInputs(new NegateNode(new LeftShiftNode(const64(10), const32(2))));
+        AddressNode result = lowering.lower(base, index);
+        assertAddress(result, null, null, Stride.S4, -1040);
+    }
+
+    @Test
+    public void convertNegatedShiftedBaseAndNegatedIndexToDisplacement() {
+        ValueNode base = graph.addOrUniqueWithInputs(new NegateNode(new LeftShiftNode(const64(10), const32(2))));
+        ValueNode index = graph.addOrUniqueWithInputs(new NegateNode(const64(1000)));
+        AddressNode result = lowering.lower(base, index);
+        assertAddress(result, null, null, Stride.S4, -1040);
+    }
+
+    @Test
+    public void convertTwoLevelsOfNegatedShiftedBaseAndNegatedIndexToDisplacement() {
+        ValueNode base = graph.addOrUniqueWithInputs(new NegateNode(new LeftShiftNode(new NegateNode(new LeftShiftNode(const64(500), const32(1))), const32(1))));
+        ValueNode index = graph.addOrUniqueWithInputs(new NegateNode(new AddNode(new NegateNode(const64(13)), const64(3))));
+        AddressNode result = lowering.lower(base, index);
+        assertAddress(result, null, null, Stride.S4, 2010);
+    }
+
+    private static ConstantNode const64(long value) {
+        return ConstantNode.forIntegerBits(Long.SIZE, value);
+    }
+
+    private static ConstantNode const32(long value) {
+        return ConstantNode.forIntegerBits(Integer.SIZE, value);
+    }
+
+    private static void assertAddress(AddressNode actual, ValueNode expectedBase, ValueNode expectedIndex, Stride expectedStride, int expectedDisplacement) {
+        AMD64AddressNode address = (AMD64AddressNode) actual;
+        Assert.assertEquals(expectedBase, address.getBase());
+        Assert.assertEquals(expectedIndex, address.getIndex());
+        Assert.assertEquals(expectedStride, address.getScale());
+        Assert.assertEquals(expectedDisplacement, address.getDisplacement());
+    }
+}
