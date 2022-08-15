@@ -107,4 +107,15 @@ interface JCodings {
     int writeCodePoint(Encoding jCoding, int codepoint, byte[] array, int index);
 
     @TruffleBoundary
-    int codePointIndexToRaw(Node location, AbstractT
+    int codePointIndexToRaw(Node location, AbstractTruffleString a, byte[] arrayA, int extraOffsetRaw, int index, boolean isLength, Encoding jCoding);
+
+    int decode(AbstractTruffleString a, byte[] arrayA, int rawIndex, Encoding jCoding, TruffleString.ErrorHandling errorHandling);
+
+    long calcStringAttributes(Node location, Object array, int offset, int length, TruffleString.Encoding encoding, int fromIndex, InlinedConditionProfile validCharacterProfile,
+                    InlinedConditionProfile fixedWidthProfile);
+
+    TruffleString transcode(Node location, AbstractTruffleString a, Object arrayA, int codePointLengthA, TruffleString.Encoding targetEncoding,
+                    InlinedBranchProfile outOfMemoryProfile,
+                    InlinedConditionProfile nativeProfile,
+                    TStringInternalNodes.FromBufferWithStringCompactionNode fromBufferWithStringCompactionNode);
+}
