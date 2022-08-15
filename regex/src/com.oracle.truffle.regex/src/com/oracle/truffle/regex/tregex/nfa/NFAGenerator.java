@@ -70,4 +70,114 @@ import org.graalvm.collections.EconomicMap;
 public final class NFAGenerator {
 
     private final RegexAST ast;
-    private final Counter.ThresholdCounter stateID = new Counter.ThresholdCounter(TRegexO
+    private final Counter.ThresholdCounter stateID = new Counter.ThresholdCounter(TRegexOptions.TRegexMaxNFASize, "NFA explosion");
+    private final Counter.ThresholdCounter transitionID = new Counter.ThresholdCounter(Short.MAX_VALUE, "NFA transition explosion");
+    private final NFAState dummyInitialState;
+    private final NFAState[] anchoredInitialStates;
+    private final NFAState[] initialStates;
+    /**
+     * These are like {@link #initialStates}, but with {@code mustAdvance} set to {@code false},
+     * i.e. we have already advanced when we are in these states. In a regular expression with
+     * {@code MustAdvance=true}, all loopback transitions end in {@link #advancedInitialState}
+     * instead of {@link #initialStates}.
+     */
+    private final NFAState advancedInitialState;
+    private final NFAState anchoredFinalState;
+    private final NFAState finalState;
+    private final NFAStateTransition[] anchoredEntries;
+    private final NFAStateTransition[] unAnchoredEntries;
+    private final NFAStateTransition anchoredReverseEntry;
+    private final NFAStateTransition unAnchoredReverseEntry;
+    private NFAStateTransition initialLoopBack;
+    private final Deque<NFAState> expansionQueue = new ArrayDeque<>();
+    private final Map<NFAStateID, NFAState> nfaStates = new HashMap<>();
+    private final List<NFAState> hardPrefixStates = new ArrayList<>();
+    private final ASTStepVisitor astStepVisitor;
+    private final ASTTransitionCanonicalizer astTransitionCanonicalizer;
+    private final TBitSet transitionGBUpdateIndices;
+    private final TBitSet transitionGBClearIndices;
+    private final ArrayList<NFAStateTransition> transitionsBuffer = new ArrayList<>();
+    private final CompilationBuffer compilationBuffer;
+
+    private NFAGenerator(RegexAST ast, CompilationBuffer compilationBuffer) {
+        this.ast = ast;
+        this.astStepVisitor = new ASTStepVisitor(ast);
+        this.transitionGBUpdateIndices = new TBitSet(ast.getNumberOfCaptureGroups() * 2);
+        this.transitionGBClearIndices = new TBitSet(ast.getNumberOfCaptureGroups() * 2);
+        this.astTransitionCanonicalizer = new ASTTransitionCanonicalizer(ast, true, false);
+        this.compilationBuffer = compilationBuffer;
+        dummyInitialState = new NFAState((short) stateID.inc(), StateSet.create(ast, ast.getWrappedRoot()), CodePointSet.getEmpty(), Collections.emptySet(), false, ast.getOptions().isMustAdvance());
+        nfaStates.put(NFAStateID.create(dummyInitialState), dummyInitialState);
+        anchoredFinalState = createFinalState(StateSet.create(ast, ast.getReachableDollars()), false);
+        anchoredFinalState.setAnchoredFinalState();
+        finalState = createFinalState(StateSet.create(ast, ast.getRoot().getSubTreeParent().getMatchFound()), false);
+        finalState.setUnAnchoredFinalState();
+        assert transitionGBUpdateIndices.isEmpty() && transitionGBClearIndices.isEmpty();
+        anchoredReverseEntry = createTransition(anchoredFinalState, dummyInitialState, ast.getEncoding().getFullSet(), -1);
+        unAnchoredReverseEntry = createTransition(finalState, dummyInitialState, ast.getEncoding().getFullSet(), -1);
+        int nEntries = ast.getWrappedPrefixLength() + 1;
+        initialStates = new NFAState[nEntries];
+        advancedInitialState = ast.getOptions().isMustAdvance() ? createFinalState(StateSet.create(ast, ast.getNFAUnAnchoredInitialState(0)), false) : null;
+        unAnchoredEntries = new NFAStateTransition[nEntries];
+        for (int i = 0; i < initialStates.length; i++) {
+            initialStates[i] = createFinalState(StateSet.create(ast, ast.getNFAUnAnchoredInitialState(i)), ast.getOptions().isMustAdvance());
+            initialStates[i].setUnAnchoredInitialState(true);
+            unAnchoredEntries[i] = createTransition(dummyInitialState, initialStates[i], ast.getEncoding().getFullSet(), -1);
+            if (i > 0) {
+                initialStates[i].setHasPrefixStates(true);
+            }
+        }
+        if (ast.getReachableCarets().isEmpty()) {
+            anchoredInitialStates = initialStates;
+            anchoredEntries = unAnchoredEntries;
+            NFAStateTransition[] dummyInitNext = Arrays.copyOf(anchoredEntries, nEntries);
+            dummyInitialState.setSuccessors(dummyInitNext, false);
+        } else {
+            anchoredInitialStates = new NFAState[nEntries];
+            anchoredEntries = new NFAStateTransition[nEntries];
+            for (int i = 0; i < anchoredInitialStates.length; i++) {
+                anchoredInitialStates[i] = createFinalState(StateSet.create(ast, ast.getNFAAnchoredInitialState(i)), ast.getOptions().isMustAdvance());
+                anchoredInitialStates[i].setAnchoredInitialState();
+                if (i > 0) {
+                    initialStates[i].setHasPrefixStates(true);
+                }
+                anchoredEntries[i] = createTransition(dummyInitialState, anchoredInitialStates[i], ast.getEncoding().getFullSet(), -1);
+            }
+            NFAStateTransition[] dummyInitNext = Arrays.copyOf(anchoredEntries, nEntries * 2);
+            System.arraycopy(unAnchoredEntries, 0, dummyInitNext, nEntries, nEntries);
+            dummyInitialState.setSuccessors(dummyInitNext, false);
+        }
+        NFAStateTransition[] dummyInitPrev = new NFAStateTransition[]{anchoredReverseEntry, unAnchoredReverseEntry};
+        dummyInitialState.setPredecessors(dummyInitPrev);
+    }
+
+    public static NFA createNFA(RegexAST ast, CompilationBuffer compilationBuffer) {
+        return new NFAGenerator(ast, compilationBuffer).doCreateNFA();
+    }
+
+    private NFA doCreateNFA() {
+        Collections.addAll(expansionQueue, initialStates);
+        if (ast.getOptions().isMustAdvance()) {
+            expansionQueue.add(advancedInitialState);
+        }
+        if (!ast.getReachableCarets().isEmpty()) {
+            Collections.addAll(expansionQueue, anchoredInitialStates);
+        }
+
+        while (!expansionQueue.isEmpty()) {
+            expandNFAState(expansionQueue.pop());
+        }
+
+        assert transitionGBUpdateIndices.isEmpty() && transitionGBClearIndices.isEmpty();
+        for (int i = 1; i < initialStates.length; i++) {
+            addNewLoopBackTransition(initialStates[i], initialStates[i - 1]);
+        }
+        if (ast.getOptions().isMustAdvance()) {
+            addNewLoopBackTransition(initialStates[0], advancedInitialState);
+            initialLoopBack = createTransition(advancedInitialState, advancedInitialState, ast.getEncoding().getFullSet(), -1);
+        } else {
+            initialLoopBack = createTransition(initialStates[0], initialStates[0], ast.getEncoding().getFullSet(), -1);
+        }
+
+        for (NFAState s : nfaStates.values()) {
+            if (s != dummyInitialState && (ast.getHardPrefixNodes().isDisjoint(s.getStateSet()) || ast.
