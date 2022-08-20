@@ -301,4 +301,117 @@ public final class NFAGenerator {
                             // current list of transitions.
                             transitionGBUpdateIndices.clear();
                             transitionGBClearIndices.clear();
-                            return transitionsBuffer.toArray(new NFAStateTransition[tr
+                            return transitionsBuffer.toArray(new NFAStateTransition[transitionsBuffer.size()]);
+                        }
+                    } else if (!containsPositionAssertion) {
+                        assert mergeBuilder.getCodePointSet().matchesSomething();
+                        NFAState targetState = registerMatcherState(stateSetCC, mergeBuilder.getCodePointSet(), finishedLookBehinds, containsPrefixStates,
+                                        sourceState.isMustAdvance() && !ast.getHardPrefixNodes().isDisjoint(stateSetCC), matchedConditionGroupsMap);
+                        transitionsBuffer.add(createTransition(sourceState, targetState, mergeBuilder.getCodePointSet(), lastGroup));
+                    }
+                }
+                transitionGBUpdateIndices.clear();
+                transitionGBClearIndices.clear();
+            }
+        }
+        return transitionsBuffer.toArray(new NFAStateTransition[transitionsBuffer.size()]);
+    }
+
+    private NFAState createFinalState(StateSet<RegexAST, ? extends RegexASTNode> stateSet, boolean mustAdvance) {
+        NFAState state = new NFAState((short) stateID.inc(), stateSet, ast.getEncoding().getFullSet(), Collections.emptySet(), false, mustAdvance);
+        assert !nfaStates.containsKey(NFAStateID.create(state));
+        nfaStates.put(NFAStateID.create(state), state);
+        return state;
+    }
+
+    private NFAStateTransition createTransition(NFAState source, NFAState target, CodePointSet codePointSet, int lastGroup) {
+        return new NFAStateTransition((short) transitionID.inc(), source, target, codePointSet, ast.createGroupBoundaries(transitionGBUpdateIndices, transitionGBClearIndices, lastGroup));
+    }
+
+    private NFAState registerMatcherState(StateSet<RegexAST, CharacterClass> stateSetCC,
+                    CodePointSet matcherBuilder,
+                    StateSet<RegexAST, LookBehindAssertion> finishedLookBehinds,
+                    boolean containsPrefixStates,
+                    boolean mustAdvance,
+                    EconomicMap<Integer, TBitSet> matchedConditionGroupsMap) {
+        NFAStateID nfaStateID = new NFAStateID(stateSetCC, mustAdvance, matchedConditionGroupsMap);
+        if (nfaStates.containsKey(nfaStateID)) {
+            return nfaStates.get(nfaStateID);
+        } else {
+            NFAState state = new NFAState((short) stateID.inc(), stateSetCC, matcherBuilder, finishedLookBehinds, containsPrefixStates, mustAdvance, matchedConditionGroupsMap);
+            expansionQueue.push(state);
+            nfaStates.put(nfaStateID, state);
+            return state;
+        }
+    }
+
+    private void addNewLoopBackTransition(NFAState source, NFAState target) {
+        source.addLoopBackNext(createTransition(source, target, ast.getEncoding().getFullSet(), -1));
+        if (ast.getHardPrefixNodes().isDisjoint(source.getStateSet()) || ast.getFlags().isSticky()) {
+            target.incPredecessors();
+        }
+    }
+
+    private static final class NFAStateID {
+
+        private final StateSet<RegexAST, ? extends RegexASTNode> stateSet;
+        private final boolean mustAdvance;
+        private final EconomicMap<Integer, TBitSet> matchedConditionGroupsMap;
+
+        NFAStateID(StateSet<RegexAST, ? extends RegexASTNode> stateSet, boolean mustAdvance, EconomicMap<Integer, TBitSet> matchedConditionGroupsMap) {
+            this.stateSet = stateSet;
+            this.mustAdvance = mustAdvance;
+            this.matchedConditionGroupsMap = matchedConditionGroupsMap;
+        }
+
+        public static NFAStateID create(NFAState state) {
+            return new NFAStateID(state.getStateSet(), state.isMustAdvance(), state.getMatchedConditionGroupsMap());
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (!(o instanceof NFAStateID)) {
+                return false;
+            }
+            NFAStateID that = (NFAStateID) o;
+            return mustAdvance == that.mustAdvance && stateSet.equals(that.stateSet) && mapEquals(matchedConditionGroupsMap, that.matchedConditionGroupsMap);
+        }
+
+        private static <K, V> boolean mapEquals(EconomicMap<K, V> mapA, EconomicMap<K, V> mapB) {
+            if (mapA == null) {
+                return mapB == null;
+            }
+            if (mapB == null) {
+                return mapA == null;
+            }
+            if (mapA.size() != mapB.size()) {
+                return false;
+            }
+            for (K key : mapA.getKeys()) {
+                if (!mapB.containsKey(key) || !mapA.get(key).equals(mapB.get(key))) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(stateSet, mustAdvance, mapHashCode(matchedConditionGroupsMap));
+        }
+
+        private static <K, V> int mapHashCode(EconomicMap<K, V> map) {
+            if (map == null) {
+                return 0;
+            }
+            int hashCode = 0;
+            for (V value : map.getValues()) {
+                hashCode = 31 * hashCode + value.hashCode();
+            }
+            return hashCode;
+        }
+    }
+}
