@@ -32,4 +32,10 @@ import jdk.vm.ci.code.InstalledCode;
 public interface HotSpotTruffleCompilerRuntime extends TruffleCompilerRuntime {
 
     /**
-     * Notifies this runtime once {@code installedCode} has been installed in the co
+     * Notifies this runtime once {@code installedCode} has been installed in the code cache.
+     *
+     * @param compilable the {@link CompilableTruffleAST compilable} to install code into
+     * @param installedCode code that has just been installed in the code cache
+     */
+    void onCodeInstallation(CompilableTruffleAST compilable, InstalledCode installedCode);
+}
