@@ -115,4 +115,131 @@ public class LoopPredicationPhase extends PostRunCanonicalizationPhase<MidTierCo
                         final boolean inverted = loop.counted().isInverted();
                         if ((((IntegerStamp) counter.valueNode().stamp(NodeView.DEFAULT)).getBits() == 32) &&
                                         !counted.isUnsignedCheck() &&
-                                        ((condition != NE && condition != EQ)
+                                        ((condition != NE && condition != EQ) || (counter.isConstantStride() && Math.abs(counter.constantStride()) == 1)) &&
+                                        (loop.loopBegin().isMainLoop() || loop.loopBegin().isSimpleLoop())) {
+                            NodeIterable<GuardNode> guards = loop.whole().nodes().filter(GuardNode.class);
+                            if (LoopPredicationMainPath.getValue(graph.getOptions())) {
+                                // C2 only applies loop predication to guards dominating the
+                                // backedge.
+                                // The following logic emulates that behavior.
+                                final NodeIterable<LoopEndNode> loopEndNodes = loop.loopBegin().loopEnds();
+                                final HIRBlock end = data.getCFG().commonDominatorFor(loopEndNodes);
+                                guards = guards.filter(guard -> {
+                                    final ValueNode anchor = ((GuardNode) guard).getAnchor().asNode();
+                                    final HIRBlock anchorBlock = data.getCFG().getNodeToBlock().get(anchor);
+                                    return AbstractControlFlowGraph.dominates(anchorBlock, end);
+                                });
+                            }
+                            final AbstractBeginNode body = loop.counted().getBody();
+                            final HIRBlock bodyBlock = cfg.getNodeToBlock().get(body);
+
+                            for (GuardNode guard : guards) {
+                                final AnchoringNode anchor = guard.getAnchor();
+                                final HIRBlock anchorBlock = cfg.getNodeToBlock().get(anchor.asNode());
+                                // for inverted loop the anchor can dominate the body
+                                if (!inverted) {
+                                    if (!AbstractControlFlowGraph.dominates(bodyBlock, anchorBlock)) {
+                                        continue;
+                                    }
+                                }
+                                processGuard(loop, guard);
+                            }
+                        }
+                    }
+                }
+            } catch (Throwable t) {
+                throw debug.handle(t);
+            }
+        }
+    }
+
+    // Create a range check predicate for
+    //
+    // for (i = init; i < limit; i += stride) {
+    // a[scale*i+offset]
+    // }
+    private static void processGuard(LoopEx loop, GuardNode guard) {
+        final LogicNode condition = guard.getCondition();
+        if (!(condition instanceof IntegerBelowNode) || guard.isNegated()) {
+            return;
+        }
+
+        final IntegerBelowNode rangeCheck = (IntegerBelowNode) condition;
+        final ValueNode range = rangeCheck.getY();
+        if (!loop.isOutsideLoop(range) || ((IntegerStamp) range.stamp(NodeView.DEFAULT)).lowerBound() < 0) {
+            return;
+        }
+
+        final EconomicMap<Node, InductionVariable> inductionVariables = loop.getInductionVariables();
+
+        final ValueNode x = rangeCheck.getX();
+        if (!inductionVariables.containsKey(x)) {
+            return;
+        }
+
+        final StructuredGraph graph = guard.graph();
+
+        final InductionVariable iv = inductionVariables.get(x);
+
+        Long scale = null;
+
+        final InductionVariable counter = loop.counted().getLimitCheckedIV();
+        if (iv.isConstantScale(counter)) {
+            scale = iv.constantScale(counter);
+        }
+
+        ValueNode offset = null;
+
+        if (iv.offsetIsZero(counter)) {
+            offset = graph.unique(ConstantNode.forInt(0));
+        } else {
+            offset = iv.offsetNode(counter);
+        }
+
+        if (offset == null || scale == null || !loop.isOutsideLoop(offset)) {
+            return;
+        }
+
+        long scaleCon = scale;
+
+        replaceGuardNode(loop, guard, range, graph, scaleCon, offset);
+    }
+
+    private static void replaceGuardNode(LoopEx loop, GuardNode guard, ValueNode range, StructuredGraph graph, long scaleCon, ValueNode offset) {
+        final InductionVariable counter = loop.counted().getLimitCheckedIV();
+        ValueNode rangeLong = IntegerConvertNode.convert(range, StampFactory.forInteger(64), graph, NodeView.DEFAULT);
+
+        ValueNode extremumNode = counter.extremumNode(false, StampFactory.forInteger(64));
+        final GuardingNode overFlowGuard = loop.counted().createOverFlowGuard();
+        assert overFlowGuard != null || loop.counted().counterNeverOverflows();
+        if (overFlowGuard != null) {
+            extremumNode = graph.unique(new GuardedValueNode(extremumNode, overFlowGuard));
+        }
+        final ValueNode upperNode = MathUtil.add(graph, MathUtil.mul(graph, extremumNode, ConstantNode.forLong(scaleCon, graph)),
+                        IntegerConvertNode.convert(offset, StampFactory.forInteger(64), graph, NodeView.DEFAULT));
+        final LogicNode upperCond = IntegerBelowNode.create(upperNode, rangeLong, NodeView.DEFAULT);
+
+        final ValueNode initNode = IntegerConvertNode.convert(loop.counted().getBodyIVStart(), StampFactory.forInteger(64), graph, NodeView.DEFAULT);
+        final ValueNode lowerNode = MathUtil.add(graph, MathUtil.mul(graph, initNode, ConstantNode.forLong(scaleCon, graph)),
+                        IntegerConvertNode.convert(offset, StampFactory.forInteger(64), graph, NodeView.DEFAULT));
+        final LogicNode lowerCond = IntegerBelowNode.create(lowerNode, rangeLong, NodeView.DEFAULT);
+
+        final FrameState state = loop.loopBegin().stateAfter();
+        final BytecodePosition pos = new BytecodePosition(null, state.getMethod(), state.bci);
+        SpeculationLog.SpeculationReason reason = LOOP_PREDICATION.createSpeculationReason(pos);
+        SpeculationLog.Speculation speculation = graph.getSpeculationLog().speculate(reason);
+        final AbstractBeginNode anchor = AbstractBeginNode.prevBegin(loop.entryPoint());
+
+        final GuardNode upperGuard = graph.addOrUniqueWithInputs(new GuardNode(upperCond, anchor, guard.getReason(), guard.getAction(), guard.isNegated(), speculation, null));
+        final GuardNode lowerGuard = graph.addOrUniqueWithInputs(new GuardNode(lowerCond, anchor, guard.getReason(), guard.getAction(), guard.isNegated(), speculation, null));
+
+        final GuardingNode combinedGuard = MultiGuardNode.combine(lowerGuard, upperGuard);
+        guard.replaceAtUsagesAndDelete(combinedGuard.asNode());
+        graph.getOptimizationLog().report(LoopPredicationPhase.class, "GuardReplacement", guard);
+    }
+
+    @Override
+    public float codeSizeIncrease() {
+        return 2;
+    }
+}
