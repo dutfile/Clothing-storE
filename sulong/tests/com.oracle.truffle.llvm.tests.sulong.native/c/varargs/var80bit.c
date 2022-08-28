@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, Oracle and/or its affiliates.
+ * Copyright (c) 2017, 2020, Oracle and/or its affiliates.
  *
  * All rights reserved.
  *
@@ -27,20 +27,17 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package com.oracle.truffle.llvm.runtime.types.symbols;
+#include <stdarg.h>
+#include <stdio.h>
 
-import java.util.Map;
+long double getResult(int num, ...) {
+    va_list arguments;
+    va_start(arguments, num);
+    long double result = va_arg(arguments, long double) + va_arg(arguments, long double);
+    va_end(arguments);
+    return result;
+}
 
-import com.oracle.truffle.api.frame.Frame;
-import com.oracle.truffle.api.nodes.Node;
-import com.oracle.truffle.llvm.runtime.debug.scope.LLVMSourceSymbol;
-
-public interface LocalVariableDebugInfo {
-
-    /**
-     * Query the debug information available for the position in bitcode described by {@code node},
-     * taking information from the given frame.
-     */
-    Map<LLVMSourceSymbol, Object> getLocalVariables(Frame frame, Node node);
-
+int main() {
+    return getResult(1, 3.0L, 5.0L);
 }

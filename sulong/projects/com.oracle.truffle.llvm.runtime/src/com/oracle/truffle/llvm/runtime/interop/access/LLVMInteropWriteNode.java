@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, Oracle and/or its affiliates.
+ * Copyright (c) 2018, 2021, Oracle and/or its affiliates.
  *
  * All rights reserved.
  *
@@ -27,20 +27,10 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package com.oracle.truffle.llvm.runtime.types.symbols;
+package com.oracle.truffle.llvm.runtime.interop.access;
 
-import java.util.Map;
-
-import com.oracle.truffle.api.frame.Frame;
-import com.oracle.truffle.api.nodes.Node;
-import com.oracle.truffle.llvm.runtime.debug.scope.LLVMSourceSymbol;
-
-public interface LocalVariableDebugInfo {
-
-    /**
-     * Query the debug information available for the position in bitcode described by {@code node},
-     * taking information from the given frame.
-     */
-    Map<LLVMSourceSymbol, Object> getLocalVariables(Frame frame, Node node);
-
-}
+import com.oracle.truffle.api.dsl.Bind;
+import com.oracle.truffle.api.dsl.Cached;
+import com.oracle.truffle.api.dsl.Fallback;
+import com.oracle.truffle.api.dsl.GenerateAOT;
+import com.orac
