@@ -152,4 +152,80 @@ public abstract class LLVMInteropWriteNode extends LLVMNode {
         }
 
         @Fallback
-        void fallback(@SuppressWarnings("unused") Object identifier, AccessLoca
+        void fallback(@SuppressWarnings("unused") Object identifier, AccessLocation location, Object value, ForeignToLLVMType writeType) {
+            assert location.type != null;
+            throw new LLVMPolyglotException(this, "Cannot write object '%s' of size %d byte(s) to foreign object of element size %d", value, writeType.getSizeInBytes(),
+                            location.type.kind.foreignToLLVMType.getSizeInBytes());
+        }
+
+        static boolean isLocationTypeNullOrSameSize(AccessLocation location, ForeignToLLVMType accessType) {
+            return location.type == null || location.type.kind.foreignToLLVMType.getSizeInBytes() == accessType.getSizeInBytes();
+        }
+    }
+
+    @ImportStatic(ForeignToLLVMType.class)
+    @GenerateUncached
+    abstract static class ReinterpretLLVMAsLong extends LLVMNode {
+        abstract long executeWithWriteType(Object value, ForeignToLLVMType writeType);
+
+        @Specialization(guards = "writeType.getSizeInBytes() == 2")
+        long doI16(Object value, @SuppressWarnings("unused") ForeignToLLVMType writeType,
+                        @Cached LLVMDataEscapeNode.LLVMI16DataEscapeNode dataEscape) {
+            return dataEscape.executeWithTargetI16(value);
+        }
+
+        @Specialization(guards = "writeType.getSizeInBytes() == 4")
+        long doI32(Object value, @SuppressWarnings("unused") ForeignToLLVMType writeType,
+                        @Cached LLVMDataEscapeNode.LLVMI32DataEscapeNode dataEscape) {
+            return dataEscape.executeWithTargetI32(value);
+        }
+
+        @Specialization(guards = "writeType.getSizeInBytes() == 8")
+        long doI64(Object value, @SuppressWarnings("unused") ForeignToLLVMType writeType,
+                        @Cached LLVMDataEscapeNode.LLVMI64DataEscapeNode dataEscape) {
+            return dataEscape.executeWithTargetI64(value);
+        }
+
+        @Fallback
+        long fallback(@SuppressWarnings("unused") Object value, ForeignToLLVMType writeType) {
+            throw new LLVMPolyglotException(this, "Unexpected access type %s", writeType);
+        }
+
+    }
+
+    @GenerateUncached
+    abstract static class ConvertOutgoingNode extends LLVMNode {
+
+        abstract Object execute(Object value, LLVMInteropType.Value outgoingType, ForeignToLLVMType writeType);
+
+        @Specialization(limit = "3", guards = {"outgoingType != null", "cachedOutgoingType == outgoingType.kind.foreignToLLVMType", "type.getSizeInBytes() == cachedOutgoingType.getSizeInBytes()"})
+        @GenerateAOT.Exclude
+        Object doKnownType(Object value, LLVMInteropType.Value outgoingType, @SuppressWarnings("unused") ForeignToLLVMType type,
+                        @Cached("outgoingType.kind.foreignToLLVMType") @SuppressWarnings("unused") ForeignToLLVMType cachedOutgoingType,
+                        @Cached(parameters = "cachedOutgoingType") LLVMDataEscapeNode dataEscape) {
+            return dataEscape.executeWithType(value, outgoingType.baseType);
+        }
+
+        static boolean typeMismatch(LLVMInteropType.Value outgoingType, ForeignToLLVMType writeType) {
+            if (outgoingType == null) {
+                return true;
+            } else {
+                return outgoingType.getSize() != writeType.getSizeInBytes();
+            }
+        }
+
+        /**
+         * @param value
+         * @param outgoingType
+         * @param type
+         * @see #execute(Object, LLVMInteropType.Value, ForeignToLLVMType)
+         */
+        @Specialization(limit = "3", guards = {"typeMismatch(outgoingType, cachedType)", "cachedType == type"})
+        @GenerateAOT.Exclude
+        Object doUnknownType(Object value, LLVMInteropType.Value outgoingType, ForeignToLLVMType type,
+                        @Cached("type") @SuppressWarnings("unused") ForeignToLLVMType cachedType,
+                        @Cached(parameters = "type") LLVMDataEscapeNode dataEscape) {
+            return dataEscape.executeWithTarget(value);
+        }
+    }
+}
