@@ -307,4 +307,105 @@ public final class DebuggerConnection implements Commands {
                                     result = JDWP.ReferenceType.FIELDS.createReply(packet, context);
                                     break;
                                 case JDWP.ReferenceType.METHODS.ID:
-        
+                                    result = JDWP.ReferenceType.METHODS.createReply(packet, context);
+                                    break;
+                                case JDWP.ReferenceType.GET_VALUES.ID:
+                                    result = JDWP.ReferenceType.GET_VALUES.createReply(packet, context);
+                                    break;
+                                case JDWP.ReferenceType.SOURCE_FILE.ID:
+                                    result = JDWP.ReferenceType.SOURCE_FILE.createReply(packet, context);
+                                    break;
+                                case JDWP.ReferenceType.NESTED_TYPES.ID:
+                                    result = JDWP.ReferenceType.NESTED_TYPES.createReply(packet, context);
+                                    break;
+                                case JDWP.ReferenceType.STATUS.ID:
+                                    result = JDWP.ReferenceType.STATUS.createReply(packet, context);
+                                    break;
+                                case JDWP.ReferenceType.INTERFACES.ID:
+                                    result = JDWP.ReferenceType.INTERFACES.createReply(packet, context);
+                                    break;
+                                case JDWP.ReferenceType.CLASS_OBJECT.ID:
+                                    result = JDWP.ReferenceType.CLASS_OBJECT.createReply(packet, context);
+                                    break;
+                                case JDWP.ReferenceType.SOURCE_DEBUG_EXTENSION.ID:
+                                    result = JDWP.ReferenceType.SOURCE_DEBUG_EXTENSION.createReply(packet, context);
+                                    break;
+                                case JDWP.ReferenceType.SIGNATURE_WITH_GENERIC.ID:
+                                    result = JDWP.ReferenceType.SIGNATURE_WITH_GENERIC.createReply(packet, context);
+                                    break;
+                                case JDWP.ReferenceType.FIELDS_WITH_GENERIC.ID:
+                                    result = JDWP.ReferenceType.FIELDS_WITH_GENERIC.createReply(packet, context);
+                                    break;
+                                case JDWP.ReferenceType.METHODS_WITH_GENERIC.ID:
+                                    result = JDWP.ReferenceType.METHODS_WITH_GENERIC.createReply(packet, context);
+                                    break;
+                                case JDWP.ReferenceType.INSTANCES.ID:
+                                    result = JDWP.ReferenceType.INSTANCES.createReply(packet);
+                                    break;
+                                case JDWP.ReferenceType.CLASS_FILE_VERSION.ID:
+                                    result = JDWP.ReferenceType.CLASS_FILE_VERSION.createReply(packet, context);
+                                    break;
+                                case JDWP.ReferenceType.CONSTANT_POOL.ID:
+                                    result = JDWP.ReferenceType.CONSTANT_POOL.createReply(packet, context);
+                                    break;
+                                case JDWP.ReferenceType.MODULE.ID:
+                                    result = JDWP.ReferenceType.MODULE.createReply(packet, context);
+                                    break;
+                            }
+                            break;
+                        }
+                        case JDWP.ClassType.ID: {
+                            switch (packet.cmd) {
+                                case JDWP.ClassType.SUPERCLASS.ID:
+                                    result = JDWP.ClassType.SUPERCLASS.createReply(packet, context);
+                                    break;
+                                case JDWP.ClassType.SET_VALUES.ID:
+                                    result = JDWP.ClassType.SET_VALUES.createReply(packet, context);
+                                    break;
+                                case JDWP.ClassType.INVOKE_METHOD.ID:
+                                    result = JDWP.ClassType.INVOKE_METHOD.createReply(packet, controller, DebuggerConnection.this);
+                                    break;
+                                case JDWP.ClassType.NEW_INSTANCE.ID:
+                                    result = JDWP.ClassType.NEW_INSTANCE.createReply(packet, controller);
+                                    break;
+                            }
+                            break;
+                        }
+                        case JDWP.ArrayType.ID: {
+                            switch (packet.cmd) {
+                                case JDWP.ArrayType.NEW_INSTANCE.ID:
+                                    result = JDWP.ArrayType.NEW_INSTANCE.createReply(packet, context);
+                                    break;
+                            }
+                            break;
+                        }
+                        case JDWP.InterfaceType.ID: {
+                            switch (packet.cmd) {
+                                case JDWP.InterfaceType.INVOKE_METHOD.ID:
+                                    result = JDWP.InterfaceType.INVOKE_METHOD.createReply(packet, controller, DebuggerConnection.this);
+                                    break;
+                            }
+                            break;
+                        }
+                        case JDWP.Methods.ID: {
+                            switch (packet.cmd) {
+                                case JDWP.Methods.LINE_TABLE.ID:
+                                    result = JDWP.Methods.LINE_TABLE.createReply(packet, context);
+                                    break;
+                                case JDWP.Methods.VARIABLE_TABLE.ID:
+                                    result = JDWP.Methods.VARIABLE_TABLE.createReply(packet, context);
+                                    break;
+                                case JDWP.Methods.BYTECODES.ID:
+                                    result = JDWP.Methods.BYTECODES.createReply(packet, context);
+                                    break;
+                                case JDWP.Methods.IS_OBSOLETE.ID:
+                                    result = JDWP.Methods.IS_OBSOLETE.createReply(packet, context);
+                                    break;
+                                case JDWP.Methods.VARIABLE_TABLE_WITH_GENERIC.ID:
+                                    result = JDWP.Methods.VARIABLE_TABLE_WITH_GENERIC.createReply(packet, context);
+                                    break;
+                            }
+                            break;
+                        }
+                        case JDWP.ObjectReference.ID: {
+                 
