@@ -212,4 +212,99 @@ public final class DebuggerConnection implements Commands {
             CommandResult result = null;
             try {
                 if (packet.flags == Packet.Reply) {
-                    //
+                    // result packet from debugger!
+                    controller.warning(() -> "Should not get any reply packet from debugger");
+                } else {
+                    // process a command packet from debugger
+                    controller.fine(() -> "received command(" + packet.cmdSet + "." + packet.cmd + ")");
+
+                    switch (packet.cmdSet) {
+                        case JDWP.VirtualMachine.ID: {
+                            switch (packet.cmd) {
+                                case JDWP.VirtualMachine.VERSION.ID:
+                                    result = JDWP.VirtualMachine.VERSION.createReply(packet, controller.getVirtualMachine());
+                                    break;
+                                case JDWP.VirtualMachine.CLASSES_BY_SIGNATURE.ID:
+                                    result = JDWP.VirtualMachine.CLASSES_BY_SIGNATURE.createReply(packet, controller, context);
+                                    break;
+                                case JDWP.VirtualMachine.ALL_CLASSES.ID:
+                                    result = JDWP.VirtualMachine.ALL_CLASSES.createReply(packet, context);
+                                    break;
+                                case JDWP.VirtualMachine.ALL_THREADS.ID:
+                                    result = JDWP.VirtualMachine.ALL_THREADS.createReply(packet, context, controller);
+                                    break;
+                                case JDWP.VirtualMachine.TOP_LEVEL_THREAD_GROUPS.ID:
+                                    result = JDWP.VirtualMachine.TOP_LEVEL_THREAD_GROUPS.createReply(packet, context);
+                                    break;
+                                case JDWP.VirtualMachine.DISPOSE.ID:
+                                    result = JDWP.VirtualMachine.DISPOSE.createReply(packet, controller);
+                                    break;
+                                case JDWP.VirtualMachine.IDSIZES.ID:
+                                    result = JDWP.VirtualMachine.IDSIZES.createReply(packet, controller.getVirtualMachine());
+                                    break;
+                                case JDWP.VirtualMachine.SUSPEND.ID:
+                                    result = JDWP.VirtualMachine.SUSPEND.createReply(packet, controller);
+                                    break;
+                                case JDWP.VirtualMachine.RESUME.ID:
+                                    result = JDWP.VirtualMachine.RESUME.createReply(packet, controller);
+                                    break;
+                                case JDWP.VirtualMachine.EXIT.ID:
+                                    result = JDWP.VirtualMachine.EXIT.createReply(packet, context);
+                                    break;
+                                case JDWP.VirtualMachine.CREATE_STRING.ID:
+                                    result = JDWP.VirtualMachine.CREATE_STRING.createReply(packet, context);
+                                    break;
+                                case JDWP.VirtualMachine.CAPABILITIES.ID:
+                                    result = JDWP.VirtualMachine.CAPABILITIES.createReply(packet);
+                                    break;
+                                case JDWP.VirtualMachine.CLASS_PATHS.ID:
+                                    result = JDWP.VirtualMachine.CLASS_PATHS.createReply(packet, context);
+                                    break;
+                                case JDWP.VirtualMachine.DISPOSE_OBJECTS.ID:
+                                    result = JDWP.VirtualMachine.DISPOSE_OBJECTS.createReply(packet);
+                                    break;
+                                case JDWP.VirtualMachine.HOLD_EVENTS.ID:
+                                    result = JDWP.VirtualMachine.HOLD_EVENTS.createReply(packet, controller);
+                                    break;
+                                case JDWP.VirtualMachine.RELEASE_EVENTS.ID:
+                                    result = JDWP.VirtualMachine.RELEASE_EVENTS.createReply(packet, controller);
+                                    break;
+                                case JDWP.VirtualMachine.CAPABILITIES_NEW.ID:
+                                    result = JDWP.VirtualMachine.CAPABILITIES_NEW.createReply(packet);
+                                    break;
+                                case JDWP.VirtualMachine.REDEFINE_CLASSES.ID:
+                                    result = JDWP.VirtualMachine.REDEFINE_CLASSES.createReply(packet, controller);
+                                    break;
+                                case JDWP.VirtualMachine.SET_DEFAULT_STRATUM.ID:
+                                    result = JDWP.VirtualMachine.SET_DEFAULT_STRATUM.createReply(packet);
+                                    break;
+                                case JDWP.VirtualMachine.ALL_CLASSES_WITH_GENERIC.ID:
+                                    result = JDWP.VirtualMachine.ALL_CLASSES_WITH_GENERIC.createReply(packet, context);
+                                    break;
+                                case JDWP.VirtualMachine.INSTANCE_COUNTS.ID:
+                                    result = JDWP.VirtualMachine.INSTANCE_COUNTS.createReply(packet);
+                                    break;
+                                case JDWP.VirtualMachine.ALL_MODULES.ID:
+                                    result = JDWP.VirtualMachine.ALL_MODULES.createReply(packet, context);
+                                    break;
+                                default:
+                                    break;
+                            }
+                            break;
+                        }
+                        case JDWP.ReferenceType.ID: {
+                            switch (packet.cmd) {
+                                case JDWP.ReferenceType.SIGNATURE.ID:
+                                    result = JDWP.ReferenceType.SIGNATURE.createReply(packet, context);
+                                    break;
+                                case JDWP.ReferenceType.CLASSLOADER.ID:
+                                    result = JDWP.ReferenceType.CLASSLOADER.createReply(packet, context);
+                                    break;
+                                case JDWP.ReferenceType.MODIFIERS.ID:
+                                    result = JDWP.ReferenceType.MODIFIERS.createReply(packet, context);
+                                    break;
+                                case JDWP.ReferenceType.FIELDS.ID:
+                                    result = JDWP.ReferenceType.FIELDS.createReply(packet, context);
+                                    break;
+                                case JDWP.ReferenceType.METHODS.ID:
+        
