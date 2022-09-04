@@ -502,4 +502,134 @@ public final class DebuggerConnection implements Commands {
                                     result = JDWP.ThreadGroupReference.PARENT.createReply(packet, context);
                                     break;
                                 case JDWP.ThreadGroupReference.CHILDREN.ID:
-                                    result = JDWP.ThreadGroupReference.CHILDREN.createReply(packet, cont
+                                    result = JDWP.ThreadGroupReference.CHILDREN.createReply(packet, context, controller);
+                                    break;
+                            }
+                            break;
+                        case JDWP.ArrayReference.ID: {
+                            switch (packet.cmd) {
+                                case JDWP.ArrayReference.LENGTH.ID:
+                                    result = JDWP.ArrayReference.LENGTH.createReply(packet, context);
+                                    break;
+                                case JDWP.ArrayReference.GET_VALUES.ID:
+                                    result = JDWP.ArrayReference.GET_VALUES.createReply(packet, context);
+                                    break;
+                                case JDWP.ArrayReference.SET_VALUES.ID:
+                                    result = JDWP.ArrayReference.SET_VALUES.createReply(packet, context);
+                                    break;
+                                default:
+                                    break;
+                            }
+                            break;
+                        }
+                        case JDWP.ClassLoaderReference.ID: {
+                            switch (packet.cmd) {
+                                case JDWP.ClassLoaderReference.VISIBLE_CLASSES.ID:
+                                    result = JDWP.ClassLoaderReference.VISIBLE_CLASSES.createReply(packet, context);
+                                    break;
+                            }
+                            break;
+                        }
+                        case JDWP.EventRequest.ID: {
+                            switch (packet.cmd) {
+                                case JDWP.EventRequest.SET.ID:
+                                    result = requestedJDWPEvents.registerEvent(packet, DebuggerConnection.this);
+                                    break;
+                                case JDWP.EventRequest.CLEAR.ID:
+                                    result = requestedJDWPEvents.clearRequest(packet);
+                                    break;
+                                case JDWP.EventRequest.CLEAR_ALL_BREAKPOINTS.ID:
+                                    result = requestedJDWPEvents.clearAllRequests(packet);
+                                    break;
+                                default:
+                                    break;
+                            }
+                            break;
+                        }
+                        case JDWP.StackFrame.ID: {
+                            switch (packet.cmd) {
+                                case JDWP.StackFrame.GET_VALUES.ID:
+                                    result = JDWP.StackFrame.GET_VALUES.createReply(packet, context);
+                                    break;
+                                case JDWP.StackFrame.SET_VALUES.ID:
+                                    result = JDWP.StackFrame.SET_VALUES.createReply(packet, context);
+                                    break;
+                                case JDWP.StackFrame.THIS_OBJECT.ID:
+                                    result = JDWP.StackFrame.THIS_OBJECT.createReply(packet, controller);
+                                    break;
+                                case JDWP.StackFrame.POP_FRAMES.ID:
+                                    result = JDWP.StackFrame.POP_FRAMES.createReply(packet, controller);
+                                    break;
+                                default:
+                                    break;
+                            }
+                            break;
+                        }
+                        case JDWP.ClassObjectReference.ID: {
+                            switch (packet.cmd) {
+                                case JDWP.ClassObjectReference.REFLECTED_TYPE.ID:
+                                    result = JDWP.ClassObjectReference.REFLECTED_TYPE.createReply(packet, context);
+                                    break;
+                                default:
+                                    break;
+                            }
+                            break;
+                        }
+                        case JDWP.ModuleReference.ID: {
+                            switch (packet.cmd) {
+                                case JDWP.ModuleReference.NAME.ID:
+                                    result = JDWP.ModuleReference.NAME.createReply(packet, context);
+                                    break;
+                                case JDWP.ModuleReference.CLASSLOADER.ID:
+                                    result = JDWP.ModuleReference.CLASSLOADER.createReply(packet, context);
+                                    break;
+                                default:
+                                    break;
+                            }
+                            break;
+                        }
+                        case JDWP.Event.ID: {
+                            switch (packet.cmd) {
+                                case JDWP.Event.COMPOSITE.ID:
+                                    result = JDWP.Event.COMPOSITE.createReply(packet);
+                                    break;
+                                default:
+                                    break;
+                            }
+                            break;
+                        }
+                        default:
+                            break;
+                    }
+                }
+                handleReply(packet, result);
+            } catch (Throwable t) {
+                controller.severe("Internal error while processing packet", t);
+                PacketStream reply = new PacketStream().replyPacket().id(packet.id);
+                reply.errorCode(ErrorCodes.INTERNAL);
+                handleReply(packet, new CommandResult(reply));
+            }
+        }
+    }
+
+    void handleReply(Packet packet, CommandResult result) {
+        if (result == null) {
+            return;
+        }
+        // run pre futures before sending the reply
+        if (result.getPreFutures() != null) {
+            try {
+                for (Callable<Void> future : result.getPreFutures()) {
+                    if (future != null) {
+                        future.call();
+                    }
+                }
+            } catch (Exception e) {
+                controller.warning(() -> "Failed to run future for command(" + packet.cmdSet + "." + packet.cmd + ")");
+            }
+        }
+        if (result.getReply() != null) {
+            controller.fine(() -> "replying to command(" + packet.cmdSet + "." + packet.cmd + ")");
+            connection.queuePacket(result.getReply());
+        } else {
+            controller.warning(() -> "no result for command(" + packet.cm
