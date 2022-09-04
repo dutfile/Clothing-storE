@@ -408,4 +408,98 @@ public final class DebuggerConnection implements Commands {
                             break;
                         }
                         case JDWP.ObjectReference.ID: {
-                 
+                            switch (packet.cmd) {
+                                case JDWP.ObjectReference.REFERENCE_TYPE.ID:
+                                    result = JDWP.ObjectReference.REFERENCE_TYPE.createReply(packet, context);
+                                    break;
+                                case JDWP.ObjectReference.GET_VALUES.ID:
+                                    result = JDWP.ObjectReference.GET_VALUES.createReply(packet, context);
+                                    break;
+                                case JDWP.ObjectReference.SET_VALUES.ID:
+                                    result = JDWP.ObjectReference.SET_VALUES.createReply(packet, context);
+                                    break;
+                                case JDWP.ObjectReference.MONITOR_INFO.ID:
+                                    result = JDWP.ObjectReference.MONITOR_INFO.createReply(packet, controller);
+                                    break;
+                                case JDWP.ObjectReference.INVOKE_METHOD.ID:
+                                    result = JDWP.ObjectReference.INVOKE_METHOD.createReply(packet, controller, DebuggerConnection.this);
+                                    break;
+                                case JDWP.ObjectReference.DISABLE_COLLECTION.ID:
+                                    result = JDWP.ObjectReference.DISABLE_COLLECTION.createReply(packet, controller);
+                                    break;
+                                case JDWP.ObjectReference.ENABLE_COLLECTION.ID:
+                                    result = JDWP.ObjectReference.ENABLE_COLLECTION.createReply(packet, controller);
+                                    break;
+                                case JDWP.ObjectReference.IS_COLLECTED.ID:
+                                    result = JDWP.ObjectReference.IS_COLLECTED.createReply(packet, context);
+                                    break;
+                                case JDWP.ObjectReference.REFERRING_OBJECTS.ID:
+                                    result = JDWP.ObjectReference.REFERRING_OBJECTS.createReply(packet);
+                                    break;
+                            }
+                            break;
+                        }
+                        case JDWP.StringReference.ID: {
+                            switch (packet.cmd) {
+                                case JDWP.StringReference.VALUE.ID:
+                                    result = JDWP.StringReference.VALUE.createReply(packet, context);
+                                    break;
+                            }
+                            break;
+                        }
+                        case JDWP.ThreadReference.ID:
+                            switch (packet.cmd) {
+                                case JDWP.ThreadReference.NAME.ID:
+                                    result = JDWP.ThreadReference.NAME.createReply(packet, controller, context);
+                                    break;
+                                case JDWP.ThreadReference.SUSPEND.ID:
+                                    result = JDWP.ThreadReference.SUSPEND.createReply(packet, controller);
+                                    break;
+                                case JDWP.ThreadReference.RESUME.ID:
+                                    result = JDWP.ThreadReference.RESUME.createReply(packet, controller);
+                                    break;
+                                case JDWP.ThreadReference.STATUS.ID:
+                                    result = JDWP.ThreadReference.STATUS.createReply(packet, controller);
+                                    break;
+                                case JDWP.ThreadReference.THREAD_GROUP.ID:
+                                    result = JDWP.ThreadReference.THREAD_GROUP.createReply(packet, context);
+                                    break;
+                                case JDWP.ThreadReference.FRAMES.ID:
+                                    result = JDWP.ThreadReference.FRAMES.createReply(packet, controller);
+                                    break;
+                                case JDWP.ThreadReference.FRAME_COUNT.ID:
+                                    result = JDWP.ThreadReference.FRAME_COUNT.createReply(packet, controller);
+                                    break;
+                                case JDWP.ThreadReference.OWNED_MONITORS.ID:
+                                    result = JDWP.ThreadReference.OWNED_MONITORS.createReply(packet, controller);
+                                    break;
+                                case JDWP.ThreadReference.CURRENT_CONTENDED_MONITOR.ID:
+                                    result = JDWP.ThreadReference.CURRENT_CONTENDED_MONITOR.createReply(packet, controller);
+                                    break;
+                                case JDWP.ThreadReference.STOP.ID:
+                                    result = JDWP.ThreadReference.STOP.createReply(packet, context);
+                                    break;
+                                case JDWP.ThreadReference.INTERRUPT.ID:
+                                    result = JDWP.ThreadReference.INTERRUPT.createReply(packet, context);
+                                    break;
+                                case JDWP.ThreadReference.SUSPEND_COUNT.ID:
+                                    result = JDWP.ThreadReference.SUSPEND_COUNT.createReply(packet, controller);
+                                    break;
+                                case JDWP.ThreadReference.OWNED_MONITORS_STACK_DEPTH_INFO.ID:
+                                    result = JDWP.ThreadReference.OWNED_MONITORS_STACK_DEPTH_INFO.createReply(packet, controller);
+                                    break;
+                                case JDWP.ThreadReference.FORCE_EARLY_RETURN.ID:
+                                    result = JDWP.ThreadReference.FORCE_EARLY_RETURN.createReply(packet, controller);
+                                    break;
+                            }
+                            break;
+                        case JDWP.ThreadGroupReference.ID:
+                            switch (packet.cmd) {
+                                case JDWP.ThreadGroupReference.NAME.ID:
+                                    result = JDWP.ThreadGroupReference.NAME.createReply(packet, context);
+                                    break;
+                                case JDWP.ThreadGroupReference.PARENT.ID:
+                                    result = JDWP.ThreadGroupReference.PARENT.createReply(packet, context);
+                                    break;
+                                case JDWP.ThreadGroupReference.CHILDREN.ID:
+                                    result = JDWP.ThreadGroupReference.CHILDREN.createReply(packet, cont
