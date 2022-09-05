@@ -632,4 +632,19 @@ public final class DebuggerConnection implements Commands {
             controller.fine(() -> "replying to command(" + packet.cmdSet + "." + packet.cmd + ")");
             connection.queuePacket(result.getReply());
         } else {
-            controller.warning(() -> "no result for command(" + packet.cm
+            controller.warning(() -> "no result for command(" + packet.cmdSet + "." + packet.cmd + ")");
+        }
+        // run post futures after sending the reply
+        if (result.getPostFutures() != null) {
+            try {
+                for (Callable<Void> future : result.getPostFutures()) {
+                    if (future != null) {
+                        future.call();
+                    }
+                }
+            } catch (Exception e) {
+                controller.severe(() -> "Failed to run future for command(" + packet.cmdSet + "." + packet.cmd + ")");
+            }
+        }
+    }
+}
