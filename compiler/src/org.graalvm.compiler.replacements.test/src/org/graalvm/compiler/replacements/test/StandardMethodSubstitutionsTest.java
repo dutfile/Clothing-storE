@@ -145,4 +145,181 @@ public class StandardMethodSubstitutionsTest extends MethodSubstitutionTest {
             assertInGraph(graph, intrinsicClasses);
         }
 
-        for (Ob
+        for (Object l : args) {
+            // Force compilation
+            InstalledCode code = getCode(testJavaMethod);
+            assert optional || code != null;
+            // Verify that the original method and the substitution produce the same value
+            Object expected = invokeSafe(realJavaMethod, null, l);
+            assertDeepEquals(expected, invokeSafe(testJavaMethod, null, l));
+            // Verify that the generated code and the original produce the same value
+            assertDeepEquals(expected, executeVarargsSafe(code, l));
+        }
+    }
+
+    @Test
+    public void testCharSubstitutions() {
+        Object[] args = new Character[]{Character.MIN_VALUE, (char) -1, (char) 0, (char) 1, Character.MAX_VALUE};
+
+        testSubstitution("charReverseBytes", Character.class, "reverseBytes", false, args, ReverseBytesNode.class);
+    }
+
+    public static char charReverseBytes(char value) {
+        return Character.reverseBytes(value);
+    }
+
+    @Test
+    public void testCharSubstitutionsNarrowing() {
+        Object[] args = new Integer[]{(int) Character.MIN_VALUE, -1, 0, 1, (int) Character.MAX_VALUE};
+
+        for (Object arg : args) {
+            test("charReverseBytesNarrowing", arg);
+        }
+    }
+
+    public static char charReverseBytesNarrowing(int value) {
+        return Character.reverseBytes((char) value);
+    }
+
+    @Test
+    public void testShortSubstitutions() {
+        Object[] args = new Short[]{Short.MIN_VALUE, -1, 0, 1, Short.MAX_VALUE};
+
+        testSubstitution("shortReverseBytes", Short.class, "reverseBytes", false, args, ReverseBytesNode.class);
+    }
+
+    public static short shortReverseBytes(short value) {
+        return Short.reverseBytes(value);
+    }
+
+    @Test
+    public void testShortSubstitutionsNarrowing() {
+        Object[] args = new Integer[]{(int) Short.MIN_VALUE, -1, 0, 1, (int) Short.MAX_VALUE};
+
+        for (Object arg : args) {
+            test("shortReverseBytesNarrowing", arg);
+        }
+    }
+
+    public static short shortReverseBytesNarrowing(int value) {
+        return Short.reverseBytes((short) value);
+    }
+
+    @Test
+    public void testIntegerSubstitutions() {
+        Object[] args = new Object[]{Integer.MIN_VALUE, -1, 0, 1, Integer.MAX_VALUE};
+
+        testSubstitution("integerReverseBytes", Integer.class, "reverseBytes", false, args, ReverseBytesNode.class);
+        testSubstitution("integerNumberOfLeadingZeros", Integer.class, "numberOfLeadingZeros", true, args, BitScanReverseNode.class, CountLeadingZerosNode.class);
+        testSubstitution("integerNumberOfTrailingZeros", Integer.class, "numberOfTrailingZeros", false, args, BitScanForwardNode.class, CountTrailingZerosNode.class);
+        testSubstitution("integerBitCount", Integer.class, "bitCount", true, args, BitCountNode.class);
+    }
+
+    public static int integerReverseBytes(int value) {
+        return Integer.reverseBytes(value);
+    }
+
+    public static int integerNumberOfLeadingZeros(int value) {
+        return Integer.numberOfLeadingZeros(value);
+    }
+
+    public static int integerNumberOfTrailingZeros(int value) {
+        return Integer.numberOfTrailingZeros(value);
+    }
+
+    public static int integerBitCount(int value) {
+        return Integer.bitCount(value);
+    }
+
+    @Test
+    public void testLongSubstitutions() {
+        Object[] args = new Object[]{Long.MIN_VALUE, -1L, 0L, 1L, Long.MAX_VALUE};
+
+        testSubstitution("longReverseBytes", Long.class, "reverseBytes", false, args, ReverseBytesNode.class);
+        testSubstitution("longNumberOfLeadingZeros", Long.class, "numberOfLeadingZeros", true, args, BitScanReverseNode.class, CountLeadingZerosNode.class);
+        testSubstitution("longNumberOfTrailingZeros", Long.class, "numberOfTrailingZeros", false, args, BitScanForwardNode.class, CountTrailingZerosNode.class);
+        testSubstitution("longBitCount", Long.class, "bitCount", true, args, BitCountNode.class);
+    }
+
+    public static long longReverseBytes(long value) {
+        return Long.reverseBytes(value);
+    }
+
+    public static int longNumberOfLeadingZeros(long value) {
+        return Long.numberOfLeadingZeros(value);
+    }
+
+    public static int longNumberOfTrailingZeros(long value) {
+        return Long.numberOfTrailingZeros(value);
+    }
+
+    public static int longBitCount(long value) {
+        return Long.bitCount(value);
+    }
+
+    @Test
+    public void testFloatSubstitutions() {
+        assertInGraph(testGraph("floatToIntBits"), ReinterpretNode.class); // Java
+        testGraph("intBitsToFloat");
+    }
+
+    public static int floatToIntBits(float value) {
+        return Float.floatToIntBits(value);
+    }
+
+    public static float intBitsToFloat(int value) {
+        return Float.intBitsToFloat(value);
+    }
+
+    @Test
+    public void testDoubleSubstitutions() {
+        assertInGraph(testGraph("doubleToLongBits"), ReinterpretNode.class); // Java
+        testGraph("longBitsToDouble");
+    }
+
+    public static long doubleToLongBits(double value) {
+        return Double.doubleToLongBits(value);
+    }
+
+    public static double longBitsToDouble(long value) {
+        return Double.longBitsToDouble(value);
+    }
+
+    public static boolean isInstance(Class<?> clazz, Object object) {
+        return clazz.isInstance(object);
+    }
+
+    public static boolean isInstance2(boolean cond, Object object) {
+        Class<?> clazz;
+        if (cond) {
+            clazz = String.class;
+        } else {
+            clazz = java.util.HashMap.class;
+        }
+        return clazz.isInstance(object);
+    }
+
+    public static boolean isAssignableFrom(Class<?> clazz, Class<?> other) {
+        return clazz.isAssignableFrom(other);
+    }
+
+    @Test
+    public void testClassSubstitutions() {
+        testGraph("isInstance");
+        testGraph("isInstance2");
+        testGraph("isAssignableFrom");
+        for (Class<?> c : new Class<?>[]{getClass(), Cloneable.class, int[].class, String[][].class}) {
+            for (Object o : new Object[]{this, new int[5], new String[2][], new Object()}) {
+                test("isInstance", c, o);
+                test("isAssignableFrom", c, o.getClass());
+            }
+        }
+
+        test("isInstance2", true, null);
+        test("isInstance2", false, null);
+        test("isInstance2", true, "string");
+        test("isInstance2", false, "string");
+        test("isInstance2", true, new HashMap<>());
+        test("isInstance2", false, new HashMap<>());
+    }
+}
