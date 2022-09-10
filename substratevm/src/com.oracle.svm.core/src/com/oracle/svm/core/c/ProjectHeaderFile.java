@@ -169,4 +169,37 @@ public final class ProjectHeaderFile {
         @Override
         public HeaderSearchResult resolveHeader(String projectName, String headerFile) {
             List<String> locations = new ArrayList<>();
-            fo
+            for (Path clibPathComponent : SubstrateOptions.CLibraryPath.getValue().values()) {
+                Path clibPathHeaderFile = clibPathComponent.resolve(headerFile).normalize().toAbsolutePath();
+                locations.add(clibPathHeaderFile.toString());
+                if (Files.exists(clibPathHeaderFile)) {
+                    return new HeaderSearchResult(Optional.of("\"" + clibPathHeaderFile + "\""), locations);
+                }
+            }
+
+            return new HeaderSearchResult(Optional.empty(), locations);
+        }
+    }
+
+    /** This kind of resolving is for SubstrateVM internal use (to run our regression tests). */
+    public static class FallbackHeaderResolver implements HeaderResolver {
+
+        final String projectsDir;
+
+        public FallbackHeaderResolver(String projectsDir) {
+            this.projectsDir = projectsDir;
+        }
+
+        @Override
+        public HeaderSearchResult resolveHeader(String projectName, String headerFile) {
+            Path fallbackHeaderFile = Paths.get(projectsDir).resolve(projectName).resolve(headerFile).normalize().toAbsolutePath();
+            if (Files.exists(fallbackHeaderFile)) {
+                return new HeaderSearchResult(Optional.of("\"" + fallbackHeaderFile + "\""), fallbackHeaderFile.toString());
+            }
+
+            return new HeaderSearchResult(Optional.empty(), fallbackHeaderFile.toString());
+        }
+
+    }
+
+}
