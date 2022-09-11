@@ -38,4 +38,160 @@ import static jdk.vm.ci.amd64.AMD64.rdi;
 import static jdk.vm.ci.amd64.AMD64.rdx;
 import static jdk.vm.ci.amd64.AMD64.rsi;
 import static jdk.vm.ci.amd64.AMD64.CPUFeature.ADX;
-import static jdk.vm.ci.amd64.AMD64.CPUFeature.AVX
+import static jdk.vm.ci.amd64.AMD64.CPUFeature.AVX;
+import static jdk.vm.ci.amd64.AMD64.CPUFeature.BMI2;
+import static jdk.vm.ci.code.ValueUtil.asRegister;
+import static org.graalvm.compiler.lir.LIRInstruction.OperandFlag.REG;
+
+import org.graalvm.compiler.asm.Label;
+import org.graalvm.compiler.asm.amd64.AMD64Address;
+import org.graalvm.compiler.asm.amd64.AMD64Assembler.ConditionFlag;
+import org.graalvm.compiler.asm.amd64.AMD64MacroAssembler;
+import org.graalvm.compiler.core.common.Stride;
+import org.graalvm.compiler.debug.GraalError;
+import org.graalvm.compiler.lir.LIRInstructionClass;
+import org.graalvm.compiler.lir.StubPort;
+import org.graalvm.compiler.lir.asm.CompilationResultBuilder;
+
+import jdk.vm.ci.amd64.AMD64Kind;
+import jdk.vm.ci.code.Register;
+import jdk.vm.ci.meta.Value;
+
+// @formatter:off
+@StubPort(path      = "src/hotspot/cpu/x86/stubGenerator_x86_64.cpp",
+          lineStart = 2949,
+          lineEnd   = 3010,
+          commit    = "db483a38a815f85bd9668749674b5f0f6e4b27b4",
+          sha1      = "8ada7fcdb170eda06a7852fc90450193b2a0f7a0")
+@StubPort(path      = "src/hotspot/cpu/x86/macroAssembler_x86.cpp",
+          lineStart = 6144,
+          lineEnd   = 6601,
+          commit    = "db483a38a815f85bd9668749674b5f0f6e4b27b4",
+          sha1      = "3b967007055fd0134e74b90898a6ab12dc531653")
+// @formatter:on
+public final class AMD64BigIntegerMultiplyToLenOp extends AMD64LIRInstruction {
+
+    public static final LIRInstructionClass<AMD64BigIntegerMultiplyToLenOp> TYPE = LIRInstructionClass.create(AMD64BigIntegerMultiplyToLenOp.class);
+
+    @Use({REG}) private Value xValue;
+    @Use({REG}) private Value xlenValue;
+    @Use({REG}) private Value yValue;
+    @Use({REG}) private Value ylenValue;
+    @Use({REG}) private Value zValue;
+    @Use({REG}) private Value zlenValue;
+
+    @Temp({REG}) private Value tmp1Value;
+    @Temp({REG}) private Value[] tmpValues;
+
+    public AMD64BigIntegerMultiplyToLenOp(
+                    Value xValue,
+                    Value xlenValue,
+                    Value yValue,
+                    Value ylenValue,
+                    Value zValue,
+                    Value zlenValue,
+                    Register heapBaseRegister) {
+        super(TYPE);
+
+        // Due to lack of allocatable registers, we use fixed registers and mark them as @Use+@Temp.
+        // This allows the fixed registers to be reused for hosting temporary values.
+        GraalError.guarantee(asRegister(xValue).equals(rdi), "expect xValue at rdi, but was %s", xValue);
+        GraalError.guarantee(asRegister(xlenValue).equals(rax), "expect xlenValue at rax, but was %s", xlenValue);
+        GraalError.guarantee(asRegister(yValue).equals(rsi), "expect yValue at rsi, but was %s", yValue);
+        GraalError.guarantee(asRegister(ylenValue).equals(rcx), "expect ylenValue at rcx, but was %s", ylenValue);
+        GraalError.guarantee(asRegister(zValue).equals(r8), "expect zValue at r8, but was %s", zValue);
+        GraalError.guarantee(asRegister(zlenValue).equals(r9), "expect zlenValue at r9, but was %s", zlenValue);
+
+        this.xValue = xValue;
+        this.xlenValue = xlenValue;
+        this.yValue = yValue;
+        this.ylenValue = ylenValue;
+        this.zValue = zValue;
+        this.zlenValue = zlenValue;
+
+        this.tmp1Value = r12.equals(heapBaseRegister) ? r14.asValue() : r12.asValue();
+        this.tmpValues = new Value[]{
+                        rax.asValue(),
+                        rcx.asValue(),
+                        rdx.asValue(),
+                        rbx.asValue(),
+                        rsi.asValue(),
+                        rdi.asValue(),
+                        r8.asValue(),
+                        r9.asValue(),
+                        r10.asValue(),
+                        r11.asValue(),
+                        r13.asValue(),
+        };
+    }
+
+    @Override
+    public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
+        GraalError.guarantee(xValue.getPlatformKind().equals(AMD64Kind.QWORD), "Invalid xValue kind: %s", xValue);
+        GraalError.guarantee(xlenValue.getPlatformKind().equals(AMD64Kind.DWORD), "Invalid xlenValue kind: %s", xlenValue);
+        GraalError.guarantee(yValue.getPlatformKind().equals(AMD64Kind.QWORD), "Invalid yValue kind: %s", yValue);
+        GraalError.guarantee(ylenValue.getPlatformKind().equals(AMD64Kind.DWORD), "Invalid ylenValue kind: %s", ylenValue);
+        GraalError.guarantee(zValue.getPlatformKind().equals(AMD64Kind.QWORD), "Invalid zValue kind: %s", zValue);
+        GraalError.guarantee(zlenValue.getPlatformKind().equals(AMD64Kind.DWORD), "Invalid zlenValue kind: %s", zlenValue);
+
+        Register x = asRegister(xValue);
+        Register xlen = asRegister(xlenValue);
+        Register y = asRegister(yValue);
+        Register ylen = asRegister(ylenValue);
+        Register z = asRegister(zValue);
+        Register zlen = asRegister(zlenValue);
+
+        Register tmp1 = asRegister(tmp1Value);
+        Register tmp2 = r13;
+        Register tmp3 = r11;
+        Register tmp4 = r10;
+        Register tmp5 = rbx;
+
+        multiplyToLen(masm, x, xlen, y, ylen, z, zlen, tmp1, tmp2, tmp3, tmp4, tmp5);
+    }
+
+    private static void add2WithCarry(AMD64MacroAssembler masm,
+                    Register destHi,
+                    Register destLo,
+                    Register src1,
+                    Register src2) {
+        masm.addq(destLo, src1);
+        masm.adcq(destHi, 0);
+        masm.addq(destLo, src2);
+        masm.adcq(destHi, 0);
+    }
+
+    /**
+     * Multiply 64 bit by 64 bit first loop.
+     */
+    private static void multiply64x64Loop(AMD64MacroAssembler masm,
+                    Register x,
+                    Register xstart,
+                    Register xAtXstart,
+                    Register y,
+                    Register yAtIdx,
+                    Register z,
+                    Register carry,
+                    Register product,
+                    Register idx,
+                    Register kdx) {
+        // @formatter:off
+        //  jlong carry, x[], y[], z[];
+        //  for (int idx=ystart, kdx=ystart+1+xstart; idx >= 0; idx-, kdx--) {
+        //    huge_128 product = y[idx] * x[xstart] + carry;
+        //    z[kdx] = (jlong)product;
+        //    carry  = (jlong)(product >>> 64);
+        //  }
+        //  z[xstart] = carry;
+        // @formatter:on
+
+        Label labelFirstLoop = new Label();
+        Label labelFirstLoopExit = new Label();
+        Label labelOneX = new Label();
+        Label labelOneY = new Label();
+        Label labelMultiply = new Label();
+
+        masm.declAndJcc(xstart, ConditionFlag.Negative, labelOneX, false);
+
+        masm.movq(xAtXstart, new AMD64Address(x, xstart, Stride.S4, 0));
+        masm.rorq(xAtXstart, 32); // c
