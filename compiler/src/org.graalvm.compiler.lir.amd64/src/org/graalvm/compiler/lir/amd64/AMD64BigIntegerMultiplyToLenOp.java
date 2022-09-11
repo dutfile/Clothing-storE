@@ -194,4 +194,179 @@ public final class AMD64BigIntegerMultiplyToLenOp extends AMD64LIRInstruction {
         masm.declAndJcc(xstart, ConditionFlag.Negative, labelOneX, false);
 
         masm.movq(xAtXstart, new AMD64Address(x, xstart, Stride.S4, 0));
-        masm.rorq(xAtXstart, 32); // c
+        masm.rorq(xAtXstart, 32); // convert big-endian to little-endian
+
+        masm.bind(labelFirstLoop);
+        masm.declAndJcc(idx, ConditionFlag.Negative, labelFirstLoopExit, false);
+        masm.declAndJcc(idx, ConditionFlag.Negative, labelOneY, false);
+        masm.movq(yAtIdx, new AMD64Address(y, idx, Stride.S4, 0));
+        masm.rorq(yAtIdx, 32); // convert big-endian to little-endian
+        masm.bind(labelMultiply);
+        masm.movq(product, xAtXstart);
+        masm.mulq(yAtIdx); // product(rax) * yAtIdx -> rdx:rax
+        masm.addq(product, carry);
+        masm.adcq(rdx, 0);
+        masm.subl(kdx, 2);
+        masm.movl(new AMD64Address(z, kdx, Stride.S4, 4), product);
+        masm.shrq(product, 32);
+        masm.movl(new AMD64Address(z, kdx, Stride.S4, 0), product);
+        masm.movq(carry, rdx);
+        masm.jmp(labelFirstLoop);
+
+        masm.bind(labelOneY);
+        masm.movl(yAtIdx, new AMD64Address(y));
+        masm.jmp(labelMultiply);
+
+        masm.bind(labelOneX);
+        masm.movl(xAtXstart, new AMD64Address(x));
+        masm.jmp(labelFirstLoop);
+
+        masm.bind(labelFirstLoopExit);
+    }
+
+    /**
+     * Multiply 64 bit by 64 bit and add 128 bit.
+     */
+    private static void multiplyAdd128x128(AMD64MacroAssembler masm,
+                    Register xAtXstart,
+                    Register y,
+                    Register z,
+                    Register yzAtIdx,
+                    Register idx,
+                    Register carry,
+                    Register product,
+                    int offset) {
+        // huge_128 product = (y[idx] * xAtXstart) + z[kdx] + carry;
+        // z[kdx] = (jlong)product;
+
+        masm.movq(yzAtIdx, new AMD64Address(y, idx, Stride.S4, offset));
+        masm.rorq(yzAtIdx, 32); // convert big-endian to little-endian
+        masm.movq(product, xAtXstart);
+        masm.mulq(yzAtIdx);     // product(rax) * yzAtIdx -> rdx:product(rax)
+        masm.movq(yzAtIdx, new AMD64Address(z, idx, Stride.S4, offset));
+        masm.rorq(yzAtIdx, 32); // convert big-endian to little-endian
+
+        add2WithCarry(masm, rdx, product, carry, yzAtIdx);
+
+        masm.movl(new AMD64Address(z, idx, Stride.S4, offset + 4), product);
+        masm.shrq(product, 32);
+        masm.movl(new AMD64Address(z, idx, Stride.S4, offset), product);
+    }
+
+    /**
+     * Multiply 128 bit by 128 bit. Unrolled inner loop.
+     */
+    private static void multiply128x128Loop(AMD64MacroAssembler masm,
+                    Register xAtXstart,
+                    Register y,
+                    Register z,
+                    Register yzAtIdx,
+                    Register idx,
+                    Register jdx,
+                    Register carry,
+                    Register product,
+                    Register carry2) {
+        // @formatter:off
+        //   jlong carry, x[], y[], z[];
+        //   int kdx = ystart+1;
+        //   for (int idx=ystart-2; idx >= 0; idx -= 2) { // Third loop
+        //     huge_128 product = (y[idx+1] * xAtXstart) + z[kdx+idx+1] + carry;
+        //     z[kdx+idx+1] = (jlong)product;
+        //     jlong carry2  = (jlong)(product >>> 64);
+        //     product = (y[idx] * xAtXstart) + z[kdx+idx] + carry2;
+        //     z[kdx+idx] = (jlong)product;
+        //     carry  = (jlong)(product >>> 64);
+        //   }
+        //   idx += 2;
+        //   if (idx > 0) {
+        //     product = (y[idx] * xAtXstart) + z[kdx+idx] + carry;
+        //     z[kdx+idx] = (jlong)product;
+        //     carry  = (jlong)(product >>> 64);
+        //   }
+        // @formatter:on
+
+        Label labelThirdLoop = new Label();
+        Label labelThirdLoopExit = new Label();
+        Label labelPostThirdLoopDone = new Label();
+        Label labelCheck1 = new Label();
+
+        masm.movl(jdx, idx);
+        masm.andl(jdx, 0xFFFFFFFC);
+        masm.shrl(jdx, 2);
+
+        masm.bind(labelThirdLoop);
+        masm.sublAndJcc(jdx, 1, ConditionFlag.Negative, labelThirdLoopExit, false);
+        masm.subl(idx, 4);
+
+        multiplyAdd128x128(masm, xAtXstart, y, z, yzAtIdx, idx, carry, product, 8);
+        masm.movq(carry2, rdx);
+
+        multiplyAdd128x128(masm, xAtXstart, y, z, yzAtIdx, idx, carry2, product, 0);
+        masm.movq(carry, rdx);
+        masm.jmp(labelThirdLoop);
+
+        masm.bind(labelThirdLoopExit);
+
+        masm.andlAndJcc(idx, 0x3, ConditionFlag.Zero, labelPostThirdLoopDone, false);
+
+        masm.sublAndJcc(idx, 2, ConditionFlag.Negative, labelCheck1, false);
+
+        multiplyAdd128x128(masm, xAtXstart, y, z, yzAtIdx, idx, carry, product, 0);
+        masm.movq(carry, rdx);
+
+        masm.bind(labelCheck1);
+        masm.addl(idx, 0x2);
+        masm.andl(idx, 0x1);
+        masm.sublAndJcc(idx, 1, ConditionFlag.Negative, labelPostThirdLoopDone, false);
+
+        masm.movl(yzAtIdx, new AMD64Address(y, idx, Stride.S4, 0));
+        masm.movq(product, xAtXstart);
+        masm.mulq(yzAtIdx); // product(rax) * yzAtIdx -> rdx:product(rax)
+        masm.movl(yzAtIdx, new AMD64Address(z, idx, Stride.S4, 0));
+
+        add2WithCarry(masm, rdx, product, yzAtIdx, carry);
+
+        masm.movl(new AMD64Address(z, idx, Stride.S4, 0), product);
+        masm.shrq(product, 32);
+
+        masm.shlq(rdx, 32);
+        masm.orq(product, rdx);
+        masm.movq(carry, product);
+
+        masm.bind(labelPostThirdLoopDone);
+    }
+
+    /**
+     * Multiply 128 bit by 128 bit using BMI2. Unrolled inner loop.
+     */
+    private static void multiply128x128BMI2Loop(AMD64MacroAssembler masm,
+                    Register y,
+                    Register z,
+                    Register carry,
+                    Register carry2,
+                    Register idx,
+                    Register jdx,
+                    Register yzAtIdx1,
+                    Register yzAtIdx2,
+                    Register tmp,
+                    Register tmp3,
+                    Register tmp4) {
+        GraalError.guarantee(masm.supports(BMI2) && masm.supports(AVX), "should be used only when BMI2 is available");
+
+        // @formatter:off
+        //   jlong carry, x[], y[], z[];
+        //   int kdx = ystart+1;
+        //   for (int idx=ystart-2; idx >= 0; idx -= 2) { // Third loop
+        //     huge_128 tmp3 = (y[idx+1] * rdx) + z[kdx+idx+1] + carry;
+        //     jlong carry2  = (jlong)(tmp3 >>> 64);
+        //     huge_128 tmp4 = (y[idx]   * rdx) + z[kdx+idx] + carry2;
+        //     carry  = (jlong)(tmp4 >>> 64);
+        //     z[kdx+idx+1] = (jlong)tmp3;
+        //     z[kdx+idx] = (jlong)tmp4;
+        //   }
+        //   idx += 2;
+        //   if (idx > 0) {
+        //     yzAtIdx1 = (y[idx] * rdx) + z[kdx+idx] + carry;
+        //     z[kdx+idx] = (jlong)yzAtIdx1;
+        //     carry  = (jlong)(yzAtIdx1 >>> 64);
+        
