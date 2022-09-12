@@ -369,4 +369,194 @@ public final class AMD64BigIntegerMultiplyToLenOp extends AMD64LIRInstruction {
         //     yzAtIdx1 = (y[idx] * rdx) + z[kdx+idx] + carry;
         //     z[kdx+idx] = (jlong)yzAtIdx1;
         //     carry  = (jlong)(yzAtIdx1 >>> 64);
-        
+        //   }
+        // @formatter:on
+
+        Label labelThirdLoop = new Label();
+        Label labelThirdLoopExit = new Label();
+        Label labelPostThirdLoopDone = new Label();
+        Label labelCheck1 = new Label();
+
+        masm.movl(jdx, idx);
+        masm.andl(jdx, 0xFFFFFFFC);
+        masm.shrl(jdx, 2);
+
+        masm.bind(labelThirdLoop);
+        masm.sublAndJcc(jdx, 1, ConditionFlag.Negative, labelThirdLoopExit, false);
+        masm.subl(idx, 4);
+
+        masm.movq(yzAtIdx1, new AMD64Address(y, idx, Stride.S4, 8));
+        masm.rorxq(yzAtIdx1, yzAtIdx1, 32); // convert big-endian to little-endian
+        masm.movq(yzAtIdx2, new AMD64Address(y, idx, Stride.S4, 0));
+        masm.rorxq(yzAtIdx2, yzAtIdx2, 32);
+
+        masm.mulxq(tmp4, tmp3, yzAtIdx1);  // yzAtIdx1 * rdx -> tmp4:tmp3
+        masm.mulxq(carry2, tmp, yzAtIdx2); // yzAtIdx2 * rdx -> carry2:tmp
+
+        masm.movq(yzAtIdx1, new AMD64Address(z, idx, Stride.S4, 8));
+        masm.rorxq(yzAtIdx1, yzAtIdx1, 32);
+        masm.movq(yzAtIdx2, new AMD64Address(z, idx, Stride.S4, 0));
+        masm.rorxq(yzAtIdx2, yzAtIdx2, 32);
+
+        if (masm.supports(ADX)) {
+            masm.adcxq(tmp3, carry);
+            masm.adoxq(tmp3, yzAtIdx1);
+
+            masm.adcxq(tmp4, tmp);
+            masm.adoxq(tmp4, yzAtIdx2);
+
+            masm.movl(carry, 0); // does not affect flags
+            masm.adcxq(carry2, carry);
+            masm.adoxq(carry2, carry);
+        } else {
+            add2WithCarry(masm, tmp4, tmp3, carry, yzAtIdx1);
+            add2WithCarry(masm, carry2, tmp4, tmp, yzAtIdx2);
+        }
+        masm.movq(carry, carry2);
+
+        masm.movl(new AMD64Address(z, idx, Stride.S4, 12), tmp3);
+        masm.shrq(tmp3, 32);
+        masm.movl(new AMD64Address(z, idx, Stride.S4, 8), tmp3);
+
+        masm.movl(new AMD64Address(z, idx, Stride.S4, 4), tmp4);
+        masm.shrq(tmp4, 32);
+        masm.movl(new AMD64Address(z, idx, Stride.S4, 0), tmp4);
+
+        masm.jmp(labelThirdLoop);
+
+        masm.bind(labelThirdLoopExit);
+
+        masm.andlAndJcc(idx, 0x3, ConditionFlag.Zero, labelPostThirdLoopDone, false);
+
+        masm.sublAndJcc(idx, 2, ConditionFlag.Negative, labelCheck1, false);
+
+        masm.movq(yzAtIdx1, new AMD64Address(y, idx, Stride.S4, 0));
+        masm.rorxq(yzAtIdx1, yzAtIdx1, 32);
+        masm.mulxq(tmp4, tmp3, yzAtIdx1); // yzAtIdx1 * rdx -> tmp4:tmp3
+        masm.movq(yzAtIdx2, new AMD64Address(z, idx, Stride.S4, 0));
+        masm.rorxq(yzAtIdx2, yzAtIdx2, 32);
+
+        add2WithCarry(masm, tmp4, tmp3, carry, yzAtIdx2);
+
+        masm.movl(new AMD64Address(z, idx, Stride.S4, 4), tmp3);
+        masm.shrq(tmp3, 32);
+        masm.movl(new AMD64Address(z, idx, Stride.S4, 0), tmp3);
+        masm.movq(carry, tmp4);
+
+        masm.bind(labelCheck1);
+        masm.addl(idx, 0x2);
+        masm.andl(idx, 0x1);
+        masm.sublAndJcc(idx, 1, ConditionFlag.Negative, labelPostThirdLoopDone, false);
+        masm.movl(tmp4, new AMD64Address(y, idx, Stride.S4, 0));
+        masm.mulxq(carry2, tmp3, tmp4);  // tmp4 * rdx -> carry2:tmp3
+        masm.movl(tmp4, new AMD64Address(z, idx, Stride.S4, 0));
+
+        add2WithCarry(masm, carry2, tmp3, tmp4, carry);
+
+        masm.movl(new AMD64Address(z, idx, Stride.S4, 0), tmp3);
+        masm.shrq(tmp3, 32);
+
+        masm.shlq(carry2, 32);
+        masm.orq(tmp3, carry2);
+        masm.movq(carry, tmp3);
+
+        masm.bind(labelPostThirdLoopDone);
+    }
+
+    private static void multiplyToLen(AMD64MacroAssembler masm,
+                    Register x,
+                    Register xlen,
+                    Register y,
+                    Register ylen,
+                    Register z,
+                    Register zlen,
+                    Register tmp1,
+                    Register tmp2,
+                    Register tmp3,
+                    Register tmp4,
+                    Register tmp5) {
+        Register idx = tmp1;
+        Register kdx = tmp2;
+        Register xstart = tmp3;
+        Register yAtIdx = tmp4;
+        Register carry = tmp5;
+
+        Register product = xlen;
+        Register xAtXstart = zlen;
+
+        Label labelDone = new Label();
+        Label labelSecondLoop = new Label();
+        Label labelCarry = new Label();
+        Label labelLastX = new Label();
+        Label labelThirdLoopPrologue = new Label();
+
+        boolean useBMI2Instructions = masm.supports(BMI2) && masm.supports(AVX);
+
+        // @formatter:off
+        // First Loop.
+        //
+        //  final static long LONG_MASK = 0xffffffffL;
+        //  int xstart = xlen - 1;
+        //  int ystart = ylen - 1;
+        //  long carry = 0;
+        //  for (int idx=ystart, kdx=ystart+1+xstart; idx >= 0; idx-, kdx--) {
+        //    long product = (y[idx] & LONG_MASK) * (x[xstart] & LONG_MASK) + carry;
+        //    z[kdx] = (int)product;
+        //    carry = product >>> 32;
+        //  }
+        //  z[xstart] = (int)carry;
+        // @formatter:on
+
+        masm.movl(idx, ylen);      // idx = ylen;
+        masm.movl(kdx, zlen);      // kdx = xlen+ylen;
+        masm.xorq(carry, carry);   // carry = 0;
+
+        masm.movl(xstart, xlen);
+        masm.declAndJcc(xstart, ConditionFlag.Negative, labelDone, false);
+
+        multiply64x64Loop(masm, x, xstart, xAtXstart, y, yAtIdx, z, carry, product, idx, kdx);
+
+        masm.testlAndJcc(kdx, kdx, ConditionFlag.Zero, labelSecondLoop, false);
+
+        masm.sublAndJcc(kdx, 1, ConditionFlag.Zero, labelCarry, false);
+
+        masm.movl(new AMD64Address(z, kdx, Stride.S4, 0), carry);
+        masm.shrq(carry, 32);
+        masm.subl(kdx, 1);
+
+        masm.bind(labelCarry);
+        masm.movl(new AMD64Address(z, kdx, Stride.S4, 0), carry);
+
+        // @formatter:off
+        // Second and third (nested) loops.
+        //
+        // for (int i = xstart-1; i >= 0; i--) { // Second loop
+        //   carry = 0;
+        //   for (int jdx=ystart, k=ystart+1+i; jdx >= 0; jdx--, k--) { // Third loop
+        //     long product = (y[jdx] & LONG_MASK) * (x[i] & LONG_MASK) +
+        //                    (z[k] & LONG_MASK) + carry;
+        //     z[k] = (int)product;
+        //     carry = product >>> 32;
+        //   }
+        //   z[i] = (int)carry;
+        // }
+        //
+        // i = xlen, j = tmp1, k = tmp2, carry = tmp5, x[i] = rdx
+        // @formatter:on
+
+        Register jdx = tmp1;
+
+        masm.bind(labelSecondLoop);
+        masm.xorq(carry, carry);    // carry = 0;
+        masm.movl(jdx, ylen);       // j = ystart+1
+        // i = xstart-1;
+        masm.sublAndJcc(xstart, 1, ConditionFlag.Negative, labelDone, false);
+
+        masm.push(z);
+
+        // z = z + k - j
+        masm.leaq(z, new AMD64Address(z, xstart, Stride.S4, 4));
+        // i = xstart-1;
+        masm.sublAndJcc(xstart, 1, ConditionFlag.Negative, labelLastX, false);
+
+        i
