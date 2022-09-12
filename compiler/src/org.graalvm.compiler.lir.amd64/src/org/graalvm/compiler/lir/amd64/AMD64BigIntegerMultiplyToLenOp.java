@@ -559,4 +559,50 @@ public final class AMD64BigIntegerMultiplyToLenOp extends AMD64LIRInstruction {
         // i = xstart-1;
         masm.sublAndJcc(xstart, 1, ConditionFlag.Negative, labelLastX, false);
 
-        i
+        if (useBMI2Instructions) {
+            masm.movq(rdx, new AMD64Address(x, xstart, Stride.S4, 0));
+            masm.rorxq(rdx, rdx, 32); // convert big-endian to little-endian
+        } else {
+            masm.movq(xAtXstart, new AMD64Address(x, xstart, Stride.S4, 0));
+            masm.rorq(xAtXstart, 32);  // convert big-endian to little-endian
+        }
+
+        masm.bind(labelThirdLoopPrologue);
+
+        masm.push(x);
+        masm.push(xstart);
+        masm.push(ylen);
+
+        if (useBMI2Instructions) {
+            multiply128x128BMI2Loop(masm, y, z, carry, x, jdx, ylen, product, tmp2, xAtXstart, tmp3, tmp4);
+        } else { // !UseBMI2Instructions
+            multiply128x128Loop(masm, xAtXstart, y, z, yAtIdx, jdx, ylen, carry, product, x);
+        }
+
+        masm.pop(ylen);
+        masm.pop(xlen);
+        masm.pop(x);
+        masm.pop(z);
+
+        masm.movl(tmp3, xlen);
+        masm.addl(tmp3, 1);
+        masm.movl(new AMD64Address(z, tmp3, Stride.S4, 0), carry);
+        masm.sublAndJcc(tmp3, 1, ConditionFlag.Negative, labelDone, false);
+
+        masm.shrq(carry, 32);
+        masm.movl(new AMD64Address(z, tmp3, Stride.S4, 0), carry);
+        masm.jmp(labelSecondLoop);
+
+        // Next infrequent code is moved outside loops.
+        masm.bind(labelLastX);
+
+        if (useBMI2Instructions) {
+            masm.movl(rdx, new AMD64Address(x));
+        } else {
+            masm.movl(xAtXstart, new AMD64Address(x));
+        }
+        masm.jmp(labelThirdLoopPrologue);
+
+        masm.bind(labelDone);
+    }
+}
