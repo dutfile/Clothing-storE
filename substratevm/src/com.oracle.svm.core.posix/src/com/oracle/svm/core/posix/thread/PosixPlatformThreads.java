@@ -201,4 +201,161 @@ public final class PosixPlatformThreads extends PlatformThreads {
         }
     }
 
-    @CEntryPoint(include = CEntryPoint.NotIncludedAutomatical
+    @CEntryPoint(include = CEntryPoint.NotIncludedAutomatically.class, publishAs = Publish.NotPublished)
+    @CEntryPointOptions(prologue = PthreadStartRoutinePrologue.class, epilogue = LeaveDetachThreadEpilogue.class)
+    static WordBase pthreadStartRoutine(ThreadStartData data) {
+        ObjectHandle threadHandle = data.getThreadHandle();
+        freeStartData(data);
+
+        threadStartRoutine(threadHandle);
+
+        return WordFactory.nullPointer();
+    }
+
+    @Override
+    protected void beforeThreadRun(Thread thread) {
+        /* Complete the initialization of the thread, now that it is (nearly) running. */
+        setPthreadIdentifier(thread, Pthread.pthread_self());
+        setNativeName(thread, thread.getName());
+    }
+
+    @Override
+    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+    public OSThreadHandle startThreadUnmanaged(CFunctionPointer threadRoutine, PointerBase userData, int stackSize) {
+        pthread_attr_t attributes = StackValue.get(pthread_attr_t.class);
+        int status = Pthread.pthread_attr_init_no_transition(attributes);
+        if (status != 0) {
+            return WordFactory.nullPointer();
+        }
+        try {
+            status = Pthread.pthread_attr_setdetachstate_no_transition(attributes, Pthread.PTHREAD_CREATE_JOINABLE());
+            if (status != 0) {
+                return WordFactory.nullPointer();
+            }
+
+            UnsignedWord threadStackSize = WordFactory.unsigned(stackSize);
+            /* If there is a chosen stack size, use it as the stack size. */
+            if (threadStackSize.notEqual(WordFactory.zero())) {
+                /* Make sure the chosen stack size is large enough. */
+                threadStackSize = UnsignedUtils.max(threadStackSize, Pthread.PTHREAD_STACK_MIN());
+                /* Make sure the chosen stack size is a multiple of the system page size. */
+                threadStackSize = UnsignedUtils.roundUp(threadStackSize, WordFactory.unsigned(Unistd.NoTransitions.getpagesize()));
+
+                status = Pthread.pthread_attr_setstacksize_no_transition(attributes, threadStackSize);
+                if (status != 0) {
+                    return WordFactory.nullPointer();
+                }
+            }
+
+            Pthread.pthread_tPointer newThread = StackValue.get(Pthread.pthread_tPointer.class);
+
+            status = Pthread.pthread_create_no_transition(newThread, attributes, threadRoutine, userData);
+            if (status != 0) {
+                return WordFactory.nullPointer();
+            }
+
+            return (OSThreadHandle) newThread.read();
+        } finally {
+            Pthread.pthread_attr_destroy_no_transition(attributes);
+        }
+    }
+
+    @Override
+    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+    public boolean joinThreadUnmanaged(OSThreadHandle threadHandle, WordPointer threadExitStatus) {
+        int status = Pthread.pthread_join_no_transition((Pthread.pthread_t) threadHandle, threadExitStatus);
+        return status == 0;
+    }
+
+    @Override
+    @SuppressWarnings("unused")
+    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+    public void closeOSThreadHandle(OSThreadHandle threadHandle) {
+        // pthread_t doesn't need closing
+    }
+}
+
+@TargetClass(Thread.class)
+final class Target_java_lang_Thread {
+    @Inject //
+    @RecomputeFieldValue(kind = RecomputeFieldValue.Kind.Reset)//
+    boolean hasPthreadIdentifier;
+
+    /**
+     * Every thread started by {@link PosixPlatformThreads#doStartThread} has an opaque pthread_t.
+     */
+    @Inject //
+    @RecomputeFieldValue(kind = RecomputeFieldValue.Kind.Reset)//
+    Pthread.pthread_t pthreadIdentifier;
+}
+
+/**
+ * {@link PosixParker} is based on HotSpot class {@code Parker} in {@code os_posix.cpp}, as of JDK
+ * 19 (git commit hash: 967a28c3d85fdde6d5eb48aa0edd8f7597772469, JDK tag: jdk-19+36).
+ */
+final class PosixParker extends Parker {
+    private static final Unsafe U = Unsafe.getUnsafe();
+    private static final long EVENT_OFFSET = U.objectFieldOffset(PosixParker.class, "event");
+
+    private pthread_mutex_t mutex;
+    private pthread_cond_t relativeCond;
+    private pthread_cond_t absoluteCond;
+
+    /** The condition on which the owning thread is currently blocked. Guarded by {@link #mutex}. */
+    private pthread_cond_t currentCond;
+
+    /** Permit: 1 if an unpark is pending, otherwise 0. */
+    private volatile int event = 0;
+
+    PosixParker() {
+        // Allocate mutex and condition in a single step so that they are adjacent in memory.
+        UnsignedWord mutexSize = SizeOf.unsigned(pthread_mutex_t.class);
+        UnsignedWord condSize = SizeOf.unsigned(pthread_cond_t.class);
+        Pointer memory = UnmanagedMemory.malloc(mutexSize.add(condSize.multiply(2)));
+        mutex = (pthread_mutex_t) memory;
+        relativeCond = (pthread_cond_t) memory.add(mutexSize);
+        absoluteCond = (pthread_cond_t) memory.add(mutexSize).add(condSize);
+
+        final Pthread.pthread_mutexattr_t mutexAttr = WordFactory.nullPointer();
+        PosixUtils.checkStatusIs0(Pthread.pthread_mutex_init(mutex, mutexAttr), "mutex initialization");
+        PosixUtils.checkStatusIs0(PthreadConditionUtils.initConditionWithRelativeTime(relativeCond), "relative-time condition variable initialization");
+        PosixUtils.checkStatusIs0(PthreadConditionUtils.initConditionWithAbsoluteTime(absoluteCond), "absolute-time condition variable initialization");
+    }
+
+    @Override
+    protected void reset() {
+        event = 0;
+    }
+
+    @Override
+    protected boolean tryFastPark() {
+        // We depend on getAndSet having full barrier semantics since we are not locking
+        return U.getAndSetInt(this, EVENT_OFFSET, 0) != 0;
+    }
+
+    @Override
+    protected void park(boolean isAbsolute, long time) {
+        assert time >= 0 && !(isAbsolute && time == 0) : "must not be called otherwise";
+        StackOverflowCheck.singleton().makeYellowZoneAvailable();
+        try {
+            park0(isAbsolute, time);
+        } finally {
+            StackOverflowCheck.singleton().protectYellowZone();
+        }
+    }
+
+    private void park0(boolean isAbsolute, long time) {
+        int status = Pthread.pthread_mutex_trylock_no_transition(mutex);
+        if (status == Errno.EBUSY()) {
+            /* Another thread is unparking us, so don't wait. This may cause spurious wakeups. */
+            return;
+        }
+        PosixUtils.checkStatusIs0(status, "park: mutex_trylock");
+
+        try {
+            if (event == 0) {
+                assert currentCond.isNull();
+                try {
+                    if (time == 0) {
+                        currentCond = relativeCond;
+          
