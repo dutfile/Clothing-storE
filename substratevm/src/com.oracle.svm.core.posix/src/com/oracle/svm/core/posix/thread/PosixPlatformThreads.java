@@ -358,4 +358,82 @@ final class PosixParker extends Parker {
                 try {
                     if (time == 0) {
                         currentCond = relativeCond;
-          
+                        status = Pthread.pthread_cond_wait(currentCond, mutex);
+                    } else {
+                        currentCond = isAbsolute ? absoluteCond : relativeCond;
+                        Time.timespec deadline = UnsafeStackValue.get(Time.timespec.class);
+                        PthreadConditionUtils.fillTimespec(deadline, time, isAbsolute);
+                        status = Pthread.pthread_cond_timedwait(currentCond, mutex, deadline);
+                    }
+                    assert status == 0 || status == Errno.ETIMEDOUT();
+                } finally {
+                    currentCond = WordFactory.nullPointer();
+                }
+            }
+            event = 0;
+        } finally {
+            PosixUtils.checkStatusIs0(Pthread.pthread_mutex_unlock(mutex), "park: mutex_unlock");
+            /*
+             * Paranoia to ensure our locked and lock-free paths interact correctly with each other
+             * and Java-level accesses.
+             */
+            U.fullFence();
+        }
+    }
+
+    @Override
+    protected void unpark() {
+        StackOverflowCheck.singleton().makeYellowZoneAvailable();
+        try {
+            int s;
+            pthread_cond_t p;
+            int status = Pthread.pthread_mutex_trylock_no_transition(mutex);
+            if (status == Errno.EBUSY()) { // more expensive transition when potentially blocking:
+                status = Pthread.pthread_mutex_lock(mutex);
+            }
+            PosixUtils.checkStatusIs0(status, "PosixParker.unpark(): mutex lock");
+            try {
+                s = event;
+                event = 1;
+                p = currentCond;
+            } finally {
+                PosixUtils.checkStatusIs0(Pthread.pthread_mutex_unlock(mutex), "PosixParker.unpark(): mutex unlock");
+            }
+            if (s == 0 && p.isNonNull()) {
+                /*
+                 * Signal without holding the mutex, which is safe and avoids futile wakeups if the
+                 * platform does not implement wait morphing.
+                 */
+                PosixUtils.checkStatusIs0(Pthread.pthread_cond_signal(currentCond), "PosixParker.unpark(): condition variable signal");
+            }
+        } finally {
+            StackOverflowCheck.singleton().protectYellowZone();
+        }
+    }
+
+    @Override
+    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+    protected void release() {
+        /* The conditions and the mutex are allocated with a single malloc. */
+        int status = Pthread.pthread_cond_destroy(relativeCond);
+        assert status == 0;
+        relativeCond = WordFactory.nullPointer();
+
+        status = Pthread.pthread_cond_destroy(absoluteCond);
+        assert status == 0;
+        absoluteCond = WordFactory.nullPointer();
+
+        status = Pthread.pthread_mutex_destroy(mutex);
+        assert status == 0;
+        ImageSingletons.lookup(UnmanagedMemorySupport.class).free(mutex);
+        mutex = WordFactory.nullPointer();
+    }
+}
+
+@AutomaticallyRegisteredImageSingleton(ParkerFactory.class)
+class PosixParkerFactory implements Parker.ParkerFactory {
+    @Override
+    public Parker acquire() {
+        return new PosixParker();
+    }
+}
