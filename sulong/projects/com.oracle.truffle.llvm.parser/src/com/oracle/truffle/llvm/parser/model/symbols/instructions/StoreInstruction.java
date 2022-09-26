@@ -60,4 +60,50 @@ public final class StoreInstruction extends VoidInstruction {
         return inst;
     }
 
-    public static StoreInstruction fromSymbols(SymbolTable symbols, int destination, int source, int align, boolean isVolatile, long ato
+    public static StoreInstruction fromSymbols(SymbolTable symbols, int destination, int source, int align, boolean isVolatile, long atomicOrdering, long synchronizationScope) {
+        return fromSymbols(symbols, destination, source, align, isVolatile, AtomicOrdering.decode(atomicOrdering), SynchronizationScope.decode(synchronizationScope));
+    }
+
+    public static StoreInstruction fromSymbols(SymbolTable symbols, int destination, int source, int align, boolean isVolatile) {
+        return fromSymbols(symbols, destination, source, align, isVolatile, AtomicOrdering.NOT_ATOMIC, SynchronizationScope.CROSS_THREAD);
+    }
+
+    @Override
+    public void accept(SymbolVisitor visitor) {
+        visitor.visit(this);
+    }
+
+    public int getAlign() {
+        return align;
+    }
+
+    public AtomicOrdering getAtomicOrdering() {
+        return atomicOrdering;
+    }
+
+    public SymbolImpl getDestination() {
+        return destination;
+    }
+
+    public SymbolImpl getSource() {
+        return source;
+    }
+
+    public SynchronizationScope getSynchronizationScope() {
+        return synchronizationScope;
+    }
+
+    public boolean isVolatile() {
+        return isVolatile;
+    }
+
+    @Override
+    public void replace(SymbolImpl original, SymbolImpl replacement) {
+        if (destination == original) {
+            destination = replacement;
+        }
+        if (source == original) {
+            source = replacement;
+        }
+    }
+}
