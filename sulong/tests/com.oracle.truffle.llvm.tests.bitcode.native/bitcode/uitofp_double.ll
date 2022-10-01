@@ -106,4 +106,35 @@ define i32 @main() #0 {
   tail call void @testI8Scalar(i8 zeroext 1)
   tail call void @testI8Scalar(i8 zeroext -1)
   %2 = tail call i32 @puts(i8* getelementptr inbounds ([14 x i8], [14 x i8]* @str.10, i64 0, i64 0))
-  tail call void @testI16Scalar(
+  tail call void @testI16Scalar(i16 zeroext 0)
+  tail call void @testI16Scalar(i16 zeroext 1)
+  tail call void @testI16Scalar(i16 zeroext -1)
+  %3 = tail call i32 @puts(i8* getelementptr inbounds ([14 x i8], [14 x i8]* @str.11, i64 0, i64 0))
+  tail call void @testI32Scalar(i32 0)
+  tail call void @testI32Scalar(i32 1)
+  tail call void @testI32Scalar(i32 -1)
+  %4 = tail call i32 @puts(i8* getelementptr inbounds ([14 x i8], [14 x i8]* @str.12, i64 0, i64 0))
+  tail call void @testI64Scalar(i64 0)
+  tail call void @testI64Scalar(i64 1)
+  tail call void @testI64Scalar(i64 -1)
+  %5 = tail call i32 @puts(i8* getelementptr inbounds ([13 x i8], [13 x i8]* @str.13, i64 0, i64 0))
+  tail call void @testI8Vector(i8 zeroext 0)
+  tail call void @testI8Vector(i8 zeroext 1)
+  tail call void @testI8Vector(i8 zeroext -1)
+  %6 = tail call i32 @puts(i8* getelementptr inbounds ([14 x i8], [14 x i8]* @str.14, i64 0, i64 0))
+  tail call void @testI16Vector(i16 zeroext 0)
+  tail call void @testI16Vector(i16 zeroext 1)
+  tail call void @testI16Vector(i16 zeroext -1)
+  %7 = tail call i32 @puts(i8* getelementptr inbounds ([14 x i8], [14 x i8]* @str.15, i64 0, i64 0))
+  tail call void @testI32Vector(i32 0)
+  tail call void @testI32Vector(i32 1)
+  tail call void @testI32Vector(i32 -1)
+  %8 = tail call i32 @puts(i8* getelementptr inbounds ([14 x i8], [14 x i8]* @str.16, i64 0, i64 0))
+  tail call void @testI64Vector(i64 0)
+  tail call void @testI64Vector(i64 1)
+  tail call void @testI64Vector(i64 -1)
+  ret i32 0
+}
+
+; Function Attrs: nounwind
+declare i32 @puts(i8* nocapture readonly) #3
