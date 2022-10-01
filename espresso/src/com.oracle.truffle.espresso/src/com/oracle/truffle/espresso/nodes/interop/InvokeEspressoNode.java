@@ -98,4 +98,67 @@ public abstract class InvokeEspressoNode extends EspressoNode {
             throw ArityException.create(expectedArity, expectedArity, arguments.length);
         }
 
-        Object[] convertedArguments = argsConverted ? argument
+        Object[] convertedArguments = argsConverted ? arguments : new Object[expectedArity];
+        if (!argsConverted) {
+            for (int i = 0; i < expectedArity; i++) {
+                convertedArguments[i] = toEspressoNodes[i].execute(arguments[i], parameterKlasses[i]);
+            }
+        }
+
+        initCheck.execute(cachedMethod.getDeclaringKlass());
+        if (!cachedMethod.getMethod().isStatic()) {
+            Object[] argumentsWithReceiver = new Object[convertedArguments.length + 1];
+            argumentsWithReceiver[0] = receiver;
+            System.arraycopy(convertedArguments, 0, argumentsWithReceiver, 1, convertedArguments.length);
+            return directCallNode.call(argumentsWithReceiver);
+        }
+        return directCallNode.call(/* static => no receiver */ convertedArguments);
+    }
+
+    @Specialization(replaces = "doCached")
+    Object doGeneric(Method.MethodVersion method, Object receiver, Object[] arguments, boolean argsConverted,
+                    @Cached ToEspressoNode toEspressoNode,
+                    @Cached IndirectCallNode indirectCallNode)
+                    throws ArityException, UnsupportedTypeException {
+
+        checkValidInvoke(method.getMethod(), receiver);
+
+        int expectedArity = method.getMethod().getParameterCount();
+        if (arguments.length != expectedArity) {
+            throw ArityException.create(expectedArity, expectedArity, arguments.length);
+        }
+
+        Object[] convertedArguments = argsConverted ? arguments : new Object[expectedArity];
+
+        if (!argsConverted) {
+            Klass[] parameterKlasses = getParameterKlasses(method.getMethod());
+            for (int i = 0; i < expectedArity; i++) {
+                convertedArguments[i] = toEspressoNode.execute(arguments[i], parameterKlasses[i]);
+            }
+        }
+
+        if (!method.getMethod().isStatic()) {
+            Object[] argumentsWithReceiver = new Object[convertedArguments.length + 1];
+            argumentsWithReceiver[0] = receiver;
+            System.arraycopy(convertedArguments, 0, argumentsWithReceiver, 1, convertedArguments.length);
+            return indirectCallNode.call(method.getCallTarget(), argumentsWithReceiver);
+        }
+
+        return indirectCallNode.call(method.getMethod().getCallTargetForceInit(), /*
+                                                                                   * static => no
+                                                                                   * receiver
+                                                                                   */ convertedArguments);
+    }
+
+    @TruffleBoundary
+    private static Klass[] getParameterKlasses(Method method) {
+        return method.resolveParameterKlasses();
+    }
+
+    private static void checkValidInvoke(Method method, Object receiver) {
+        EspressoError.guarantee(!method.isSignaturePolymorphicDeclared(), "Espresso interop does not support signature polymorphic methods.");
+        EspressoError.guarantee(((method.isStatic() && receiver == null) ||
+                        (!method.isStatic() && method.isPublic() && receiver != null)),
+                        "Espresso interop only supports static methods and public instance method");
+    }
+}
