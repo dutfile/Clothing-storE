@@ -36,4 +36,172 @@ import org.graalvm.nativeimage.c.constant.CConstant;
 import org.graalvm.nativeimage.c.function.CEntryPoint;
 import org.graalvm.nativeimage.c.function.CFunction;
 import org.graalvm.nativeimage.c.struct.CField;
-import org.graa
+import org.graalvm.nativeimage.c.struct.CStruct;
+import org.graalvm.word.Pointer;
+import org.graalvm.word.PointerBase;
+import org.graalvm.word.WordFactory;
+
+import com.oracle.graal.pointsto.infrastructure.UniverseMetaAccess;
+import com.oracle.svm.core.SubstrateOptions;
+import com.oracle.svm.core.Uninterruptible;
+import com.oracle.svm.core.graal.llvm.util.LLVMDirectives;
+import com.oracle.svm.core.graal.stackvalue.UnsafeStackValue;
+import com.oracle.svm.core.snippets.ExceptionUnwind;
+import com.oracle.svm.core.stack.StackOverflowCheck;
+import com.oracle.svm.hosted.code.CEntryPointCallStubSupport;
+
+import jdk.vm.ci.meta.MetaAccessProvider;
+import jdk.vm.ci.meta.ResolvedJavaMethod;
+
+@CContext(LLVMDirectives.class)
+public class LLVMExceptionUnwind {
+
+    /*
+     * Exception handling using libunwind happens using the following steps:
+     *
+     * 1. The exception is raised using _Unwind_RaiseException
+     *
+     * 2. libunwind walks the stack twice, and for each Java call frame calls the personality
+     * function below
+     *
+     * 3. During the first stack walk (UA_SEARCH_PHASE), the personality function tells whether it
+     * has a registered handler able to handle the exception (URC_HANDLER_FOUND).
+     *
+     * 4. During the second stack walk (UA_CLEANUP_PHASE), the frame that accepted the exception
+     * prepares the context to jump to the handler (URC_INSTALL_CONTEXT).
+     *
+     * In order for the personality function to function normally, it needs the context from the
+     * thread which threw the exception to be restored when the function is called. This is done
+     * through the thread argument which is passed to libunwind in place of the exception object
+     * (see raiseException()). Libunwind then passes the value back as the third argument to the
+     * personality function. The actual exception is then retrieved from the thread-local variable
+     * SnippetRuntime.currentException.
+     *
+     * When preparing to jump to the handler, the exception object is placed in the return register,
+     * from which it will get extracted after the landingpad instruction (see
+     * NodeLLVMBuilder.emitReadExceptionObject).
+     */
+    @CEntryPoint(include = IncludeForLLVMOnly.class, publishAs = CEntryPoint.Publish.NotPublished)
+    @SuppressWarnings("unused")
+    public static int personality(int version, int action, IsolateThread thread, _Unwind_Exception unwindException, _Unwind_Context context) {
+        Pointer ip = getIP(context);
+        Pointer functionStart = getRegionStart(context);
+        int pcOffset = NumUtil.safeToInt(ip.rawValue() - functionStart.rawValue());
+
+        Pointer lsda = getLanguageSpecificData(context);
+        Long handlerOffset = GCCExceptionTable.getHandlerOffset(lsda, pcOffset);
+
+        if (handlerOffset == null || handlerOffset == 0) {
+            return _URC_CONTINUE_UNWIND();
+        }
+
+        if ((action & _UA_SEARCH_PHASE()) != 0) {
+            return _URC_HANDLER_FOUND();
+        } else if ((action & _UA_CLEANUP_PHASE()) != 0) {
+            setIP(context, functionStart.add(handlerOffset.intValue()));
+
+            StackOverflowCheck.singleton().protectYellowZone();
+            return _URC_INSTALL_CONTEXT();
+        } else {
+            return _URC_FATAL_PHASE1_ERROR();
+        }
+    }
+
+    @Uninterruptible(reason = "Called before Java state is restored")
+    public static Throwable retrieveException() {
+        Throwable exception = ExceptionUnwind.currentException.get();
+        ExceptionUnwind.currentException.set(null);
+        return exception;
+    }
+
+    private static class IncludeForLLVMOnly implements BooleanSupplier {
+        @Override
+        public boolean getAsBoolean() {
+            return SubstrateOptions.useLLVMBackend();
+        }
+    }
+
+    public static ResolvedJavaMethod getPersonalityStub(MetaAccessProvider metaAccess) {
+        try {
+            return ((UniverseMetaAccess) metaAccess).getUniverse().lookup(CEntryPointCallStubSupport.singleton()
+                            .getStubForMethod(LLVMExceptionUnwind.class.getMethod("personality", int.class, int.class, IsolateThread.class, _Unwind_Exception.class, _Unwind_Context.class)));
+        } catch (NoSuchMethodException e) {
+            throw shouldNotReachHere();
+        }
+    }
+
+    public static ResolvedJavaMethod getRetrieveExceptionMethod(MetaAccessProvider metaAccess) {
+        try {
+            return metaAccess.lookupJavaMethod(LLVMExceptionUnwind.class.getMethod("retrieveException"));
+        } catch (NoSuchMethodException e) {
+            throw shouldNotReachHere();
+        }
+    }
+
+    public static ExceptionUnwind createRaiseExceptionHandler() {
+        return new ExceptionUnwind() {
+            @Override
+            protected void customUnwindException(Pointer callerSP) {
+                _Unwind_Exception exceptionStructure = UnsafeStackValue.get(_Unwind_Exception.class);
+                exceptionStructure.set_exception_class(CurrentIsolate.getCurrentThread());
+                exceptionStructure.set_exception_cleanup(WordFactory.nullPointer());
+                raiseException(exceptionStructure);
+            }
+        };
+    }
+
+    // Allow methods with non-standard names: Checkstyle: stop
+
+    // The following declarations are from <unwind.h>.
+    //
+    // See:
+    // - https://clang.llvm.org/doxygen/unwind_8h_source.html
+    // - https://gcc.gnu.org/git/?p=gcc.git;a=blob;f=libgcc/unwind-generic.h
+
+    /* _Unwind_Reason_Code */
+    @CConstant
+    private static native int _URC_FATAL_PHASE1_ERROR();
+
+    @CConstant
+    private static native int _URC_HANDLER_FOUND();
+
+    @CConstant
+    private static native int _URC_INSTALL_CONTEXT();
+
+    @CConstant
+    private static native int _URC_CONTINUE_UNWIND();
+
+    /* _Unwind_Action */
+    @CConstant
+    private static native int _UA_SEARCH_PHASE();
+
+    @CConstant
+    private static native int _UA_CLEANUP_PHASE();
+
+    @CStruct(addStructKeyword = true)
+    private interface _Unwind_Exception extends PointerBase {
+        @CField
+        PointerBase exception_class();
+
+        @CField
+        void set_exception_class(PointerBase value);
+
+        @CField
+        PointerBase exception_cleanup();
+
+        @CField
+        void set_exception_cleanup(PointerBase value);
+    }
+
+    @CStruct(addStructKeyword = true, isIncomplete = true)
+    private interface _Unwind_Context extends PointerBase {
+    }
+
+    @CFunction(value = "_Unwind_RaiseException")
+    public static native int raiseException(_Unwind_Exception exception);
+
+    @CFunction(value = "_Unwind_GetIP")
+    public static native Pointer getIP(_Unwind_Context context);
+
+    @CFunction(value = "_Unwind_SetIP")
+    public static native Pointer setIP(_Unwin
