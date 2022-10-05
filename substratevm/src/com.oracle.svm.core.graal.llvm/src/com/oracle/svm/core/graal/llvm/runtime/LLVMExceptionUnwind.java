@@ -204,4 +204,13 @@ public class LLVMExceptionUnwind {
     public static native Pointer getIP(_Unwind_Context context);
 
     @CFunction(value = "_Unwind_SetIP")
-    public static native Pointer setIP(_Unwin
+    public static native Pointer setIP(_Unwind_Context context, Pointer ip);
+
+    @CFunction(value = "_Unwind_GetRegionStart")
+    public static native Pointer getRegionStart(_Unwind_Context context);
+
+    @CFunction(value = "_Unwind_GetLanguageSpecificData")
+    public static native Pointer getLanguageSpecificData(_Unwind_Context context);
+}
+
+// Checkstyle: resume
