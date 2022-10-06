@@ -44,3 +44,19 @@ int main() {
     if (!isupper('Z')) {
         abort();
     }
+    if (isupper(' ')) {
+        abort();
+    }
+    if (isupper('5')) {
+        abort();
+    }
+    if (isupper('!')) {
+        abort();
+    }
+    if (isupper('@')) {
+        abort();
+    }
+    if (isupper('[')) {
+        abort();
+    }
+}
