@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2013, 2022, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,33 +22,17 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package org.graalvm.compiler.debug;
+package org.graalvm.compiler.hotspot.aarch64;
 
-/**
- * A counter for some value of interest.
- */
-public interface CounterKey extends MetricKey {
+import static jdk.vm.ci.hotspot.aarch64.AArch64HotSpotRegisterConfig.inlineCacheRegister;
 
-    /**
-     * Adds 1 to this counter.
-     */
-    void increment(DebugContext debug);
-
-    /**
-     * Adds {@code value} to this counter.
-     */
-    void add(DebugContext debug, long value);
-
-    /**
-     * Gets the current value of this counter.
-     */
-    long getCurrentValue(DebugContext debug);
-
-    /**
-     * Determines if this counter is enabled.
-     */
-    boolean isEnabled(DebugContext debug);
-
-    @Override
-    CounterKey doc(String string);
-}
+import org.graalvm.compiler.asm.aarch64.AArch64MacroAssembler;
+import org.graalvm.compiler.hotspot.GraalHotSpotVMConfig;
+import org.graalvm.compiler.hotspot.HotSpotMarkId;
+import org.graalvm.compiler.lir.LIRFrameState;
+import org.graalvm.compiler.lir.LIRInstructionClass;
+import org.graalvm.compiler.lir.Opcode;
+import org.graalvm.compiler.lir.aarch64.AArch64Call;
+import org.graalvm.compiler.lir.aarch64.AArch64Call.DirectCallOp;
+import org.graalvm.compiler.lir.asm.CompilationResultBuilder;
+import o
