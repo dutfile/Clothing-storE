@@ -190,4 +190,160 @@ public class GraphSourceTest extends GraphSourceTestBase {
     public void testGraphContentsReleased_noload() throws Exception {
         LazySerDebugUtils.setLargeThreshold(100);
 
-        URL b
+        URL bigv = GraphSourceTest.class.getResource("inlined_source.bgv");
+        File f = new File(bigv.toURI());
+
+        LazySerDebugUtils.loadResource(rootDocument, f);
+        magnitudeGraph = findElement("3900:/After phase org.graalvm.compiler.phases.common.inlining.InliningPhase");
+
+        GraphSource src = GraphSource.getGraphSource(magnitudeGraph);
+        src.prepare().get();
+        assertFalse(magnitudeGraph.getNodes().isEmpty());
+        Reference<InputNode> ref = new WeakReference<>(magnitudeGraph.getNodes().iterator().next());
+        Reference<InputGraph> refG = new WeakReference<>(magnitudeGraph);
+        // forget the reference on source:
+        src = null;
+        magnitudeGraph = null;
+        assertGC("", ref, Collections.singleton(rootDocument));
+        assertGC("", refG, Collections.singleton(rootDocument));
+    }
+
+    /**
+     * Checks that each node which defines 'nodeSourcePosition' has a stack
+     * available. Bulk-loads information upfront.
+     *
+     * @throws Exception
+     */
+    public void testGetNodeStackBulk() throws Exception {
+        PlatformLocationResolver.enabled = true;
+        PlatformLocationResolver.enablePackage("java/util", true);
+        GraphSource src = GraphSource.getGraphSource(magnitudeGraph);
+        src.prepare().get();
+        checkNodesStack(src);
+    }
+
+    private void checkNodesStack(GraphSource src) {
+        for (InputNode n : magnitudeGraph.getNodes()) {
+            String stackString = n.getProperties().getString(PROPNAME_NODE_SOURCE_POSITION, null);
+            if (stackString == null) {
+                NodeStack ns = src.getNodeStack(n);
+                assertNull("No location property, must not provide stack", ns);
+                continue;
+            }
+
+            NodeStack st = src.getNodeStack(n);
+            assertNotNull("Stack is missing for node " + n.getId(), st);
+            int lineCount = stackString.split("\n").length;
+            assertEquals("Stack size is not correct", lineCount, st.size());
+        }
+    }
+
+    /**
+     * Loads incrementally node information one by one.
+     *
+     * @throws Exception
+     */
+    public void testGetNodeStackIncremental() throws Exception {
+        PlatformLocationResolver.enabled = true;
+        PlatformLocationResolver.enablePackage("java/util", true);
+        GraphSource src = GraphSource.getGraphSource(magnitudeGraph);
+        checkNodesStack(src);
+    }
+
+    public void testGetNodesPassingThrough() throws Exception {
+        PlatformLocationResolver.enabled = true;
+
+        GraphSource src = GraphSource.getGraphSource(magnitudeGraph);
+        Collection<FileObject> files = src.getSourceFiles();
+        Set<InputNode> foundNodes = new HashSet<>();
+
+        for (FileObject f : files) {
+            List<Location> locs = src.getFileLocations(f, false);
+            for (Location l : locs) {
+                Iterable<NodeStack> stackI = src.getNodesPassingThrough(l);
+                for (NodeStack ns : stackI) {
+                    foundNodes.add(ns.getNode());
+                    // try to find the location within the stack:
+                    boolean found = false;
+                    for (NodeStack.Frame frame : ns) {
+                        found |= frame.getLocation() == l;
+                    }
+                    assertTrue("Location " + l + " was not on the stack", found);
+                }
+            }
+        }
+
+        Set<InputNode> nodesWithPositions = src.getGraph().getNodes()
+                        .stream().filter((n) -> n.getProperties().get(PROPNAME_NODE_SOURCE_POSITION) != null)
+                        .collect(Collectors.toSet());
+        assertTrue(foundNodes.containsAll(nodesWithPositions));
+    }
+
+    /**
+     * Checks that nodes in 'nodesAt' results each list the location the result
+     * was obtained for. Checks that just passthrough locations do not list any
+     * nodes.
+     *
+     * @throws Exception
+     */
+    public void testGetNodesAt() throws Exception {
+        PlatformLocationResolver.enabled = true;
+
+        GraphSource src = GraphSource.getGraphSource(magnitudeGraph);
+        Collection<FileObject> files = src.getSourceFiles();
+        Set<InputNode> foundNodes = new HashSet<>();
+
+        for (FileObject f : files) {
+            List<Location> locs = src.getFileLocations(f, true);
+            List<Location> locsPassing = src.getFileLocations(f, false);
+            locsPassing.removeAll(locs);
+
+            for (Location l : locsPassing) {
+                assertTrue("Passing location conrresponds to a node", src.getNodesAt(l).isEmpty());
+            }
+
+            for (Location l : locs) {
+                Collection<InputNode> nodes = src.getNodesAt(l);
+                assertFalse("Cannot find a node for location with nodes", nodes.isEmpty());
+                for (InputNode n : nodes) {
+                    NodeStack ns = src.getNodeStack(n);
+                    assertNotNull(ns);
+                    foundNodes.add(ns.getNode());
+                    // try to find the location within the stack:
+                    boolean found = false;
+                    for (NodeStack.Frame frame : ns) {
+                        found |= frame.getLocation() == l;
+                    }
+                    assertTrue(found);
+                }
+            }
+        }
+    }
+
+    public void testAddResolvedLocations() throws Exception {
+        PlatformLocationResolver.enabled = true;
+        PlatformLocationResolver.enablePackage("java/util", true);
+
+        // for exmaple node #199 is in java/lang/AbstractStringBuilder.
+        // node #10 is in Formatter, it will be loaded
+        GraphSource src = GraphSource.getGraphSource(magnitudeGraph);
+        NodeStack stack = src.getNodeStack(src.getGraph().getNode(10));
+        assertTrue(stack.top().isResolved());
+        PlatformLocationResolver.enablePackage("java/lang", true);
+
+        stack = src.getNodeStack(src.getGraph().getNode(199));
+        assertTrue(stack.top().isResolved());
+    }
+
+    public void testFindNodeLocation() throws Exception {
+        GraphSource src = GraphSource.getGraphSource(magnitudeGraph);
+        src.prepare().get();
+        Collection<FileKey> allKeys = src.getFileKeys();
+        Map<Location, Collection<InputNode>> foundLocations = new HashMap<>();
+        for (InputNode n : magnitudeGraph.getNodes()) {
+            if (n.getProperties().get(PROPNAME_NODE_SOURCE_POSITION) == null) {
+                continue;
+            }
+            Location loc = src.findNodeLocation(n);
+            assertNotNull(loc);
+            Collection<InputNode> nodes = foundLocations.computeIfAbsent(loc, 
