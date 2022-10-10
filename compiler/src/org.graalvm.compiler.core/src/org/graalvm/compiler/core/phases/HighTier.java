@@ -72,4 +72,66 @@ public class HighTier extends BaseTier<HighTierContext> {
         CanonicalizerPhase canonicalizer = CanonicalizerPhase.create();
         appendPhase(canonicalizer);
 
-        i
+        if (NodeCounterPhase.Options.NodeCounters.getValue(options)) {
+            appendPhase(new NodeCounterPhase(NodeCounterPhase.Stage.INIT));
+        }
+
+        if (Options.Inline.getValue(options)) {
+            appendPhase(new InliningPhase(new GreedyInliningPolicy(null), canonicalizer));
+            appendPhase(new DeadCodeEliminationPhase(Optional));
+        }
+
+        appendPhase(new DisableOverflownCountedLoopsPhase());
+
+        if (NodeCounterPhase.Options.NodeCounters.getValue(options)) {
+            appendPhase(new NodeCounterPhase(NodeCounterPhase.Stage.EARLY));
+        }
+
+        if (OptConvertDeoptsToGuards.getValue(options)) {
+            appendPhase(new ConvertDeoptimizeToGuardPhase(canonicalizer));
+        }
+
+        if (ConditionalElimination.getValue(options)) {
+            appendPhase(new IterativeConditionalEliminationPhase(canonicalizer, false));
+        }
+
+        if (EarlyGVN.getValue(options)) {
+            appendPhase(new DominatorBasedGlobalValueNumberingPhase(canonicalizer));
+        }
+
+        LoopPolicies loopPolicies = createLoopPolicies(options);
+        appendPhase(new LoopFullUnrollPhase(canonicalizer, loopPolicies));
+
+        if (LoopPeeling.getValue(options)) {
+            appendPhase(new LoopPeelingPhase(loopPolicies, canonicalizer));
+        }
+
+        if (LoopUnswitch.getValue(options)) {
+            appendPhase(new LoopUnswitchingPhase(loopPolicies, canonicalizer));
+        }
+
+        // Must precede all phases that otherwise ignore the identity of boxes (e.g.
+        // PartialEscapePhase and BoxNodeOptimizationPhase).
+        appendPhase(new BoxNodeIdentityPhase());
+
+        if (PartialEscapeAnalysis.getValue(options)) {
+            appendPhase(new FinalPartialEscapePhase(true, canonicalizer, null, options));
+        }
+
+        if (OptReadElimination.getValue(options)) {
+            appendPhase(new ReadEliminationPhase(canonicalizer));
+        }
+
+        if (NodeCounterPhase.Options.NodeCounters.getValue(options)) {
+            appendPhase(new NodeCounterPhase(NodeCounterPhase.Stage.LATE));
+        }
+
+        appendPhase(new BoxNodeOptimizationPhase(canonicalizer));
+        appendPhase(new HighTierLoweringPhase(canonicalizer, true));
+    }
+
+    @Override
+    public LoopPolicies createLoopPolicies(OptionValues options) {
+        return new DefaultLoopPolicies();
+    }
+}
