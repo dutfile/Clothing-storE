@@ -346,4 +346,77 @@ public class GraphSourceTest extends GraphSourceTestBase {
             }
             Location loc = src.findNodeLocation(n);
             assertNotNull(loc);
-            Collection<InputNode> nodes = foundLocations.computeIfAbsent(loc, 
+            Collection<InputNode> nodes = foundLocations.computeIfAbsent(loc, (l) -> new ArrayList<>(2));
+            nodes.add(n);
+        }
+
+        for (FileKey fk : allKeys) {
+            Set<Location> locs = new HashSet<>(src.getFileLocations(fk, true));
+            for (Location l : locs) {
+                Collection<InputNode> allNodes = src.getNodesAt(l);
+                assertNotNull(allNodes);
+                assertFalse(allNodes.isEmpty());
+
+                Collection<InputNode> compare = foundLocations.remove(l);
+                assertNotNull(compare);
+                assertEquals(compare.size(), allNodes.size());
+                assertTrue(compare.containsAll(allNodes));
+            }
+        }
+    }
+
+    /**
+     * Checks that if Graph is released, the source does not hold any large data
+     *
+     * @throws Exception
+     */
+    public void disabled_testWorkWithReleasedGraph_noload() throws Exception {
+        PlatformLocationResolver.enabled = true;
+        LazySerDebugUtils.setLargeThreshold(100);
+
+        URL bigv = GraphSourceTest.class.getResource("inlined_source.bgv");
+        File f = new File(bigv.toURI());
+
+        LazySerDebugUtils.loadResource(rootDocument, f);
+        magnitudeGraph = findElement("3900:/After phase org.graalvm.compiler.phases.common.inlining.InliningPhase");
+        assertFalse(magnitudeGraph.getNodes().isEmpty());
+        Reference<InputNode> ref = new WeakReference<>(magnitudeGraph.getNodes().iterator().next());
+        GraphSource src = GraphSource.getGraphSource(magnitudeGraph);
+        src.prepare().get();
+        FileKey fk = src.getFileKeys().iterator().next();
+        Collection<Location> locs = src.getFileLocations(fk, false);
+        magnitudeGraph = null;
+        assertGC("Graph was not released", ref);
+
+        assertNull(src.getGraph());
+        assertTrue(src.getFileKeys().isEmpty());
+        FileObject fMath = sourcePath.findResource("java/lang/Math.java");
+        assertTrue(src.getFileLocations(fMath, true).isEmpty());
+
+        for (Location l : locs) {
+            assertFalse(src.getNodesPassingThrough(l).iterator().hasNext());
+            assertTrue(src.getNodesAt(l).isEmpty());
+        }
+        assertTrue(src.getSourceFiles().isEmpty());
+
+        InputNode n = new InputNode(0);
+        assertNull(src.getNodeStack(n));
+        assertNull(src.findNodeLocation(n));
+    }
+
+    public void testReadNewSourcePositions_noLoad() throws Exception {
+        loadGraph("node-source-pos.bgv");
+        InputGraph charGraph = findElement("32:/2: After phase GraphBuilder");
+        assertNotNull(charGraph);
+
+        GraphSource src = GraphSource.getGraphSource(charGraph);
+        assertNotNull(src);
+        InputNode loadField = charGraph.getNode(7);
+        assertNotNull(loadField);
+        NodeStack ns = src.getNodeStack(loadField);
+        assertNotNull(ns);
+        assertEquals(1, ns.size());
+        assertEquals("java/lang/String.java", ns.get(0).getFileName());
+
+    }
+}
