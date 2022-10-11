@@ -56,4 +56,43 @@ public final class IsCompilationConstantNode extends FloatingNode implements Low
     @Override
     public void lower(LoweringTool tool) {
         ValueNode result;
-   
+        ValueNode synonym = findSynonym(value);
+        if (synonym != null && synonym.isConstant()) {
+            result = synonym;
+        } else {
+            result = ConstantNode.forBoolean(false, graph());
+        }
+        assert result != null;
+        replaceAtUsagesAndDelete(result);
+    }
+
+    public static ValueNode create(ValueNode value) {
+        ValueNode synonym = findSynonym(value);
+        if (synonym != null) {
+            return synonym;
+        }
+        return new IsCompilationConstantNode(value);
+    }
+
+    public static ValueNode findSynonym(ValueNode value) {
+        if (value instanceof BoxNode) {
+            return create(((BoxNode) value).getValue());
+        }
+        if (value.isConstant()) {
+            return ConstantNode.forBoolean(true);
+        }
+        return null;
+    }
+
+    @Override
+    public Node canonical(CanonicalizerTool tool) {
+        Node synonym = findSynonym(value);
+        if (synonym != null) {
+            return synonym;
+        }
+        return this;
+    }
+
+    @NodeIntrinsic
+    public static native boolean check(Object value);
+}
