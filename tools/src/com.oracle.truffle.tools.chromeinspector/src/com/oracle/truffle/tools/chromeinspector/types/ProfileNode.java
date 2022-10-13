@@ -18,4 +18,65 @@
  * 2 along with this work; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
  *
- * Pleas
+ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
+ * or visit www.oracle.com if you need additional information or have any
+ * questions.
+ */
+package com.oracle.truffle.tools.chromeinspector.types;
+
+import java.util.ArrayList;
+import java.util.List;
+import com.oracle.truffle.tools.utils.json.JSONArray;
+import com.oracle.truffle.tools.utils.json.JSONObject;
+
+public final class ProfileNode {
+
+    private final int id;
+    private final RuntimeCallFrame callFrame;
+    private final long hitCount;
+    private final List<Integer> children;
+
+    public ProfileNode(int id, RuntimeCallFrame callFrame, long hitCount) {
+        this.id = id;
+        this.callFrame = callFrame;
+        this.hitCount = hitCount;
+        this.children = new ArrayList<>();
+    }
+
+    public int getId() {
+        return id;
+    }
+
+    public RuntimeCallFrame getCallFrame() {
+        return callFrame;
+    }
+
+    public long getHitCount() {
+        return hitCount;
+    }
+
+    public void addChild(int childId) {
+        children.add(childId);
+    }
+
+    private JSONObject toJSON() {
+        JSONObject json = new JSONObject();
+        json.put("id", id);
+        json.put("callFrame", callFrame.toJSON());
+        json.put("hitCount", hitCount);
+        JSONArray array = new JSONArray();
+        children.forEach(i -> {
+            array.put(i.intValue());
+        });
+        json.put("children", array);
+        return json;
+    }
+
+    static JSONArray toJSON(ProfileNode[] nodes) {
+        JSONArray array = new JSONArray();
+        for (ProfileNode node : nodes) {
+            array.put(node.toJSON());
+        }
+        return array;
+    }
+}
