@@ -131,4 +131,65 @@ public class TypedNodeIteratorTest extends GraphTest {
                     tn.safeDelete();
                     graph.add(new TestNode("b"));
                     graph.add(new TestNode("c"));
-       
+                } else if (c == 'b') {
+                    tn.safeDelete();
+                } else if (c == 'c') {
+                    graph.add(new TestNode("d"));
+                    graph.add(new TestNode("e"));
+                    graph.add(new TestNode("d"));
+                    graph.add(new TestNode("e"));
+                    graph.add(new TestNode("e"));
+                    graph.add(new TestNode("d"));
+                    graph.add(new TestNode("e"));
+                    graph.add(new TestNode("d"));
+                } else if (c == 'd') {
+                    for (TestNode tn2 : graph.getNodes(TestNode.TYPE)) {
+                        if (tn2.getName().equals("e")) {
+                            tn2.safeDelete();
+                        } else if (tn2.getName().equals("c")) {
+                            tn2.safeDelete();
+                        }
+                    }
+                } else if (c == 'e') {
+                    fail("All e nodes must have been deleted by visiting the d node");
+                }
+            }
+        }
+        assertEquals("dddd", toString(graph.getNodes(TestNode.TYPE)));
+    }
+
+    @Test
+    public void addingNodeDuringIterationTest() {
+        OptionValues options = getOptions();
+        Graph graph = new Graph(options, getDebug(options));
+        graph.add(new TestNode("a"));
+        StringBuilder sb = new StringBuilder();
+        int z = 0;
+        for (TestNode tn : graph.getNodes(TestNode.TYPE)) {
+            if (z == 0) {
+                graph.add(new TestNode("b"));
+            }
+            sb.append(tn.getName());
+            z++;
+        }
+        assertEquals(2, z);
+        assertEquals("ab", sb.toString());
+        z = 0;
+        for (TestNode tn : graph.getNodes(TestNode.TYPE)) {
+            if (z == 0) {
+                graph.add(new TestNode("c"));
+            }
+            assertNotNull(tn);
+            z++;
+        }
+        assertEquals(3, z);
+    }
+
+    public static String toString(Iterable<? extends TestNodeInterface> nodes) {
+        StringBuilder sb = new StringBuilder();
+        for (TestNodeInterface tn : nodes) {
+            sb.append(tn.getName());
+        }
+        return sb.toString();
+    }
+}
