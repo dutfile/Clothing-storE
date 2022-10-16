@@ -89,3 +89,113 @@ public class JfrRecorderThread extends Thread {
     private boolean await() {
         if (Platform.includedIn(Platform.DARWIN.class)) {
             /*
+             * DARWIN is not supporting unnamed semaphores, therefore we must use VMLock and
+             * VMConditional for synchronization.
+             */
+            mutex.lock();
+            try {
+                while (!notified) {
+                    condition.block();
+                }
+                notified = false;
+            } finally {
+                mutex.unlock();
+            }
+            return true;
+        } else {
+            semaphore.await();
+            return atomicNotify.compareAndSet(true, false);
+        }
+    }
+
+    private void run0() {
+        SamplerBuffersAccess.processFullBuffers(true);
+        JfrChunkWriter chunkWriter = unlockedChunkWriter.lock();
+        try {
+            if (chunkWriter.hasOpenFile()) {
+                persistBuffers(chunkWriter);
+            }
+        } finally {
+            chunkWriter.unlock();
+        }
+    }
+
+    @SuppressFBWarnings(value = "NN_NAKED_NOTIFY", justification = "state change is in native buffer")
+    private void persistBuffers(JfrChunkWriter chunkWriter) {
+        JfrBuffers buffers = globalMemory.getBuffers();
+        for (int i = 0; i < globalMemory.getBufferCount(); i++) {
+            JfrBuffer buffer = buffers.addressOf(i).read();
+            if (isFullEnough(buffer)) {
+                boolean shouldNotify = persistBuffer(chunkWriter, buffer);
+                if (shouldNotify) {
+                    Object chunkRotationMonitor = getChunkRotationMonitor();
+                    synchronized (chunkRotationMonitor) {
+                        chunkRotationMonitor.notifyAll();
+                    }
+                }
+            }
+        }
+    }
+
+    private static Object getChunkRotationMonitor() {
+        if (HasChunkRotationMonitorField.get()) {
+            return Target_jdk_jfr_internal_JVM.CHUNK_ROTATION_MONITOR;
+        } else {
+            return Target_jdk_jfr_internal_JVM.FILE_DELTA_CHANGE;
+        }
+    }
+
+    @Uninterruptible(reason = "Epoch must not change while in this method.")
+    private static boolean persistBuffer(JfrChunkWriter chunkWriter, JfrBuffer buffer) {
+        if (JfrBufferAccess.tryLock(buffer)) {
+            try {
+                boolean shouldNotify = chunkWriter.write(buffer);
+                JfrBufferAccess.reinitialize(buffer);
+                return shouldNotify;
+            } finally {
+                JfrBufferAccess.unlock(buffer);
+            }
+        }
+        return false;
+    }
+
+    /**
+     * We need to be a bit careful with this method as the recorder thread can't do anything if the
+     * chunk writer doesn't have an output file.
+     */
+    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+    public void signal() {
+        if (Platform.includedIn(Platform.DARWIN.class)) {
+            /*
+             * DARWIN is not supporting unnamed semaphores, therefore we must use VMConditional for
+             * signaling.
+             */
+            notified = true;
+            condition.broadcast();
+        } else {
+            atomicNotify.set(true);
+            semaphore.signal();
+        }
+    }
+
+    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+    public boolean shouldSignal(JfrBuffer buffer) {
+        return isFullEnough(buffer) && unlockedChunkWriter.hasOpenFile();
+    }
+
+    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+    private static boolean isFullEnough(JfrBuffer buffer) {
+        UnsignedWord bufferTargetSize = buffer.getSize().multiply(100).unsignedDivide(BUFFER_FULL_ENOUGH_PERCENTAGE);
+        return JfrBufferAccess.getAvailableSize(buffer).belowOrEqual(bufferTargetSize);
+    }
+
+    public void shutdown() {
+        this.stopped = true;
+        this.signal();
+        try {
+            this.join();
+        } catch (InterruptedException e) {
+            throw VMError.shouldNotReachHere(e);
+        }
+    }
+}
