@@ -71,4 +71,126 @@ public abstract class DFACaptureGroupLazyTransition {
         }
 
         public static Single create(DFACaptureGroupPartialTransition transition) {
-            ret
+            return transition.isEmpty() ? EMPTY : new Single(transition);
+        }
+
+        @Override
+        protected void apply(TRegexDFAExecutorLocals locals, TRegexDFAExecutorNode executor, boolean preFinal) {
+            transition.apply(executor, locals.getCGData(), locals.getLastIndex(), preFinal, true);
+        }
+    }
+
+    abstract static class Branches extends DFACaptureGroupLazyTransition {
+
+        final DFACaptureGroupPartialTransition common;
+        @CompilationFinal(dimensions = 1) final DFACaptureGroupPartialTransition[] transitions;
+
+        protected Branches(DFACaptureGroupPartialTransition[] transitions) {
+            this.common = DFACaptureGroupPartialTransition.intersect(transitions);
+            this.transitions = common.isEmpty() ? transitions : subtract(common, transitions);
+            assert transitions.length > 1;
+        }
+
+        private static DFACaptureGroupPartialTransition[] subtract(DFACaptureGroupPartialTransition common, DFACaptureGroupPartialTransition[] transitions) {
+            for (int i = 0; i < transitions.length; i++) {
+                transitions[i] = transitions[i].subtract(common);
+            }
+            return transitions;
+        }
+    }
+
+    public static final class BranchesDirect extends Branches {
+
+        public BranchesDirect(DFACaptureGroupPartialTransition[] transitions) {
+            super(transitions);
+        }
+
+        public static BranchesDirect create(DFACaptureGroupPartialTransition[] transitions) {
+            return new BranchesDirect(transitions);
+        }
+
+        @ExplodeLoop
+        @Override
+        protected void apply(TRegexDFAExecutorLocals locals, TRegexDFAExecutorNode executor, boolean preFinal) {
+            int lastTransition = locals.getLastTransition();
+            DFACaptureGroupTrackingData d = locals.getCGData();
+            int lastIndex = locals.getLastIndex();
+            common.apply(executor, d, lastIndex, preFinal, true);
+            for (int i = 0; i < transitions.length; i++) {
+                // i == transitions.length - 1 transforms the last exploded iteration into an
+                // else-branch
+                if (i == transitions.length - 1 || i == lastTransition) {
+                    assert i == lastTransition;
+                    transitions[i].apply(executor, d, lastIndex, preFinal, common.isEmpty());
+                    return;
+                }
+            }
+            throw CompilerDirectives.shouldNotReachHere();
+        }
+    }
+
+    public static final class BranchesIndirect extends Branches {
+
+        @CompilationFinal(dimensions = 1) private final short[] possibleValues;
+
+        public BranchesIndirect(DFACaptureGroupPartialTransition[] transitions, short[] possibleValues) {
+            super(transitions);
+            this.possibleValues = possibleValues;
+            assert possibleValues.length == transitions.length - 1;
+        }
+
+        public static BranchesIndirect create(DFACaptureGroupPartialTransition[] transitions, short[] possibleValues) {
+            return new BranchesIndirect(transitions, possibleValues);
+        }
+
+        @ExplodeLoop
+        @Override
+        protected void apply(TRegexDFAExecutorLocals locals, TRegexDFAExecutorNode executor, boolean preFinal) {
+            int lastTransition = locals.getLastTransition();
+            DFACaptureGroupTrackingData d = locals.getCGData();
+            int lastIndex = locals.getLastIndex();
+            common.apply(executor, d, lastIndex, preFinal, true);
+            for (int i = 0; i < transitions.length; i++) {
+                // i == transitions.length - 1 transforms the last exploded iteration into an
+                // else-branch
+                if (i == transitions.length - 1 || possibleValues[i] == lastTransition) {
+                    transitions[i].apply(executor, d, lastIndex, preFinal, common.isEmpty());
+                    return;
+                }
+            }
+            throw CompilerDirectives.shouldNotReachHere();
+        }
+    }
+
+    public static final class BranchesWithLookupTable extends Branches {
+
+        @CompilationFinal(dimensions = 1) private final byte[] lookupTable;
+
+        public BranchesWithLookupTable(DFACaptureGroupPartialTransition[] transitions, byte[] lookupTable) {
+            super(transitions);
+            this.lookupTable = lookupTable;
+        }
+
+        public static BranchesWithLookupTable create(DFACaptureGroupPartialTransition[] transitions, byte[] lookupTable) {
+            return new BranchesWithLookupTable(transitions, lookupTable);
+        }
+
+        @ExplodeLoop
+        @Override
+        protected void apply(TRegexDFAExecutorLocals locals, TRegexDFAExecutorNode executor, boolean preFinal) {
+            int lastTransitionMapped = Byte.toUnsignedInt(lookupTable[locals.getLastTransition()]);
+            DFACaptureGroupTrackingData d = locals.getCGData();
+            int lastIndex = locals.getLastIndex();
+            common.apply(executor, d, lastIndex, preFinal, true);
+            for (int i = 0; i < transitions.length; i++) {
+                // i == transitions.length - 1 transforms the last exploded iteration into an
+                // else-branch
+                if (i == transitions.length - 1 || i == lastTransitionMapped) {
+                    transitions[i].apply(executor, d, lastIndex, preFinal, common.isEmpty());
+                    return;
+                }
+            }
+            throw CompilerDirectives.shouldNotReachHere();
+        }
+    }
+}
