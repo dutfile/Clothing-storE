@@ -24,4 +24,27 @@
 ;; Software and the Larger Work(s), and to sublicense the foregoing rights on
 ;; either these or other terms.
 ;;
-;; This lice
+;; This license is subject to the following condition:
+;;
+;; The above copyright notice and either this complete permission notice or at a
+;; minimum a reference to the UPL must be included in all copies or substantial
+;; portions of the Software.
+;;
+;; THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+;; IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+;; FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+;; AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+;; LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+;; OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+;; SOFTWARE.
+;;
+(module
+    (memory 1 1)
+    (func (export "_main") (result i32)
+        i32.const 0
+        i32.const 155
+        i32.store
+        i32.const 0
+        i32.load
+    )
+)
