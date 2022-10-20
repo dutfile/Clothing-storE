@@ -165,4 +165,123 @@ final class GraphJavadocSnippets {
             AcmeSignature, AcmeCodePosition> graphElements = acmeElements();
         GraphTypes graphTypes = acmeTypes();
 
-        return GraphOutput.newBuilder(
+        return GraphOutput.newBuilder(acmeGraphStructure()).
+            protocolVersion(6, 0).
+            blocks(graphBlocks).
+            elements(graphElements).
+            types(graphTypes).
+            build(channel);
+    }
+    // END: org.graalvm.graphio.GraphJavadocSnippets#buildAll
+
+    private static GraphTypes acmeTypes() {
+        GraphTypes graphTypes = null;
+        // in real world don't return null
+        return graphTypes;
+    }
+
+    private static GraphElements<AcmeMethod, AcmeField, AcmeSignature, AcmeCodePosition> acmeElements() {
+        GraphElements<AcmeMethod, AcmeField, AcmeSignature, AcmeCodePosition> graphElements = null;
+        // in real world don't return null
+        return graphElements;
+    }
+
+    private static GraphBlocks<AcmeGraph, AcmeBlocks, AcmeNode> acmeBlocks() {
+        GraphBlocks<AcmeGraph, AcmeBlocks, AcmeNode> graphBlocks = null;
+        // in real world don't return null
+        return graphBlocks;
+    }
+
+    private static class AcmeGraph {
+        final AcmeNode root;
+
+        AcmeGraph(AcmeNode root) {
+            this.root = root;
+        }
+
+        Set<AcmeNode> allNodes() {
+            return allNodes(root, new LinkedHashSet<>());
+        }
+
+        private static Set<AcmeNode> allNodes(AcmeNode node, Set<AcmeNode> collectTo) {
+            if (collectTo.add(node)) {
+                for (AcmeNode target : node.outgoing.targets) {
+                    allNodes(target, collectTo);
+                }
+            }
+            return collectTo;
+        }
+    }
+
+    private static class AcmeNode {
+        final int id;
+        final AcmeEdges outgoing;
+
+        AcmeNode(int id) {
+            this.id = id;
+            this.outgoing = new AcmeEdges();
+        }
+
+        void linkTo(AcmeNode target) {
+            outgoing.targets.add(target);
+        }
+    }
+
+    private enum AcmeNodeType {
+        STANDARD
+    }
+
+    private enum AcmePorts {
+        INPUT,
+        OUTPUT;
+    }
+
+    private static class AcmeEdges {
+        final Set<AcmeNode> targets;
+
+        AcmeEdges() {
+            this.targets = new LinkedHashSet<>();
+        }
+    }
+
+    private static class AcmeBlocks {
+    }
+
+    private static class AcmeMethod {
+    }
+
+    private static class AcmeField {
+    }
+
+    private static class AcmeSignature {
+    }
+
+    private static class AcmeCodePosition {
+    }
+
+    // BEGIN: org.graalvm.graphio.GraphJavadocSnippets#dump
+    static void dump(File toFile) throws IOException {
+        try (
+            FileChannel ch = new FileOutputStream(toFile).getChannel();
+            GraphOutput<AcmeGraph, ?> output = buildOutput(ch);
+        ) {
+            AcmeNode root = new AcmeNode(0);
+            AcmeNode n1 = new AcmeNode(1);
+            AcmeNode n2 = new AcmeNode(2);
+            AcmeNode n3 = new AcmeNode(3);
+
+            root.linkTo(n1);
+            root.linkTo(n2);
+            n1.linkTo(n3);
+            n2.linkTo(n3);
+
+            AcmeGraph diamondGraph = new AcmeGraph(root);
+
+            output.beginGroup(diamondGraph, "Diamond", "dia", null, 0, null);
+            output.print(diamondGraph, null, 0, "Diamond graph #%d", 1);
+            output.endGroup();
+        }
+    }
+    // END: org.graalvm.graphio.GraphJavadocSnippets#dump
+
+}
