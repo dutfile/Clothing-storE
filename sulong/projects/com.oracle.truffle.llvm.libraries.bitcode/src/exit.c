@@ -83,3 +83,42 @@ int __cxa_atexit(void (*func)(void *), void *arg, void *dso) {
 }
 
 static void caller(void *arg) {
+    void (*func)(void) = (void *) (void *) arg;
+    func();
+}
+
+int __sulong_atexit(void (*func)(void)) {
+    return __cxa_atexit(caller, func, NULL);
+}
+
+#if !defined(_WIN32)
+int atexit(void (*func)(void)) {
+    return __sulong_atexit(func);
+}
+#endif
+
+void __sulong_exit(int status) {
+    __sulong_funcs_on_exit();
+    __sulong_destructor_functions();
+    _EXIT(status);
+    for (;;) { // this should never be executed
+        _EXIT(status);
+    }
+}
+
+#if !defined(_WIN32)
+void exit(int status) {
+    __sulong_exit(status);
+}
+#endif
+
+void _exit(int status) {
+    _EXIT(status);
+    for (;;) { // this should never be executed
+        _EXIT(status);
+    }
+}
+
+void _Exit(int status) {
+    _exit(status);
+}
