@@ -223,4 +223,130 @@ public final class AMD64StringUTF16CompressOp extends AMD64ComplexVectorOp {
             masm.leaq(dst, new AMD64Address(dst, len, Stride.S1));
             masm.negq(len);
 
-            // Test and compress 32 chars per iteration, reading 512-b
+            // Test and compress 32 chars per iteration, reading 512-bit vectors and
+            // writing 256-bit compressed ditto.
+            masm.bind(labelCopy32Loop);
+            masm.evmovdqu16(tmp1Reg, new AMD64Address(src, len, Stride.S2));
+            masm.evpcmpuw(k2, tmp1Reg, tmp2Reg, EVEXComparisonPredicate.LE);
+            masm.kortestd(k2, k2);
+            masm.jcc(ConditionFlag.CarryClear, labelReturnZero);
+
+            // All 32 chars in the current vector (chunk) are valid for compression,
+            // write truncated byte elements to memory.
+            masm.evpmovwb(new AMD64Address(dst, len, Stride.S1), tmp1Reg);
+            masm.addqAndJcc(len, 32, ConditionFlag.NotZero, labelCopy32Loop, false);
+
+            masm.bind(labelCopyLoopTail);
+            // All done if the tail count is zero.
+            masm.testlAndJcc(tmp5, tmp5, ConditionFlag.Zero, labelReturnLength, false);
+
+            masm.movl(len, tmp5);
+
+            // Compute (1 << N) - 1 = ~(~0 << N), where N is the remaining number
+            // of characters to process.
+            masm.movl(result, -1);
+            masm.shlxl(result, result, len);
+            masm.notl(result);
+
+            masm.kmovd(k3, result);
+
+            masm.evmovdqu16(tmp1Reg, k3, new AMD64Address(src));
+            masm.evpcmpuw(k2, k3, tmp1Reg, tmp2Reg, EVEXComparisonPredicate.LE);
+            masm.ktestd(k2, k3);
+            masm.jcc(ConditionFlag.CarryClear, labelReturnZero);
+
+            masm.evpmovwb(new AMD64Address(dst), k3, tmp1Reg);
+            masm.jmp(labelReturnLength);
+
+            masm.bind(labelBelowThreshold);
+        }
+
+        if (masm.supports(CPUFeature.SSE4_2)) {
+            Label labelCopy32Loop = new Label();
+            Label labelCopy16 = new Label();
+            Label labelCopyTail = new Label();
+
+            masm.movl(result, len);
+
+            masm.movl(tmp5, 0xff00ff00);  // Create mask to test for Unicode chars in vectors.
+
+            // vectored compression
+            masm.andl(len, 0xfffffff0); // vector count (in chars)
+            masm.andl(result, 0x0000000f); // tail count (in chars)
+            masm.testlAndJcc(len, len, ConditionFlag.Zero, labelCopy16, false);
+
+            // Compress 16 chars per iteration.
+            masm.movdl(tmp1Reg, tmp5);
+            masm.pshufd(tmp1Reg, tmp1Reg, 0);    // Store Unicode mask in 'vtmp1'.
+            masm.pxor(tmp4Reg, tmp4Reg);
+
+            masm.leaq(src, new AMD64Address(src, len, Stride.S2));
+            masm.leaq(dst, new AMD64Address(dst, len, Stride.S1));
+            masm.negq(len);
+
+            // Test and compress 16 chars per iteration, reading 128-bit vectors and
+            // writing 64-bit compressed ditto.
+            masm.bind(labelCopy32Loop);
+            // load 1st 8 characters
+            masm.movdqu(tmp2Reg, new AMD64Address(src, len, Stride.S2));
+            masm.por(tmp4Reg, tmp2Reg);
+            // load next 8 characters
+            masm.movdqu(tmp3Reg, new AMD64Address(src, len, Stride.S2, 16));
+            masm.por(tmp4Reg, tmp3Reg);
+            masm.ptest(tmp4Reg, tmp1Reg);        // Check for Unicode chars in vector.
+            masm.jcc(ConditionFlag.NotZero, labelReturnZero);
+            masm.packuswb(tmp2Reg, tmp3Reg);     // Only ASCII chars; compress each to a byte.
+            masm.movdqu(new AMD64Address(dst, len, Stride.S1), tmp2Reg);
+            masm.addqAndJcc(len, 16, ConditionFlag.NotZero, labelCopy32Loop, false);
+
+            // Test and compress another 8 chars before final tail copy.
+            masm.bind(labelCopy16);
+            masm.movl(len, result);
+            masm.andl(len, 0xfffffff8); // vector count (in chars)
+            masm.andl(result, 0x00000007); // tail count (in chars)
+            masm.testlAndJcc(len, len, ConditionFlag.Zero, labelCopyTail, true);
+
+            masm.movdl(tmp1Reg, tmp5);
+            masm.pshufd(tmp1Reg, tmp1Reg, 0);    // Store Unicode mask in 'vtmp1'.
+            masm.pxor(tmp3Reg, tmp3Reg);
+
+            masm.movdqu(tmp2Reg, new AMD64Address(src));
+            masm.ptest(tmp2Reg, tmp1Reg);        // Check for Unicode chars in vector.
+            masm.jccb(ConditionFlag.NotZero, labelReturnZero);
+            masm.packuswb(tmp2Reg, tmp3Reg);     // Only ASCII chars; compress each to a byte.
+            masm.movq(new AMD64Address(dst), tmp2Reg);
+            masm.addq(src, 16);
+            masm.addq(dst, 8);
+
+            masm.bind(labelCopyTail);
+            masm.movl(len, result);
+        }
+
+        // Compress any remaining characters using a vanilla implementation.
+        masm.testlAndJcc(len, len, ConditionFlag.Zero, labelReturnLength, true);
+        masm.leaq(src, new AMD64Address(src, len, Stride.S2));
+        masm.leaq(dst, new AMD64Address(dst, len, Stride.S1));
+        masm.negq(len);
+
+        // Compress a single character per iteration.
+        masm.bind(labelCopyCharsLoop);
+        masm.movzwl(result, new AMD64Address(src, len, Stride.S2));
+        // Check if Unicode character.
+        masm.testlAndJcc(result, 0xff00, ConditionFlag.NotZero, labelReturnZero, true);
+        // An ASCII character; compress to a byte.
+        masm.movb(new AMD64Address(dst, len, Stride.S1), result);
+        masm.incqAndJcc(len, ConditionFlag.NotZero, labelCopyCharsLoop, false);
+
+        // If compression succeeded, return the length.
+        masm.bind(labelReturnLength);
+        masm.pop(result);
+        masm.jmpb(labelDone);
+
+        // If compression failed, return 0.
+        masm.bind(labelReturnZero);
+        masm.xorl(result, result);
+        masm.addq(rsp, 8 /* wordSize */);
+
+        masm.bind(labelDone);
+    }
+}
