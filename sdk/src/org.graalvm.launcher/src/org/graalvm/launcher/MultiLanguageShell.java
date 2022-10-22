@@ -196,4 +196,121 @@ class MultiLanguageShell implements Closeable {
         }
     }
 
-    private boolean handleBuiltins(
+    private boolean handleBuiltins() {
+        final String trimmedInput = input.trim();
+        if (trimmedInput.equals("")) {
+            return true;
+        }
+        if (trimmedInput.equals("-usage")) {
+            printUsage(true);
+            return true;
+        }
+        if (trimmedInput.equals("-verboseErrors")) {
+            verboseErrors = !verboseErrors;
+            if (verboseErrors) {
+                println("Verbose errors is now on.");
+            } else {
+                println("Verbose errors is now off.");
+            }
+            return true;
+        }
+        if (prompts.containsKey(trimmedInput)) {
+            throw new ChangeLanguageException(prompts.get(trimmedInput));
+        }
+        return false;
+    }
+
+    private void printHeader() {
+        println("GraalVM MultiLanguage Shell " + context.getEngine().getVersion());
+        println("Copyright (c) 2013-2021, Oracle and/or its affiliates");
+        for (Language language : languages) {
+            println("  " + language.getName() + " version " + language.getVersion());
+        }
+        printUsage(false);
+    }
+
+    private void println(String s) {
+        terminal.writer().println(s);
+    }
+
+    private void print(String s) {
+        terminal.writer().print(s);
+    }
+
+    private void resetLineReader() {
+        reader = LineReaderBuilder.builder().terminal(terminal).appName("GraalVM MultiLanguage Shell " + context.getEngine().getVersion()).history(
+                        histories.computeIfAbsent(currentLanguage, language -> new DefaultHistory())).build();
+        for (String s : reader.getKeyMaps().keySet()) {
+            reader.getKeyMaps().get(s).bind(new Reference(WIDGET_NAME), KeyMap.ctrl('n'));
+            reader.getWidgets().put(WIDGET_NAME, () -> {
+                throw new ChangeLanguageException(null);
+            });
+        }
+    }
+
+    private Map<String, Language> prompts() {
+        Map<String, Language> p = new HashMap<>();
+        for (Language language : languages) {
+            String prompt = createPrompt(language).trim();
+            promptsString.append(prompt).append(" ");
+            p.put(prompt, language);
+        }
+        return p;
+    }
+
+    private List<Language> languages() {
+        List<Language> langs = new ArrayList<>();
+        Set<Language> uniqueValues = new HashSet<>();
+        for (Language language : context.getEngine().getLanguages().values()) {
+            if (language.isInteractive()) {
+                if (uniqueValues.add(language)) {
+                    langs.add(language);
+                }
+            }
+        }
+        if (langs.isEmpty()) {
+            throw new Launcher.AbortException("Error: No Graal languages installed. Exiting shell.", 1);
+        }
+        langs.sort(Comparator.comparing(Language::getName));
+        return langs;
+    }
+
+    private void printUsage(boolean showCommands) {
+        if (showCommands) {
+            println("Commands:");
+            println("  -usage           to show this list.");
+            println("  -verboseErrors   to toggle verbose error messages (default off).");
+            println("  " + promptsString + "    to switch to a language.");
+        } else {
+            println("Usage: ");
+            println("  Use Ctrl+n to switch language and Ctrl+d to exit.");
+            println("  Enter -usage to get a list of available commands.");
+        }
+    }
+
+    @Override
+    public void close() throws IOException {
+        terminal.close();
+    }
+
+    @SuppressWarnings("serial")
+    private static class ChangeLanguageException extends RuntimeException {
+
+        private final Language language;
+
+        ChangeLanguageException(Language language) {
+            this.language = language;
+        }
+
+        public Language getLanguage() {
+            return language;
+        }
+
+        @SuppressWarnings("sync-override")
+        @Override
+        public final Throwable fillInStackTrace() {
+            return this;
+        }
+    }
+
+}
