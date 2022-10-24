@@ -360,4 +360,69 @@ public class EditProfilePanel extends javax.swing.JPanel implements ExplorerMana
     private javax.swing.JSpinner priorityNumber;
     private javax.swing.JTextField profileText;
     private javax.swing.JComboBox typeChooser;
-    // End of variables declaration//GEN-E
+    // End of variables declaration//GEN-END:variables
+
+    private void setInputValid(boolean b) {
+        boolean old = this.inputValid;
+        this.inputValid = b;
+        firePropertyChange("inputValid", old, b);
+    }
+    
+    void reportError(String e) {
+        setInputValid(false);
+        notifier.setErrorMessage(e);
+    }
+
+    @NbBundle.Messages({
+        "# {0} - profile name",
+        "ERROR_ProfileNameUsed=The name ''{0}'' is already used.",
+        "# {0} - regexp parsing message",
+        "ERROR_ProfileBadNamePattern=Bad regular expression for name: {0}",
+        "ERROR_ProfileBadPriority=Invalid priority, must at least 0."
+    })
+    void validateInputs() {
+        String profName = profileText.getText();
+        if (!profName.trim().equals(profile.getName())) {
+                if (profiles.getProfiles().stream().anyMatch(
+                        p -> p.getName().equalsIgnoreCase(profName) && p != profile)) {
+                    reportError(Bundle.ERROR_ProfileNameUsed(profName));
+                    return;
+            }
+        }
+        
+        String exprText = nameText.getText().trim();
+        if (!exprText.isEmpty() && graphRegexp.isSelected()) {
+            try {
+                Pattern.compile(exprText, Pattern.CASE_INSENSITIVE);
+            } catch (PatternSyntaxException ex) {
+                reportError(Bundle.ERROR_ProfileBadNamePattern(ex.getLocalizedMessage()));
+                return;
+            }
+        }
+        exprText = groupNameText.getText().trim();
+        if (!exprText.isEmpty() && groupRegexp.isSelected()) {
+            try {
+                Pattern.compile(exprText, Pattern.CASE_INSENSITIVE);
+            } catch (PatternSyntaxException ex) {
+                reportError(Bundle.ERROR_ProfileBadNamePattern(ex.getLocalizedMessage()));
+                return;
+            }
+        }
+        
+        Integer n = (Integer)priorityNumber.getModel().getValue();
+        if (n != null && n < 0) {
+            reportError(Bundle.ERROR_ProfileBadPriority());
+            return;
+        }
+        setInputValid(true);
+        notifier.clearMessages();
+   }
+    
+    static class TypeChildren extends FilterNode.Children {
+        public TypeChildren(Node or) {
+            super(or);
+        }
+        
+        
+    }
+}
