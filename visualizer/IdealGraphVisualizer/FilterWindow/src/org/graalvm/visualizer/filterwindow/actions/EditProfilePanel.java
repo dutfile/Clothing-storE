@@ -249,4 +249,115 @@ public class EditProfilePanel extends javax.swing.JPanel implements ExplorerMana
 
         priorityNumber.setFont(new java.awt.Font("Dialog", 0, 12)); // NOI18N
         priorityNumber.setModel(new javax.swing.SpinnerNumberModel(1, 0, null, 1));
-        priorityNumber.addFocusListener(new java.awt.even
+        priorityNumber.addFocusListener(new java.awt.event.FocusAdapter() {
+            public void focusLost(java.awt.event.FocusEvent evt) {
+                priorityNumberFocusLost(evt);
+            }
+        });
+
+        profileText.setText(org.openide.util.NbBundle.getMessage(EditProfilePanel.class, "EditProfilePanel.profileText.text")); // NOI18N
+
+        nameText.setText(org.openide.util.NbBundle.getMessage(EditProfilePanel.class, "EditProfilePanel.nameText.text")); // NOI18N
+        nameText.addFocusListener(new java.awt.event.FocusAdapter() {
+            public void focusLost(java.awt.event.FocusEvent evt) {
+                nameTextFocusLost(evt);
+            }
+        });
+
+        org.openide.awt.Mnemonics.setLocalizedText(jLabel5, org.openide.util.NbBundle.getMessage(EditProfilePanel.class, "EditProfilePanel.jLabel5.text")); // NOI18N
+
+        groupNameText.setText(org.openide.util.NbBundle.getMessage(EditProfilePanel.class, "EditProfilePanel.groupNameText.text")); // NOI18N
+        groupNameText.addFocusListener(new java.awt.event.FocusAdapter() {
+            public void focusLost(java.awt.event.FocusEvent evt) {
+                groupNameTextFocusLost(evt);
+            }
+        });
+
+        org.openide.awt.Mnemonics.setLocalizedText(graphRegexp, org.openide.util.NbBundle.getMessage(EditProfilePanel.class, "EditProfilePanel.graphRegexp.text")); // NOI18N
+
+        org.openide.awt.Mnemonics.setLocalizedText(groupRegexp, org.openide.util.NbBundle.getMessage(EditProfilePanel.class, "EditProfilePanel.groupRegexp.text")); // NOI18N
+
+        javax.swing.GroupLayout layout = new javax.swing.GroupLayout(this);
+        this.setLayout(layout);
+        layout.setHorizontalGroup(
+            layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGroup(layout.createSequentialGroup()
+                .addContainerGap()
+                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addComponent(jLabel2)
+                    .addComponent(jLabel1)
+                    .addComponent(jLabel3)
+                    .addComponent(jLabel4)
+                    .addComponent(jLabel5))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addComponent(typeChooser, 0, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                    .addComponent(profileText)
+                    .addComponent(nameText)
+                    .addComponent(groupNameText)
+                    .addGroup(layout.createSequentialGroup()
+                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                            .addComponent(groupRegexp)
+                            .addComponent(graphRegexp)
+                            .addComponent(priorityNumber, javax.swing.GroupLayout.PREFERRED_SIZE, 47, javax.swing.GroupLayout.PREFERRED_SIZE))
+                        .addGap(0, 106, Short.MAX_VALUE)))
+                .addContainerGap())
+        );
+        layout.setVerticalGroup(
+            layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGroup(layout.createSequentialGroup()
+                .addContainerGap()
+                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                    .addComponent(jLabel1)
+                    .addComponent(profileText, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+                .addGap(18, 18, 18)
+                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                    .addComponent(jLabel2)
+                    .addComponent(typeChooser, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                    .addComponent(jLabel3)
+                    .addComponent(nameText, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(graphRegexp)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                    .addComponent(groupNameText, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(jLabel5))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(groupRegexp)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 14, Short.MAX_VALUE)
+                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                    .addComponent(jLabel4)
+                    .addComponent(priorityNumber, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+                .addContainerGap())
+        );
+    }// </editor-fold>//GEN-END:initComponents
+
+    private void nameTextFocusLost(java.awt.event.FocusEvent evt) {//GEN-FIRST:event_nameTextFocusLost
+        validateInputs();
+    }//GEN-LAST:event_nameTextFocusLost
+
+    private void groupNameTextFocusLost(java.awt.event.FocusEvent evt) {//GEN-FIRST:event_groupNameTextFocusLost
+        validateInputs();
+    }//GEN-LAST:event_groupNameTextFocusLost
+
+    private void priorityNumberFocusLost(java.awt.event.FocusEvent evt) {//GEN-FIRST:event_priorityNumberFocusLost
+        validateInputs();
+    }//GEN-LAST:event_priorityNumberFocusLost
+
+
+    // Variables declaration - do not modify//GEN-BEGIN:variables
+    private javax.swing.JCheckBox graphRegexp;
+    private javax.swing.JTextField groupNameText;
+    private javax.swing.JCheckBox groupRegexp;
+    private javax.swing.JLabel jLabel1;
+    private javax.swing.JLabel jLabel2;
+    private javax.swing.JLabel jLabel3;
+    private javax.swing.JLabel jLabel4;
+    private javax.swing.JLabel jLabel5;
+    private javax.swing.JTextField nameText;
+    private javax.swing.JSpinner priorityNumber;
+    private javax.swing.JTextField profileText;
+    private javax.swing.JComboBox typeChooser;
+    // End of variables declaration//GEN-E
