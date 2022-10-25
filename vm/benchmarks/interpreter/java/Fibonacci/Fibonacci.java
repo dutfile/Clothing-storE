@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2021, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,20 +22,31 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package org.graalvm.compiler.truffle.test.builtins;
 
-import com.oracle.truffle.api.nodes.Node;
-import com.oracle.truffle.sl.SLException;
-
-/**
- * An implementation of an {@link AssertionError} also containing the guest language stack trace.
- */
-public class SLAssertionError extends SLException {
-
-    private static final long serialVersionUID = -9138475336963945873L;
-
-    public SLAssertionError(String message, Node node) {
-        super(message, node);
+public class Fibonacci {
+  static int fibonacci(int n) {
+    if (n < 1) {
+      return 0;
     }
+    if (n <= 2) {
+      return 1;
+    }
+    return fibonacci(n - 1) + fibonacci(n - 2);
+  }
 
+  public static int run() {
+    int number = 31;
+    int fiboIs = 1346269;
+
+    int fibo = fibonacci(number);
+
+    if (fibo != fiboIs) {
+      return 1;
+    }
+    return 0;
+  }
+
+  public static void main(String[] args) {
+    run();
+  }
 }

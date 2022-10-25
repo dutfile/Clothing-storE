@@ -1,5 +1,6 @@
+
 /*
- * Copyright (c) 2014, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2020, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,20 +23,11 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package org.graalvm.compiler.truffle.test.builtins;
+package org.graalvm.compiler.truffle.jfr;
 
-import com.oracle.truffle.api.nodes.Node;
-import com.oracle.truffle.sl.SLException;
+public interface Event {
 
-/**
- * An implementation of an {@link AssertionError} also containing the guest language stack trace.
- */
-public class SLAssertionError extends SLException {
+    boolean isEnabled();
 
-    private static final long serialVersionUID = -9138475336963945873L;
-
-    public SLAssertionError(String message, Node node) {
-        super(message, node);
-    }
-
+    void publish();
 }
