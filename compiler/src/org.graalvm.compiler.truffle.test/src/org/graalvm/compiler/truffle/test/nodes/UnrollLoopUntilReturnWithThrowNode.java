@@ -65,4 +65,10 @@ public class UnrollLoopUntilReturnWithThrowNode extends AbstractTestNode {
             if (i == search) {
                 /*
                  * Test that the partial evaluator can handle exception throws in
-                 * FULL_E
+                 * FULL_EXPLODE_UNTIL_RETURN loops.
+                 */
+                throw new ControlFlowException();
+            }
+        }
+    }
+}
