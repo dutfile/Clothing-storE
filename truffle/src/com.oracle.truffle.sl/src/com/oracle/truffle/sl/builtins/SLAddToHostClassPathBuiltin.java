@@ -27,4 +27,46 @@
  * This license is subject to the following condition:
  *
  * The above copyright notice and either this complete permission notice or at a
- * minimum a refe
+ * minimum a reference to the UPL must be included in all copies or substantial
+ * portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+package com.oracle.truffle.sl.builtins;
+
+import com.oracle.truffle.api.CompilerDirectives;
+import com.oracle.truffle.api.TruffleFile;
+import com.oracle.truffle.api.TruffleLanguage;
+import com.oracle.truffle.api.dsl.Cached;
+import com.oracle.truffle.api.dsl.Specialization;
+import com.oracle.truffle.api.nodes.NodeInfo;
+import com.oracle.truffle.api.strings.TruffleString;
+import com.oracle.truffle.sl.runtime.SLContext;
+import com.oracle.truffle.sl.runtime.SLNull;
+
+/**
+ * Builtin function that performs context exit.
+ */
+@NodeInfo(shortName = "addToHostClassPath")
+public abstract class SLAddToHostClassPathBuiltin extends SLBuiltinNode {
+
+    @Specialization
+    protected Object doDefault(TruffleString classPath,
+                    @Cached TruffleString.ToJavaStringNode toJavaStringNode) {
+        addToHostClassPath(toJavaStringNode.execute(classPath));
+        return SLNull.SINGLETON;
+    }
+
+    @CompilerDirectives.TruffleBoundary
+    private void addToHostClassPath(String classPath) {
+        TruffleLanguage.Env env = SLContext.get(this).getEnv();
+        TruffleFile file = env.getPublicTruffleFile(classPath);
+        env.addToHostClassPath(file);
+    }
+}
