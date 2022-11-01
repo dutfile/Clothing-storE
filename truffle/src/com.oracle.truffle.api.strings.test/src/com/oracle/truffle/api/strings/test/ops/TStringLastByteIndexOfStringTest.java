@@ -91,4 +91,18 @@ public class TStringLastByteIndexOfStringTest extends TStringTestBase {
             strASwitched.copyToByteArrayUncached(0, arr, 0, arr.length, encoding);
             int iFinal = i;
             checkStringVariants(arr, TruffleString.CodeRange.ASCII, true, encoding, codepointsA, null, (a, array, codeRange, isValid, enc, codepoints, byteIndices) -> {
-                Assert.assertEquals(0, node.execute(a, withM
+                Assert.assertEquals(0, node.execute(a, withMask[iFinal], array.length, 0, encoding));
+            });
+        }
+    }
+
+    @Test
+    public void testNull() throws Exception {
+        checkNullSSE((s1, s2, e) -> node.execute(s1, s2, 0, 1, e));
+    }
+
+    @Test
+    public void testOutOfBounds() throws Exception {
+        checkOutOfBoundsFromTo(true, (a, toIndex, fromIndex, encoding) -> node.execute(a, a, fromIndex, toIndex, encoding));
+    }
+}
