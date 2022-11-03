@@ -155,4 +155,70 @@ public class ReinterpretUtils {
             maxPositive = Double.MAX_VALUE;
         } else {
             assert bits == 32;
-       
+            exponentMask = Float.floatToRawIntBits(Float.POSITIVE_INFINITY);
+            minPositive = Float.MIN_VALUE;
+            maxPositive = Float.MAX_VALUE;
+        }
+
+        long significandMask = CodeUtil.mask(bits) & ~(signBit | exponentMask);
+
+        long positiveInfinity = exponentMask;
+        long negativeInfinity = CodeUtil.signExtend(signBit | positiveInfinity, bits);
+        long negativeZero = CodeUtil.signExtend(signBit | 0, bits);
+
+        if ((stamp.downMask() & exponentMask) == exponentMask && (stamp.downMask() & significandMask) != 0) {
+            // if all exponent bits and at least one significand bit are set, the result is NaN
+            return new FloatStamp(bits, Double.NaN, Double.NaN, false);
+        }
+
+        double upperBound;
+        if (stamp.upperBound() < negativeInfinity) {
+            if (stamp.lowerBound() > negativeZero) {
+                upperBound = -minPositive;
+            } else {
+                upperBound = -0.0;
+            }
+        } else if (stamp.upperBound() < 0) {
+            if (stamp.lowerBound() > negativeInfinity) {
+                return new FloatStamp(bits, Double.NaN, Double.NaN, false);
+            } else if (stamp.lowerBound() == negativeInfinity) {
+                upperBound = Double.NEGATIVE_INFINITY;
+            } else if (stamp.lowerBound() > negativeZero) {
+                upperBound = -minPositive;
+            } else {
+                upperBound = -0.0;
+            }
+        } else if (stamp.upperBound() == 0) {
+            upperBound = 0.0;
+        } else if (stamp.upperBound() < positiveInfinity) {
+            upperBound = maxPositive;
+        } else {
+            upperBound = Double.POSITIVE_INFINITY;
+        }
+
+        double lowerBound;
+        if (stamp.lowerBound() > positiveInfinity) {
+            return new FloatStamp(bits, Double.NaN, Double.NaN, false);
+        } else if (stamp.lowerBound() == positiveInfinity) {
+            lowerBound = Double.POSITIVE_INFINITY;
+        } else if (stamp.lowerBound() > 0) {
+            lowerBound = minPositive;
+        } else if (stamp.lowerBound() > negativeInfinity) {
+            lowerBound = 0.0;
+        } else {
+            lowerBound = Double.NEGATIVE_INFINITY;
+        }
+
+        boolean nonNaN;
+        if ((stamp.upMask() & exponentMask) != exponentMask) {
+            // NaN has all exponent bits set
+            nonNaN = true;
+        } else {
+            boolean negativeNaNBlock = stamp.lowerBound() < 0 && stamp.upperBound() > negativeInfinity;
+            boolean positiveNaNBlock = stamp.upperBound() > positiveInfinity;
+            nonNaN = !negativeNaNBlock && !positiveNaNBlock;
+        }
+
+        return new FloatStamp(bits, lowerBound, upperBound, nonNaN);
+    }
+}
