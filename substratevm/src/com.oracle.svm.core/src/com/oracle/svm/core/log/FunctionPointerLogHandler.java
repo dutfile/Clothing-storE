@@ -188,4 +188,17 @@ public class FunctionPointerLogHandler implements LogHandlerExtension {
      */
     public static void afterParsingJniVMOptions() {
         LogHandler handler = ImageSingletons.lookup(LogHandler.class);
-        if (handler == null || !(handler instanc
+        if (handler == null || !(handler instanceof FunctionPointerLogHandler)) {
+            return;
+        }
+
+        FunctionPointerLogHandler fpHandler = (FunctionPointerLogHandler) handler;
+        if (fpHandler.logFunctionPointer.isNonNull()) {
+            if (fpHandler.flushFunctionPointer.isNull()) {
+                throw new IllegalArgumentException("The _flush_log option cannot be null when _log is non-null");
+            }
+        } else if (fpHandler.flushFunctionPointer.isNonNull()) {
+            throw new IllegalArgumentException("The _log option cannot be null when _flush_log is non-null");
+        }
+    }
+}
