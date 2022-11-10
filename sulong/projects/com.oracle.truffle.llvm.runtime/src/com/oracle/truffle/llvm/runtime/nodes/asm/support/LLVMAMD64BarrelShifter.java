@@ -39,4 +39,41 @@ public class LLVMAMD64BarrelShifter {
 
     public static byte rol(byte x, byte n) {
         int shift = n & MASK_8;
-        return (byte) ((x << shift) | ((x & LLVMExpressionNode.I8_MASK) >>> (LLVMExpressionNode.I8_SIZE_IN_BITS
+        return (byte) ((x << shift) | ((x & LLVMExpressionNode.I8_MASK) >>> (LLVMExpressionNode.I8_SIZE_IN_BITS - shift)));
+    }
+
+    public static short rol(short x, short n) {
+        int shift = n & MASK_16;
+        return (short) ((x << shift) | ((x & LLVMExpressionNode.I16_MASK) >>> (LLVMExpressionNode.I16_SIZE_IN_BITS - shift)));
+    }
+
+    public static int rol(int x, int n) {
+        int shift = n & MASK_32;
+        return (x << shift) | (x >>> (LLVMExpressionNode.I32_SIZE_IN_BITS - shift));
+    }
+
+    public static long rol(long x, long n) {
+        int shift = (int) (n & MASK_64);
+        return ((x << shift) | (x >>> (LLVMExpressionNode.I64_SIZE_IN_BITS - shift)));
+    }
+
+    public static byte ror(byte x, byte n) {
+        int shift = n & MASK_8;
+        return (byte) (((x & LLVMExpressionNode.I8_MASK) >>> shift) | (x << (LLVMExpressionNode.I8_SIZE_IN_BITS - shift)));
+    }
+
+    public static short ror(short x, short n) {
+        int shift = n & MASK_16;
+        return (short) (((x & LLVMExpressionNode.I16_MASK) >>> shift) | (x << (LLVMExpressionNode.I16_SIZE_IN_BITS - shift)));
+    }
+
+    public static int ror(int x, int n) {
+        int shift = n & MASK_32;
+        return ((x >>> shift) | (x << (LLVMExpressionNode.I32_SIZE_IN_BITS - shift)));
+    }
+
+    public static long ror(long x, long n) {
+        int shift = (int) (n & MASK_64);
+        return ((x >>> shift) | (x << (LLVMExpressionNode.I64_SIZE_IN_BITS - shift)));
+    }
+}
