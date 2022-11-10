@@ -33,4 +33,13 @@
     <property file="${user.properties.file}"/>
     <nbmproject2:property name="harness.dir" value="nbplatform.${nbplatform.active}.harness.dir" xmlns:nbmproject2="http://www.netbeans.org/ns/nb-module-project/2"/>
     <nbmproject2:property name="nbplatform.active.dir" value="nbplatform.${nbplatform.active}.netbeans.dest.dir" xmlns:nbmproject2="http://www.netbeans.org/ns/nb-module-project/2"/>
-    <nbmproject2:evalprops property="cluster.path.evalu
+    <nbmproject2:evalprops property="cluster.path.evaluated" value="${cluster.path}" xmlns:nbmproject2="http://www.netbeans.org/ns/nb-module-project/2"/>
+    <fail message="Path to 'platform' cluster missing in $${cluster.path} property or using corrupt Netbeans Platform (missing harness).">
+        <condition>
+            <not>
+                <contains string="${cluster.path.evaluated}" substring="platform"/>
+            </not>
+        </condition>
+    </fail>
+    <import file="${harness.dir}/build.xml"/>
+</project>
