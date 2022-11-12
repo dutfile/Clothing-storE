@@ -162,3 +162,80 @@ public class CodeAction extends JSONBase {
         }
         if (!Objects.equals(this.getDiagnostics(), other.getDiagnostics())) {
             return false;
+        }
+        if (!Objects.equals(this.getIsPreferred(), other.getIsPreferred())) {
+            return false;
+        }
+        if (!Objects.equals(this.getEdit(), other.getEdit())) {
+            return false;
+        }
+        if (!Objects.equals(this.getCommand(), other.getCommand())) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = 5;
+        hash = 11 * hash + Objects.hashCode(this.getTitle());
+        if (this.getKind() != null) {
+            hash = 11 * hash + Objects.hashCode(this.getKind());
+        }
+        if (this.getDiagnostics() != null) {
+            hash = 11 * hash + Objects.hashCode(this.getDiagnostics());
+        }
+        if (this.getIsPreferred() != null) {
+            hash = 11 * hash + Boolean.hashCode(this.getIsPreferred());
+        }
+        if (this.getEdit() != null) {
+            hash = 11 * hash + Objects.hashCode(this.getEdit());
+        }
+        if (this.getCommand() != null) {
+            hash = 11 * hash + Objects.hashCode(this.getCommand());
+        }
+        return hash;
+    }
+
+    /**
+     * Creates a new code action.
+     *
+     * @param title The title of the code action.
+     * @param command The command to execute.
+     * @param kind The kind of the code action.
+     */
+    public static CodeAction create(String title, Command command, CodeActionKind kind) {
+        final JSONObject json = new JSONObject();
+        json.put("title", title);
+        json.putOpt("kind", kind != null ? kind.getStringValue() : null);
+        json.putOpt("command", command != null ? command.jsonData : null);
+        return new CodeAction(json);
+    }
+
+    /**
+     * Creates a new code action.
+     *
+     * @param title The title of the code action.
+     * @param edit The workspace edit to perform.
+     * @param kind The kind of the code action.
+     */
+    public static CodeAction create(String title, WorkspaceEdit edit, CodeActionKind kind) {
+        final JSONObject json = new JSONObject();
+        json.put("title", title);
+        json.putOpt("kind", kind != null ? kind.getStringValue() : null);
+        json.putOpt("edit", edit != null ? edit.jsonData : null);
+        return new CodeAction(json);
+    }
+
+    public static CodeAction create(String title, Object commandOrEdit, CodeActionKind kind) {
+        final JSONObject json = new JSONObject();
+        json.put("title", title);
+        json.putOpt("kind", kind != null ? kind.getStringValue() : null);
+        if (commandOrEdit instanceof WorkspaceEdit) {
+            json.put("edit", ((WorkspaceEdit) commandOrEdit).jsonData);
+        } else if (commandOrEdit instanceof Command) {
+            json.put("command", ((Command) commandOrEdit).jsonData);
+        }
+        return new CodeAction(json);
+    }
+}
