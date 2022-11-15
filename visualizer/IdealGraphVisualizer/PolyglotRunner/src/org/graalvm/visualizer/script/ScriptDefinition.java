@@ -163,3 +163,52 @@ public final class ScriptDefinition {
     public Map<String, Object> getGlobals() {
         return Collections.unmodifiableMap(globals);
     }
+
+    public String getMimeType() {
+        return mimeType;
+    }
+    
+    /**
+     * Specifies name of user function to be executed
+     * @param functionName function name, possibly fully qualified
+     * @return this instance
+     */
+    public ScriptDefinition executeFunction(String functionName) {
+        executeFunction = functionName;
+        return this;
+    }
+
+    public boolean isExecuteFunction() {
+        return executeFunction != null;
+    }
+
+    public String getFunctionName() {
+        return executeFunction;
+    }
+    
+    public Map<String, Object> getParameters() {
+        return Collections.unmodifiableMap(parameters);
+    }
+    
+    /**
+     * Makes an independent copy of the definition.
+     * @return copy of this definition.
+     */
+    public ScriptDefinition copy() {
+        ScriptDefinition res = 
+                new ScriptDefinition(mimeType).
+                parameterNames(paramNames).
+                code(code).
+                globals(globals).
+                output(output).
+                error(error).
+                filename(scriptFilename).
+                executeFunction(executeFunction);
+        for (String s : paramNames) {
+            if (parameters.containsKey(s)) {
+                res.setParameter(s, parameters.get(s));
+            }
+        }
+        return res;
+    }
+}
