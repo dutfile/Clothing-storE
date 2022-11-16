@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012, 2018, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -38,53 +38,23 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package com.oracle.truffle.st;
+package com.oracle.truffle.sl.nodes.controlflow;
 
-import java.util.HashSet;
-import java.util.Set;
-
-import com.oracle.truffle.api.source.SourceSection;
+import com.oracle.truffle.api.frame.VirtualFrame;
+import com.oracle.truffle.api.nodes.NodeInfo;
+import com.oracle.truffle.sl.nodes.SLStatementNode;
 
 /**
- * Contains per {@link com.oracle.truffle.api.source.Source} coverage by keeping track of loaded and
- * covered {@link com.oracle.truffle.api.source.SourceSection}s.
+ * Implementation of the SL continue statement. We need to unwind an unknown number of interpreter
+ * frames that are between this {@link SLContinueNode} and the {@link SLWhileNode} of the loop we
+ * are continuing. This is done by throwing an {@link SLContinueException exception} that is caught
+ * by the {@link SLWhileNode#executeVoid loop node}.
  */
-public final class Coverage {
-    private final Set<SourceSection> loaded = new HashSet<>();
-    private final Set<SourceSection> covered = new HashSet<>();
+@NodeInfo(shortName = "continue", description = "The node implementing a continue statement")
+public final class SLContinueNode extends SLStatementNode {
 
-    void addCovered(SourceSection sourceSection) {
-        covered.add(sourceSection);
-    }
-
-    void addLoaded(SourceSection sourceSection) {
-        loaded.add(sourceSection);
-    }
-
-    private Set<SourceSection> nonCoveredSections() {
-        final HashSet<SourceSection> nonCovered = new HashSet<>();
-        nonCovered.addAll(loaded);
-        nonCovered.removeAll(covered);
-        return nonCovered;
-    }
-
-    Set<Integer> nonCoveredLineNumbers() {
-        Set<Integer> linesNotCovered = new HashSet<>();
-        for (SourceSection ss : nonCoveredSections()) {
-            for (int i = ss.getStartLine(); i <= ss.getEndLine(); i++) {
-                linesNotCovered.add(i);
-            }
-        }
-        return linesNotCovered;
-    }
-
-    Set<Integer> loadedLineNumbers() {
-        Set<Integer> loadedLines = new HashSet<>();
-        for (SourceSection ss : loaded) {
-            for (int i = ss.getStartLine(); i <= ss.getEndLine(); i++) {
-                loadedLines.add(i);
-            }
-        }
-        return loadedLines;
+    @Override
+    public void executeVoid(VirtualFrame frame) {
+        throw SLContinueException.SINGLETON;
     }
 }
