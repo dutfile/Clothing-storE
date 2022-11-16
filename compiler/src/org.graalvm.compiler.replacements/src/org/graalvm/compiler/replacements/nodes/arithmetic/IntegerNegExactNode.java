@@ -36,4 +36,85 @@ import org.graalvm.compiler.nodeinfo.NodeInfo;
 import org.graalvm.compiler.nodes.ConstantNode;
 import org.graalvm.compiler.nodes.NodeView;
 import org.graalvm.compiler.nodes.ValueNode;
-import org.graalvm
+import org.graalvm.compiler.nodes.calc.NegateNode;
+import org.graalvm.compiler.nodes.extended.GuardedNode;
+import org.graalvm.compiler.nodes.extended.GuardingNode;
+import org.graalvm.compiler.nodes.spi.CanonicalizerTool;
+
+import jdk.vm.ci.meta.JavaConstant;
+import jdk.vm.ci.meta.JavaKind;
+
+/**
+ * Node representing an exact integer negate that will throw an {@link ArithmeticException} in case
+ * the negation would overflow the 32 bit range.
+ */
+@NodeInfo(cycles = CYCLES_2, size = SIZE_2)
+public final class IntegerNegExactNode extends NegateNode implements GuardedNode, IntegerExactArithmeticNode, IterableNodeType {
+
+    public static final NodeClass<IntegerNegExactNode> TYPE = NodeClass.create(IntegerNegExactNode.class);
+
+    @Input(InputType.Guard) protected GuardingNode guard;
+
+    public IntegerNegExactNode(ValueNode value, GuardingNode guard) {
+        super(TYPE, value);
+        setStamp(value.stamp(NodeView.DEFAULT).unrestricted());
+        this.guard = guard;
+    }
+
+    @Override
+    public boolean inferStamp() {
+        /*
+         * Note: it is not allowed to use the foldStamp method of the regular negate node as we do
+         * not know the result stamp of this node if we do not know whether we may deopt. If we know
+         * we can never overflow we will replace this node with its non overflow checking
+         * counterpart anyway.
+         */
+        return false;
+    }
+
+    @Override
+    public Stamp foldStamp(Stamp newStamp) {
+        IntegerStamp integerStamp = (IntegerStamp) newStamp;
+        // if an overflow is possible the node will throw so do not expose bound information to
+        // avoid optimizations believing (because of a precise range) that the node can be folded
+        // etc
+        if (IntegerStamp.negateCanOverflow(integerStamp)) {
+            return integerStamp.unrestricted();
+        }
+
+        return super.foldStamp(newStamp);
+    }
+
+    @Override
+    public ValueNode canonical(CanonicalizerTool tool, ValueNode forValue) {
+        if (forValue.isConstant()) {
+            JavaConstant cst = forValue.asJavaConstant();
+            try {
+                if (cst.getJavaKind() == JavaKind.Int) {
+                    return ConstantNode.forInt(Math.negateExact(cst.asInt()));
+                } else {
+                    assert cst.getJavaKind() == JavaKind.Long;
+                    return ConstantNode.forLong(Math.negateExact(cst.asLong()));
+                }
+            } catch (ArithmeticException ex) {
+                // The operation will result in an overflow exception, so do not canonicalize.
+            }
+            return this;
+        }
+        if (!IntegerStamp.negateCanOverflow((IntegerStamp) forValue.stamp(NodeView.DEFAULT))) {
+            return new NegateNode(forValue).canonical(tool);
+        }
+        return this;
+    }
+
+    @Override
+    public GuardingNode getGuard() {
+        return guard;
+    }
+
+    @Override
+    public void setGuard(GuardingNode guard) {
+        updateUsagesInterface(this.guard, guard);
+        this.guard = guard;
+    }
+}
