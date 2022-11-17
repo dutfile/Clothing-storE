@@ -78,4 +78,165 @@ final class ShadowStack {
 
     EventBinding<?> install(Instrumenter instrumenter, SourceSectionFilter filter, boolean compiledOnly) {
         return instrumenter.attachExecutionEventFactory(filter, new ExecutionEventNodeFactory() {
-            public ExecutionEventNode create(E
+            public ExecutionEventNode create(EventContext context) {
+                Node instrumentedNode = context.getInstrumentedNode();
+                if (instrumentedNode.getSourceSection() == null) {
+                    logger.warning("Instrumented node " + instrumentedNode + " has null SourceSection.");
+                    return null;
+                }
+                return new StackPushPopNode(ShadowStack.this, instrumenter, context, compiledOnly);
+            }
+        });
+    }
+
+    ArrayList<StackTraceEntry> getInitialStack(Node instrumentedNode) {
+        ArrayList<StackTraceEntry> sourceLocations = new ArrayList<>();
+        reconstructStack(sourceLocations, instrumentedNode, sourceSectionFilter, initInstrumenter);
+        Truffle.getRuntime().iterateFrames(frame -> {
+            Node node = frame.getCallNode();
+            if (node != null) {
+                reconstructStack(sourceLocations, node, sourceSectionFilter, initInstrumenter);
+            }
+            return null;
+        });
+        Collections.reverse(sourceLocations);
+        return sourceLocations;
+    }
+
+    private static void reconstructStack(ArrayList<StackTraceEntry> sourceLocations, Node node, SourceSectionFilter sourceSectionFilter, Instrumenter instrumenter) {
+        if (node == null || sourceSectionFilter == null) {
+            return;
+        }
+        // We exclude the node itself as it will be pushed on the stack by the StackPushPopNode
+        Node current = node.getParent();
+        while (current != null) {
+            if (sourceSectionFilter.includes(current) && current.getSourceSection() != null) {
+                sourceLocations.add(new StackTraceEntry(instrumenter, current, 0, true));
+            }
+            current = current.getParent();
+        }
+    }
+
+    private static class StackPushPopNode extends ExecutionEventNode {
+
+        private final ShadowStack profilerStack;
+
+        private final StackTraceEntry compilationRootLocation;
+        private final StackTraceEntry compiledLocation;
+        private final StackTraceEntry interpretedLocation;
+
+        private final Thread cachedThread;
+        private final ThreadLocalStack cachedStack;
+
+        @CompilationFinal private boolean seenOtherThreads;
+        @CompilationFinal final boolean isAttachedToRootTag;
+        @CompilationFinal final boolean ignoreInlinedRoots;
+
+        StackPushPopNode(ShadowStack profilerStack, Instrumenter instrumenter, EventContext context, boolean ignoreInlinedRoots) {
+            this.profilerStack = profilerStack;
+            this.cachedThread = Thread.currentThread();
+            this.interpretedLocation = new StackTraceEntry(instrumenter, context, 0, true);
+            this.compiledLocation = new StackTraceEntry(interpretedLocation, 2, false);
+            this.compilationRootLocation = new StackTraceEntry(interpretedLocation, 2, true);
+            this.isAttachedToRootTag = context.hasTag(StandardTags.RootTag.class);
+            this.ignoreInlinedRoots = ignoreInlinedRoots;
+            this.cachedStack = getStack();
+        }
+
+        @Override
+        protected void onEnter(VirtualFrame frame) {
+            if (CompilerDirectives.inCompiledCode() && ignoreInlinedRoots && isAttachedToRootTag && !CompilerDirectives.inCompilationRoot()) {
+                return;
+            }
+            doOnEnter();
+        }
+
+        private void doOnEnter() {
+            StackTraceEntry location = CompilerDirectives.inInterpreter() ? interpretedLocation : (CompilerDirectives.inCompilationRoot() ? compiledLocation : compilationRootLocation);
+            if (seenOtherThreads) {
+                pushSlow(location);
+            } else if (cachedThread == Thread.currentThread()) {
+                cachedStack.push(location);
+            } else {
+                CompilerDirectives.transferToInterpreterAndInvalidate();
+                seenOtherThreads = true;
+                pushSlow(location);
+            }
+        }
+
+        @TruffleBoundary
+        private void pushSlow(StackTraceEntry location) {
+            getStack().push(location);
+        }
+
+        @Override
+        protected void onReturnExceptional(VirtualFrame frame, Throwable exception) {
+            onReturnValue(frame, null);
+        }
+
+        @Override
+        protected void onReturnValue(VirtualFrame frame, Object result) {
+            if (ignoreInlinedRoots) {
+                if (CompilerDirectives.inCompiledCode()) {
+                    if (isAttachedToRootTag && !CompilerDirectives.inCompilationRoot()) {
+                        return;
+                    }
+                } else {
+                    // This is needed to control for the case that an invalidation happened in an
+                    // inlined root.
+                    // Than there should be no stack pop until we exit the original compilation
+                    // root.
+                    // Not needed if stack overflowed
+                    final ThreadLocalStack stack = getStack();
+                    if (!stack.hasStackOverflowed() &&
+                                    stack.top().getInstrumentedNode() != interpretedLocation.getInstrumentedNode()) {
+
+                        return;
+                    }
+                }
+            }
+
+            if (seenOtherThreads) {
+                popSlow(compiledLocation);
+            } else if (cachedThread == Thread.currentThread()) {
+                cachedStack.pop(compiledLocation);
+            } else {
+                CompilerDirectives.transferToInterpreterAndInvalidate();
+                seenOtherThreads = true;
+                popSlow(compiledLocation);
+            }
+        }
+
+        @TruffleBoundary
+        private void popSlow(StackTraceEntry entry) {
+            getStack().pop(entry);
+        }
+
+        @TruffleBoundary
+        private ThreadLocalStack getStack() {
+            Thread currentThread = Thread.currentThread();
+            ThreadLocalStack stack = profilerStack.stacks.get(currentThread);
+            if (stack == null) {
+                stack = profilerStack.new ThreadLocalStack(currentThread);
+                ThreadLocalStack prevStack = profilerStack.stacks.putIfAbsent(currentThread, stack);
+                if (prevStack != null) {
+                    stack = prevStack;
+                }
+            }
+            return stack;
+        }
+
+        @Override
+        public NodeCost getCost() {
+            return NodeCost.NONE;
+        }
+
+    }
+
+    final class ThreadLocalStack {
+
+        /*
+         * Window in which we look ahead and before the current stack index to find the potentially
+         * changed top of stack index, after copying.
+         */
+        privat
