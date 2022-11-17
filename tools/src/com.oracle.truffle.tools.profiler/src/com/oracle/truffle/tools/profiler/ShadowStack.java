@@ -239,4 +239,148 @@ final class ShadowStack {
          * Window in which we look ahead and before the current stack index to find the potentially
          * changed top of stack index, after copying.
          */
-        privat
+        private static final int CORRECTION_WINDOW = 5;
+
+        private final Thread thread;
+        private @CompilationFinal(dimensions = 0) StackTraceEntry[] stack;
+
+        private boolean stackOverflowed = false;
+        private final Assumption noStackOverflowedAssumption = Truffle.getRuntime().createAssumption();
+
+        private int stackIndex;
+        @CompilationFinal private int initialStackLength;
+        @CompilationFinal private Assumption initialStackLengthStable;
+
+        ThreadLocalStack(Thread thread) {
+            this.thread = thread;
+            // The stack is uninitialized initially
+            this.stackIndex = -1;
+            this.initialStackLength = -1;
+        }
+
+        private void initStack(Node instrumentedNode) {
+            ArrayList<StackTraceEntry> init = getInitialStack(instrumentedNode);
+            this.initialStackLength = init.size();
+            this.initialStackLengthStable = initialStackLength > 0 ? Truffle.getRuntime().createAssumption("initial stack length stable") : null;
+            this.stack = init.toArray(new StackTraceEntry[stackLimit]);
+            this.stackIndex = init.size() - 1;
+        }
+
+        void push(StackTraceEntry element) {
+            if (noStackOverflowedAssumption.isValid()) {
+                if (stack == null) {
+                    CompilerDirectives.transferToInterpreterAndInvalidate();
+                    initStack(element.getInstrumentedNode());
+                }
+                int index = stackIndex + 1;
+                if (index < stack.length) {
+                    assert index >= 0;
+                    stack[index] = element;
+                } else {
+                    CompilerDirectives.transferToInterpreterAndInvalidate();
+                    noStackOverflowedAssumption.invalidate();
+                    stackOverflowed = true;
+                }
+                stackIndex = index;
+            }
+        }
+
+        void pop(StackTraceEntry location) {
+            if (noStackOverflowedAssumption.isValid()) {
+                if (stack == null) {
+                    CompilerDirectives.transferToInterpreterAndInvalidate();
+                    initStack(location.getInstrumentedNode());
+                    if (stackIndex < 0) {
+                        // no initial stack elements
+                        return;
+                    }
+                }
+                int index = stackIndex;
+                if (index >= 0 && index < stack.length) {
+                    if (initialStackLength > 0 && index <= initialStackLength && initialStackLengthStable.isValid()) {
+                        CompilerDirectives.transferToInterpreter();
+                        /*
+                         * The initial stack needs to be reconstructed on every pop that pops into
+                         * the initial stack.
+                         */
+                        List<StackTraceEntry> reconstructedStack = getInitialStack(location.getInstrumentedNode());
+                        for (int i = 0; i < reconstructedStack.size(); i++) {
+                            stack[i] = reconstructedStack.get(i);
+                        }
+                        for (int i = reconstructedStack.size(); i < initialStackLength; i++) {
+                            stack[i] = null;
+                        }
+                        stackIndex = reconstructedStack.size() - 1;
+                        if (reconstructedStack.size() != initialStackLength) {
+                            initialStackLengthStable.invalidate();
+                            initialStackLength = reconstructedStack.size();
+                            initialStackLengthStable = initialStackLength > 0 ? Truffle.getRuntime().createAssumption("initial stack length stable") : null;
+                        }
+                    } else {
+                        stack[index] = null;
+                        stackIndex = index - 1;
+                    }
+                } else {
+                    CompilerDirectives.transferToInterpreterAndInvalidate();
+                    noStackOverflowedAssumption.invalidate();
+                    stackOverflowed = true;
+                    stackIndex = index - 1;
+                }
+
+            }
+        }
+
+        StackTraceEntry top() {
+            return stack[stackIndex];
+        }
+
+        StackTraceEntry[] getStack() {
+            if (stack == null) {
+                // Nothing yet
+                return null;
+            }
+            StackTraceEntry[] localStack = stack;
+            int localStackIndex = stackIndex;
+            if (localStackIndex == -1) {
+                // nothing on the stack
+                return null;
+            }
+
+            int length = localStackIndex + 1;
+            if (length > localStack.length) {
+                // stack was out of stack limit
+                length = localStack.length;
+            }
+
+            // make a quick copy to minimize retries
+            localStack = Arrays.copyOf(localStack, Math.min(length + CORRECTION_WINDOW, localStack.length));
+
+            for (int i = 0; i < localStack.length; i++) {
+                // find the first null hole in the stack and use it as new corrected top of
+                // stack index
+                if (localStack[i] == null) {
+                    length = i;
+                    break;
+                }
+            }
+
+            if (localStack.length != length) {
+                localStack = Arrays.copyOf(localStack, length);
+            }
+            return localStack;
+        }
+
+        Thread getThread() {
+            return thread;
+        }
+
+        int getStackIndex() {
+            return stackIndex;
+        }
+
+        boolean hasStackOverflowed() {
+            return stackOverflowed;
+        }
+
+    }
+}
