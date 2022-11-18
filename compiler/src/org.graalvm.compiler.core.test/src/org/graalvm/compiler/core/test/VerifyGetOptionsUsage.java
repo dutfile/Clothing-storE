@@ -64,4 +64,28 @@ public class VerifyGetOptionsUsage extends VerifyPhase<CoreProviders> {
         try {
             Parameter[] parameters = method.getParameters();
             if (parameters != null) {
-                f
+                for (ResolvedJavaMethod.Parameter parameter : parameters) {
+                    if (parameter.getType().getName().equals(canonicalizerToolClass.getName())) {
+                        hasTool = true;
+                        break;
+                    }
+                }
+            }
+        } catch (MalformedParametersException e) {
+            // Lambdas sometimes have malformed parameters so ignore this.
+        }
+        if (hasTool) {
+            ResolvedJavaMethod getOptionsMethod = metaAccess.lookupJavaMethod(lookupMethod(Node.class, "getOptions"));
+            for (MethodCallTargetNode t : graph.getNodes(MethodCallTargetNode.TYPE)) {
+                ResolvedJavaMethod callee = t.targetMethod();
+                if (callee.equals(getOptionsMethod)) {
+                    if (hasTool) {
+                        throw new VerificationError("Must use CanonicalizerTool.getOptions() instead of Node.getOptions() in method '%s' of class '%s'.",
+                                        method.getName(), method.getDeclaringClass().getName());
+                    }
+                }
+            }
+        }
+    }
+
+}
