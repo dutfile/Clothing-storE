@@ -48,4 +48,82 @@ public class HardExitTest extends AbstractExitTest {
     public void testHardExit() {
         final AtomicBoolean expectedEnd = new AtomicBoolean();
         LoopThread loopThread = new LoopThread(pe -> {
-            expectedEnd.set
+            expectedEnd.set(pe.isExit() && pe.getExitStatus() == EXIT_CODE);
+        });
+        loopThread.start();
+
+        try {
+            // wait until the test loop starts looping
+            Assert.assertTrue(startSignal.await(10, TimeUnit.SECONDS));
+
+            try {
+                runWithPolyglot.getPolyglotContext().eval(TruffleExitTestLanguage.ID, "");
+                Assert.fail();
+            } catch (PolyglotException pe) {
+                Assert.assertTrue(pe.isExit() && pe.getExitStatus() == EXIT_CODE);
+            }
+
+            loopThread.join(10000);
+
+            Assert.assertTrue(expectedEnd.get());
+
+        } catch (InterruptedException e) {
+            Assert.fail(e.getMessage());
+        }
+    }
+
+    @TruffleLanguage.Registration(id = TruffleExitTestLanguage.ID, name = "truffleexittest", version = "", contextPolicy = TruffleLanguage.ContextPolicy.SHARED)
+    public static class TruffleExitTestLanguage extends TruffleLanguage<TruffleExitTestLanguage.LanguageContext> {
+
+        public static final String ID = "truffleexittest";
+
+        @Override
+        protected LanguageContext createContext(Env env) {
+            return new LanguageContext(env);
+        }
+
+        @Override
+        protected void initializeContext(LanguageContext context) throws Exception {
+        }
+
+        @Override
+        protected CallTarget parse(ParsingRequest request) {
+            return new RootNode(this) {
+                @Override
+                public Object execute(VirtualFrame frame) {
+                    LanguageContext languageContext = LanguageContext.get(this);
+                    languageContext.getEnv().getContext().closeExited(this, EXIT_CODE);
+                    return 0;
+                }
+            }.getCallTarget();
+        }
+
+        @Override
+        protected void exitContext(LanguageContext ctx, ExitMode exitMode, int exitCode) {
+        }
+
+        @Override
+        protected boolean isThreadAccessAllowed(Thread thread, boolean singleThreaded) {
+            return true;
+        }
+
+        public static class LanguageContext {
+            final Env env;
+
+            LanguageContext(Env env) {
+                this.env = env;
+            }
+
+            public Env getEnv() {
+                return env;
+            }
+
+            private static final ContextReference<LanguageContext> REFERENCE = ContextReference.create(TruffleExitTestLanguage.class);
+
+            public static LanguageContext get(Node node) {
+                return REFERENCE.get(node);
+            }
+        }
+
+    }
+}
