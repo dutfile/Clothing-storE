@@ -34,4 +34,54 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHET
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+package com.oracle.truffle.api.strings.test.ops;
+
+import static org.junit.runners.Parameterized.Parameter;
+
+import java.util.Arrays;
+
+import org.junit.Assert;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
+
+import com.oracle.truffle.api.strings.TruffleString;
+import com.oracle.truffle.api.strings.test.TStringTestBase;
+
+@RunWith(Parameterized.class)
+public class TStringCopyToNativeMemoryTest extends TStringTestBase {
+
+    @Parameter public TruffleString.CopyToNativeMemoryNode node;
+
+    @Parameters(name = "{0}")
+    public static Iterable<TruffleString.CopyToNativeMemoryNode> data() {
+        return Arrays.asList(TruffleString.CopyToNativeMemoryNode.create(), TruffleString.CopyToNativeMemoryNode.getUncached());
+    }
+
+    @Test
+    public void testAll() throws Exception {
+        forAllStrings(true, (a, array, codeRange, isValid, encoding, codepoints, byteIndices) -> {
+            PointerObject pointerObject = PointerObject.create(array.length);
+            node.execute(a, 0, pointerObject, 0, array.length, encoding);
+            Assert.assertTrue(pointerObject.contentEquals(array));
+        });
+    }
+
+    @Test
+    public void testNull() throws Exception {
+        checkNullSE((s, e) -> node.execute(s, 0, PointerObject.create(1), 0, 1, e));
+        expectNullPointerException(() -> node.execute(S_UTF8, 0, null, 0, 1, TruffleString.Encoding.UTF_8));
+    }
+
+    @Test
+    public void testOutOfBounds() throws Exception {
+        PointerObject pointerObject = PointerObject.create(1);
+        checkOutOfBoundsRegion(true, (a, fromIndex, length, encoding) -> node.execute(a, fromIndex, pointerObject, 0, length, encoding));
+    }
+}
