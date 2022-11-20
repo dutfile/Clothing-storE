@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2021, 2021, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,20 +22,30 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package org.graalvm.compiler.serviceprovider;
+package com.oracle.svm.core.option;
 
-import java.lang.Runtime.Version;
+import com.oracle.svm.core.SubstrateUtil;
+import com.oracle.svm.core.heap.Heap;
+
+import java.util.function.Consumer;
 
 /**
- * Interface to query which JDK version Graal is running on.
+ * Notifies the {@link Heap} implementation after the value of the option has changed.
  */
-public final class JavaVersionUtil {
+public class NotifyGCRuntimeOptionKey<T> extends RuntimeOptionKey<T> {
+    public NotifyGCRuntimeOptionKey(T defaultValue, RuntimeOptionKeyFlag... flags) {
+        super(defaultValue, flags);
+    }
 
-    /**
-     * The value of calling {@link Version#feature()} on {@link Runtime#version()}.
-     */
-    public static final int JAVA_SPEC = Runtime.version().feature();
+    public NotifyGCRuntimeOptionKey(T defaultValue, Consumer<RuntimeOptionKey<T>> validation, RuntimeOptionKeyFlag... flags) {
+        super(defaultValue, validation, flags);
+    }
 
-    private JavaVersionUtil() {
+    @Override
+    protected void afterValueUpdate() {
+        super.afterValueUpdate();
+        if (!SubstrateUtil.HOSTED) {
+            Heap.getHeap().optionValueChanged(this);
+        }
     }
 }
