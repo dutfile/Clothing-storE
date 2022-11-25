@@ -104,4 +104,135 @@ public final class NativeLibrarySupport {
         // Test if this is a built-in library
         if (loadLibrary0(new File(name), true)) {
             return;
-      
+        }
+        if (usrPaths == null) {
+            /*
+             * Note that `sysPath` will be `null` if we fail to get the image directory in which
+             * case we effectively fall back to using only `usrPaths`.
+             */
+            sysPath = getImageDirectory();
+            String[] tokens = SubstrateUtil.split(System.getProperty("java.library.path", ""), File.pathSeparator);
+            for (int i = 0; i < tokens.length; i++) {
+                if (tokens[i].isEmpty()) {
+                    tokens[i] = ".";
+                }
+            }
+            usrPaths = tokens;
+        }
+        String libname = System.mapLibraryName(name);
+        if (sysPath != null && loadLibrary0(new File(sysPath, libname), false)) {
+            return;
+        }
+        for (String path : usrPaths) {
+            File libpath = new File(path, libname);
+            if (loadLibrary0(libpath, false)) {
+                return;
+            }
+            File altpath = Target_jdk_internal_loader_ClassLoaderHelper.mapAlternativeName(libpath);
+            if (altpath != null && loadLibrary0(altpath, false)) {
+                return;
+            }
+        }
+        throw new UnsatisfiedLinkError("no " + name + " in java.library.path");
+    }
+
+    /** Returns the directory containing the native image, or {@code null}. */
+    @NeverInline("Reads the return address.")
+    private static String getImageDirectory() {
+        /*
+         * While one might expect code for shared libraries to work for executables as well, this is
+         * not necessarily the case. For example, `dladdr` on Linux returns `argv[0]` for
+         * executables, which is completely useless when running an executable from `$PATH`, since
+         * then `argv[0]` contains only the name of the executable.
+         */
+        String image = !SubstrateOptions.SharedLibrary.getValue() ? ProcessProperties.getExecutableName()
+                        : ImageSingletons.lookup(ProcessPropertiesSupport.class).getObjectFile(KnownIntrinsics.readReturnAddress());
+        return image != null ? new File(image).getParent() : null;
+    }
+
+    private boolean loadLibrary0(File file, boolean asBuiltin) {
+        String canonical;
+        try {
+            canonical = asBuiltin ? file.getName() : file.getCanonicalPath();
+        } catch (IOException e) {
+            return false;
+        }
+        return addLibrary(asBuiltin, canonical, true);
+    }
+
+    private boolean addLibrary(boolean asBuiltin, String canonical, boolean initialize) {
+        lock.lock();
+        try {
+            NativeLibrary lib = null;
+            for (NativeLibrary known : knownLibraries) {
+                if (canonical.equals(known.getCanonicalIdentifier())) {
+                    if (known.isLoaded()) {
+                        return true;
+                    } else {
+                        assert known.isBuiltin() : "non-built-in libraries must always have been loaded";
+                        assert asBuiltin : "must have tried loading as built-in first";
+                        lib = known; // load and initialize below
+                        break;
+                    }
+                }
+            }
+            if (asBuiltin && lib == null && (libraryInitializer == null || !libraryInitializer.isBuiltinLibrary(canonical))) {
+                return false;
+            }
+            // Libraries can load libraries during initialization, avoid recursion with a stack
+            for (NativeLibrary loading : currentLoadContext) {
+                if (canonical.equals(loading.getCanonicalIdentifier())) {
+                    return true;
+                }
+            }
+            boolean created = false;
+            if (lib == null) {
+                lib = PlatformNativeLibrarySupport.singleton().createLibrary(canonical, asBuiltin);
+                created = true;
+            }
+            currentLoadContext.push(lib);
+            try {
+                if (!lib.load()) {
+                    return false;
+                }
+                /*
+                 * Initialization of a library must be skipped if it can be initialized at most once
+                 * per process and another isolate has already initialized it. However, the library
+                 * must be (marked as) loaded above so it cannot be loaded and initialized later.
+                 */
+                if (initialize && libraryInitializer != null) {
+                    libraryInitializer.initialize(lib);
+                }
+            } finally {
+                NativeLibrary top = currentLoadContext.pop();
+                assert top == lib;
+            }
+            if (created) {
+                knownLibraries.add(lib);
+            }
+            return true;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public PointerBase findSymbol(String name) {
+        lock.lock();
+        try {
+            for (NativeLibrary lib : knownLibraries) {
+                PointerBase entry = lib.findSymbol(name);
+                if (entry.isNonNull()) {
+                    return entry;
+                }
+            }
+            return WordFactory.nullPointer();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public void registerInitializedBuiltinLibrary(String name) {
+        boolean success = addLibrary(true, name, false);
+        assert success;
+    }
+}
