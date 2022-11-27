@@ -67,4 +67,159 @@ public class LIRNativeImageCodeCache extends NativeImageCodeCache {
     private int codeCacheSize;
 
     private final Map<HostedMethod, Map<HostedMethod, Integer>> trampolineMap;
-    private final Map<HostedMethod, List<Pair<HostedMethod, Integer>>> orderedTrampo
+    private final Map<HostedMethod, List<Pair<HostedMethod, Integer>>> orderedTrampolineMap;
+    private final Map<HostedMethod, Integer> compilationPosition;
+
+    private final TargetDescription target;
+
+    public LIRNativeImageCodeCache(Map<HostedMethod, CompilationResult> compilations, NativeImageHeap imageHeap) {
+        super(compilations, imageHeap);
+        target = ConfigurationValues.getTarget();
+        trampolineMap = new HashMap<>();
+        orderedTrampolineMap = new HashMap<>();
+
+        compilationPosition = new HashMap<>();
+        int compilationPos = 0;
+        for (var entry : getOrderedCompilations()) {
+            compilationPosition.put(entry.getLeft(), compilationPos);
+            compilationPos++;
+        }
+    }
+
+    @Override
+    public int getCodeCacheSize() {
+        assert codeCacheSize > 0;
+        return codeCacheSize;
+    }
+
+    @Override
+    public int getCodeAreaSize() {
+        return getCodeCacheSize();
+    }
+
+    private void setCodeCacheSize(int size) {
+        assert codeCacheSize == 0 && size > 0;
+        codeCacheSize = size;
+    }
+
+    @Override
+    public int codeSizeFor(HostedMethod method) {
+        int methodStart = method.getCodeAddressOffset();
+        int methodEnd;
+
+        if (orderedTrampolineMap.containsKey(method)) {
+            List<Pair<HostedMethod, Integer>> trampolineList = orderedTrampolineMap.get(method);
+            int lastTrampolineStart = trampolineList.get(trampolineList.size() - 1).getRight();
+            methodEnd = computeNextMethodStart(lastTrampolineStart, HostedDirectCallTrampolineSupport.singleton().getTrampolineSize());
+        } else {
+            methodEnd = computeNextMethodStart(methodStart, compilationResultFor(method).getTargetCodeSize());
+        }
+
+        return methodEnd - methodStart;
+    }
+
+    private boolean verifyMethodLayout() {
+        HostedDirectCallTrampolineSupport trampolineSupport = HostedDirectCallTrampolineSupport.singleton();
+        int currentPos = 0;
+        for (Pair<HostedMethod, CompilationResult> entry : getOrderedCompilations()) {
+            HostedMethod method = entry.getLeft();
+            CompilationResult compilation = entry.getRight();
+
+            int methodStart = method.getCodeAddressOffset();
+            assert currentPos == methodStart;
+
+            currentPos += compilation.getTargetCodeSize();
+
+            if (orderedTrampolineMap.containsKey(method)) {
+                for (var trampoline : orderedTrampolineMap.get(method)) {
+                    int trampolineOffset = trampoline.getRight();
+
+                    currentPos = NumUtil.roundUp(currentPos, trampolineSupport.getTrampolineAlignment());
+                    assert trampolineOffset == currentPos;
+
+                    currentPos += trampolineSupport.getTrampolineSize();
+                }
+            }
+
+            currentPos = computeNextMethodStart(currentPos, 0);
+            int size = currentPos - method.getCodeAddressOffset();
+            assert codeSizeFor(method) == size;
+        }
+
+        return true;
+    }
+
+    @SuppressWarnings("try")
+    @Override
+    public void layoutMethods(DebugContext debug, BigBang bb, ForkJoinPool threadPool) {
+
+        try (Indent indent = debug.logAndIndent("layout methods")) {
+            // Assign initial location to all methods.
+            HostedDirectCallTrampolineSupport trampolineSupport = HostedDirectCallTrampolineSupport.singleton();
+            Map<HostedMethod, Integer> curOffsetMap = trampolineSupport.mayNeedTrampolines() ? new HashMap<>() : null;
+
+            int curPos = 0;
+            for (Pair<HostedMethod, CompilationResult> entry : getOrderedCompilations()) {
+                HostedMethod method = entry.getLeft();
+                CompilationResult compilation = entry.getRight();
+
+                if (!trampolineSupport.mayNeedTrampolines()) {
+                    method.setCodeAddressOffset(curPos);
+                } else {
+                    curOffsetMap.put(method, curPos);
+                }
+                curPos = computeNextMethodStart(curPos, compilation.getTargetCodeSize());
+            }
+
+            if (trampolineSupport.mayNeedTrampolines()) {
+
+                // check for and add any needed trampolines
+                addDirectCallTrampolines(curOffsetMap);
+
+                // record final code address offsets and trampoline metadata
+                for (Pair<HostedMethod, CompilationResult> pair : getOrderedCompilations()) {
+                    HostedMethod method = pair.getLeft();
+                    int methodStartOffset = curOffsetMap.get(method);
+                    method.setCodeAddressOffset(methodStartOffset);
+                    Map<HostedMethod, Integer> trampolines = trampolineMap.get(method);
+                    if (trampolines.size() != 0) {
+                        // assign an offset to each trampoline
+                        List<Pair<HostedMethod, Integer>> sortedTrampolines = new ArrayList<>(trampolines.size());
+                        int position = methodStartOffset + pair.getRight().getTargetCodeSize();
+                        /*
+                         * Need to have snapshot of trampoline key set since we update their
+                         * positions.
+                         */
+                        for (HostedMethod callTarget : trampolines.keySet().toArray(HostedMethod.EMPTY_ARRAY)) {
+                            position = NumUtil.roundUp(position, trampolineSupport.getTrampolineAlignment());
+                            trampolines.put(callTarget, position);
+                            sortedTrampolines.add(Pair.create(callTarget, position));
+                            position += trampolineSupport.getTrampolineSize();
+                        }
+                        orderedTrampolineMap.put(method, sortedTrampolines);
+                    }
+                }
+            }
+
+            Pair<HostedMethod, CompilationResult> lastCompilation = getLastCompilation();
+            HostedMethod lastMethod = lastCompilation.getLeft();
+
+            // the total code size is the hypothetical start of the next method
+            int totalSize;
+            if (orderedTrampolineMap.containsKey(lastMethod)) {
+                var trampolines = orderedTrampolineMap.get(lastMethod);
+                int lastTrampolineStart = trampolines.get(trampolines.size() - 1).getRight();
+                totalSize = computeNextMethodStart(lastTrampolineStart, trampolineSupport.getTrampolineSize());
+            } else {
+                totalSize = computeNextMethodStart(lastCompilation.getLeft().getCodeAddressOffset(), lastCompilation.getRight().getTargetCodeSize());
+            }
+
+            setCodeCacheSize(totalSize);
+
+            assert verifyMethodLayout();
+
+            buildRuntimeMetadata(new MethodPointer(getFirstCompilation().getLeft()), WordFactory.unsigned(totalSize));
+        }
+    }
+
+    private static int comp
