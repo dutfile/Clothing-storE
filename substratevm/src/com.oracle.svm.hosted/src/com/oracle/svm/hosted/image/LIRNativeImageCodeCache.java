@@ -222,4 +222,140 @@ public class LIRNativeImageCodeCache extends NativeImageCodeCache {
         }
     }
 
-    private static int comp
+    private static int computeNextMethodStart(int current, int addend) {
+        int result;
+        try {
+            result = NumUtil.roundUp(Math.addExact(current, addend), SubstrateOptions.codeAlignment());
+        } catch (ArithmeticException e) {
+            throw VMError.shouldNotReachHere("Code size is larger than 2GB");
+        }
+
+        return result;
+    }
+
+    /**
+     * After the initial method layout, on some platforms some direct calls between methods may be
+     * too far apart. When this happens a trampoline must be inserted to reach the call target.
+     */
+    private void addDirectCallTrampolines(Map<HostedMethod, Integer> curOffsetMap) {
+        HostedDirectCallTrampolineSupport trampolineSupport = HostedDirectCallTrampolineSupport.singleton();
+
+        boolean changed;
+        do {
+            int callerCompilationNum = 0;
+            int curPos = 0;
+            changed = false;
+            for (Pair<HostedMethod, CompilationResult> entry : getOrderedCompilations()) {
+                HostedMethod caller = entry.getLeft();
+                CompilationResult compilation = entry.getRight();
+
+                int originalStart = curOffsetMap.get(caller);
+                int newStart = curPos;
+                curOffsetMap.put(caller, newStart);
+
+                // move curPos to the end of the method code
+                curPos += compilation.getTargetCodeSize();
+                int newEnd = curPos;
+
+                Map<HostedMethod, Integer> trampolines = trampolineMap.computeIfAbsent(caller, k -> new HashMap<>());
+
+                // update curPos to account for current trampolines
+                for (int j = 0; j < trampolines.size(); j++) {
+                    curPos = NumUtil.roundUp(curPos, trampolineSupport.getTrampolineAlignment());
+                    curPos += trampolineSupport.getTrampolineSize();
+                }
+                for (Infopoint infopoint : compilation.getInfopoints()) {
+                    if (infopoint instanceof Call && ((Call) infopoint).direct) {
+                        Call call = (Call) infopoint;
+                        HostedMethod callee = (HostedMethod) call.target;
+
+                        if (trampolines.containsKey(callee)) {
+                            /*
+                             * If trampoline already exists, then don't have to do anything.
+                             */
+                            continue;
+                        }
+
+                        int calleeStart = curOffsetMap.get(callee);
+
+                        int maxDistance;
+                        int calleeCompilationNum = compilationPosition.get(callee);
+                        if (calleeCompilationNum < callerCompilationNum) {
+                            /*
+                             * Callee is before caller.
+                             *
+                             * both have already been updated; compare against new start.
+                             */
+                            maxDistance = newEnd - calleeStart;
+                        } else {
+                            /*
+                             * Caller is before callee.
+                             *
+                             * callee's method start hasn't been updated yet; compare against
+                             * original start.
+                             */
+                            maxDistance = calleeStart - originalStart;
+                        }
+
+                        if (maxDistance > trampolineSupport.getMaxCallDistance()) {
+                            // need to add another trampoline
+                            changed = true;
+                            trampolines.put(callee, 0);
+                            curPos = NumUtil.roundUp(curPos, trampolineSupport.getTrampolineAlignment());
+                            curPos += trampolineSupport.getTrampolineSize();
+                        }
+                    }
+                }
+                // align curPos for start of next method
+                curPos = computeNextMethodStart(curPos, 0);
+                callerCompilationNum++;
+            }
+        } while (changed);
+    }
+
+    /**
+     * Patch references from code to other code and constant data. Generate relocation information
+     * in the process. More patching can be done, and correspondingly fewer relocation records
+     * generated, if the caller passes a non-null rodataDisplacementFromText.
+     *
+     * @param relocs a relocation map
+     */
+    @Override
+    @SuppressWarnings("try")
+    public void patchMethods(DebugContext debug, RelocatableBuffer relocs, ObjectFile objectFile) {
+
+        /*
+         * Patch instructions which reference code or data by address.
+         *
+         * Note that the image we write happens to be naturally position-independent on x86-64,
+         * since both code and data references are PC-relative.
+         *
+         * So not only can we definitively fix up the all code--code and code--data references as
+         * soon as we have assigned all our addresses, but also, the resulting blob can be loaded at
+         * any address without relocation (and therefore potentially shared between many processes).
+         * (This is true for shared library output only, not relocatable code.)
+         *
+         * These properties may change. Once the code includes references to external symbols, we
+         * will either no longer have a position-independent image (if we stick with the current
+         * load-time relocation approach) or will require us to implement a PLT (for
+         * {code,data}->code references) and GOT (for code->data references).
+         *
+         * Splitting text from rodata is straightforward when generating shared libraries or
+         * executables, since even in the case where the loader has to pick a different virtual
+         * address range than the one preassigned in the object file, it will preserve the offsets
+         * between the vaddrs. So, if we're generating a shared library or executable (i.e.
+         * something with vaddrs), we always know the offset of our data from our code (and
+         * vice-versa). BUT if we're generating relocatable code, we don't know that yet. In that
+         * case, the caller will pass a null rodataDisplacecmentFromText, and we behave accordingly
+         * by generating extra relocation records.
+         */
+
+        // in each compilation result...
+        for (Pair<HostedMethod, CompilationResult> pair : getOrderedCompilations()) {
+            HostedMethod method = pair.getLeft();
+            CompilationResult compilation = pair.getRight();
+
+            // the codecache-relative offset of the compilation
+            int compStart = method.getCodeAddressOffset();
+
+            // Bu
