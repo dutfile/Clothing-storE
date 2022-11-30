@@ -480,4 +480,19 @@ public class LIRNativeImageCodeCache extends NativeImageCodeCache {
     }
 
     private static final class NativeTextSectionImpl extends NativeImage.NativeTextSectionImpl {
-        private NativeTextSectionImpl(RelocatableBuffer buffer, ObjectFile objectFile, NativeImageCodeCache
+        private NativeTextSectionImpl(RelocatableBuffer buffer, ObjectFile objectFile, NativeImageCodeCache codeCache) {
+            super(buffer, objectFile, codeCache);
+        }
+
+        @Override
+        protected void defineMethodSymbol(String name, boolean global, ObjectFile.Element section, HostedMethod method, CompilationResult result) {
+            final int size = result == null ? 0 : result.getTargetCodeSize();
+            objectFile.createDefinedSymbol(name, section, method.getCodeAddressOffset(), size, true, global);
+        }
+    }
+
+    @Override
+    public List<ObjectFile.Symbol> getSymbols(ObjectFile objectFile) {
+        return StreamSupport.stream(objectFile.getSymbolTable().spliterator(), false).collect(Collectors.toList());
+    }
+}
