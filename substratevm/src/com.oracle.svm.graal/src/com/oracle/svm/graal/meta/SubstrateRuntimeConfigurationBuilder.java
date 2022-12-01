@@ -68,4 +68,55 @@ public class SubstrateRuntimeConfigurationBuilder extends SharedRuntimeConfigura
     private final AnalysisUniverse aUniverse;
     private final ConstantReflectionProvider originalReflectionProvider;
 
-    public SubstrateRu
+    public SubstrateRuntimeConfigurationBuilder(OptionValues options, SVMHost hostVM, AnalysisUniverse aUniverse, UniverseMetaAccess metaAccess,
+                    ConstantReflectionProvider originalReflectionProvider, Function<Providers, SubstrateBackend> backendProvider,
+                    ClassInitializationSupport classInitializationSupport, LoopsDataProvider loopsDataProvider, SubstratePlatformConfigurationProvider platformConfig) {
+        super(options, hostVM, metaAccess, backendProvider, classInitializationSupport, loopsDataProvider, platformConfig);
+        this.aUniverse = aUniverse;
+        this.originalReflectionProvider = originalReflectionProvider;
+    }
+
+    @Override
+    protected Providers createProviders(CodeCacheProvider codeCache, ConstantReflectionProvider constantReflection, ConstantFieldProvider constantFieldProvider, ForeignCallsProvider foreignCalls,
+                    LoweringProvider lowerer, Replacements replacements, StampProvider stampProvider, SnippetReflectionProvider snippetReflection,
+                    PlatformConfigurationProvider platformConfigurationProvider, MetaAccessExtensionProvider metaAccessExtensionProvider, WordTypes wordTypes, LoopsDataProvider loopsDataProvider) {
+        return new Providers(metaAccess, codeCache, constantReflection, constantFieldProvider, foreignCalls, lowerer, replacements, stampProvider, platformConfigurationProvider,
+                        metaAccessExtensionProvider, snippetReflection, wordTypes, loopsDataProvider);
+    }
+
+    @Override
+    protected ConstantReflectionProvider createConstantReflectionProvider() {
+        return new AnalysisConstantReflectionProvider(aUniverse, metaAccess, originalReflectionProvider, classInitializationSupport);
+    }
+
+    @Override
+    protected ConstantFieldProvider createConstantFieldProvider() {
+        return new AnalysisConstantFieldProvider(metaAccess, hostVM);
+    }
+
+    @Override
+    protected SnippetReflectionProvider createSnippetReflectionProvider(WordTypes wordTypes) {
+        return new SubstrateSnippetReflectionProvider(wordTypes);
+    }
+
+    @Override
+    protected LoweringProvider createLoweringProvider(ForeignCallsProvider foreignCalls, MetaAccessExtensionProvider metaAccessExtensionProvider) {
+        return SubstrateLoweringProvider.createForRuntime(metaAccess, foreignCalls, platformConfig, metaAccessExtensionProvider);
+    }
+
+    @Override
+    protected Replacements createReplacements(Providers p, SnippetReflectionProvider snippetReflection) {
+        BytecodeProvider bytecodeProvider = new ResolvedJavaMethodBytecodeProvider();
+        WordTypes wordTypes = p.getWordTypes();
+        return new SubstrateReplacements(p, snippetReflection, bytecodeProvider, ConfigurationValues.getTarget(), wordTypes, new SubstrateGraphMakerFactory(wordTypes));
+    }
+
+    @Override
+    protected SharedCodeCacheProvider createCodeCacheProvider(RegisterConfig registerConfig) {
+        if (SubstrateOptions.supportCompileInIsolates()) {
+            return new IsolateAwareCodeCacheProvider(ConfigurationValues.getTarget(), registerConfig);
+        }
+        return new SubstrateCodeCacheProvider(ConfigurationValues.getTarget(), registerConfig);
+    }
+
+}
