@@ -76,4 +76,15 @@ public interface AllocationListener {
 
     /**
      * Notifies about an allocated guest language value. This method is called after a preceding
-     * {@link #onEnter(com.oracle.truffle.api.instrumentation.AllocationEv
+     * {@link #onEnter(com.oracle.truffle.api.instrumentation.AllocationEvent)} call and right after
+     * the allocation is performed. When
+     * {@link #onEnter(com.oracle.truffle.api.instrumentation.AllocationEvent) onEnter} provided a
+     * non-<code>null</code> value in the event, it was re-allocated and the same value instance is
+     * in this event.
+     *
+     * @param event the event describing the finished allocation
+     * @since 0.27
+     */
+    void onReturnValue(AllocationEvent event);
+
+}
