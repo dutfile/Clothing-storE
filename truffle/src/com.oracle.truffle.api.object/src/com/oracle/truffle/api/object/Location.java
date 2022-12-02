@@ -320,3 +320,37 @@ public abstract class Location {
     /**
      * Equivalent to {@link Shape#check(DynamicObject)}.
      *
+     * @since 0.8 or earlier
+     * @deprecated equivalent to {@code store.getShape() == shape}.
+     */
+    @Deprecated(since = "22.2")
+    protected static boolean checkShape(DynamicObject store, Shape shape) {
+        return store.getShape() == shape;
+    }
+
+    /**
+     * Returns {@code true} if this location can only store primitive types and cannot contain any
+     * object references.
+     *
+     * @since 22.2
+     */
+    @SuppressWarnings("deprecation")
+    public boolean isPrimitive() {
+        return this instanceof DoubleLocation || this instanceof IntLocation || this instanceof LongLocation || this instanceof BooleanLocation;
+    }
+
+    /**
+     * If this is a constant location, returns the constant value bound to this location. Otherwise,
+     * returns null.
+     *
+     * @since 22.2
+     */
+    @SuppressWarnings("deprecation")
+    public Object getConstantValue() {
+        if (isConstant()) {
+            return get(null);
+        } else {
+            return null;
+        }
+    }
+}
