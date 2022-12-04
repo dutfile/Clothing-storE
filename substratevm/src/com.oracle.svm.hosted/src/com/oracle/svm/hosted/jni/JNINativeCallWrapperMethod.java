@@ -135,4 +135,71 @@ class JNINativeCallWrapperMethod extends CustomSubstitutionMethod {
         List<ValueNode> jniArguments = new ArrayList<>(2 + javaArguments.size());
         List<JavaType> jniArgumentTypes = new ArrayList<>(2 + javaArguments.size());
         JavaType environmentType = providers.getMetaAccess().lookupJavaType(JNIEnvironment.class);
-        JavaType objectHandleType = providers.getMetaAccess().lookupJavaType(JNI
+        JavaType objectHandleType = providers.getMetaAccess().lookupJavaType(JNIObjectHandle.class);
+        jniArguments.add(environment);
+        jniArgumentTypes.add(environmentType);
+        if (method.isStatic()) {
+            JavaConstant clazz = providers.getConstantReflection().asJavaClass(method.getDeclaringClass());
+            ConstantNode clazzNode = ConstantNode.forConstant(clazz, providers.getMetaAccess(), graph);
+            ValueNode box = kit.boxObjectInLocalHandle(clazzNode);
+            jniArguments.add(box);
+            jniArgumentTypes.add(objectHandleType);
+        }
+        for (int i = 0; i < javaArguments.size(); i++) {
+            ValueNode arg = javaArguments.get(i);
+            JavaType argType = javaArgumentTypes[i];
+            if (javaArgumentTypes[i].getJavaKind().isObject()) {
+                ValueNode obj = javaArguments.get(i);
+                arg = kit.boxObjectInLocalHandle(obj);
+                argType = objectHandleType;
+            }
+            jniArguments.add(arg);
+            jniArgumentTypes.add(argType);
+        }
+        assert jniArguments.size() == jniArgumentTypes.size();
+        JavaType jniReturnType = javaReturnType;
+        if (jniReturnType.getJavaKind().isObject()) {
+            jniReturnType = objectHandleType;
+        }
+
+        if (getOriginal().isSynchronized()) {
+            ValueNode monitorObject;
+            if (method.isStatic()) {
+                Constant hubConstant = providers.getConstantReflection().asObjectHub(method.getDeclaringClass());
+                DynamicHub hub = (DynamicHub) SubstrateObjectConstant.asObject(hubConstant);
+                monitorObject = ConstantNode.forConstant(SubstrateObjectConstant.forObject(hub), providers.getMetaAccess(), graph);
+            } else {
+                monitorObject = kit.maybeCreateExplicitNullCheck(javaArguments.get(0));
+            }
+            MonitorIdNode monitorId = graph.add(new MonitorIdNode(kit.getFrameState().lockDepth(false)));
+            MonitorEnterNode monitorEnter = kit.append(new MonitorEnterNode(monitorObject, monitorId));
+            kit.getFrameState().pushLock(monitorEnter.object(), monitorEnter.getMonitorId());
+            monitorEnter.setStateAfter(kit.getFrameState().create(kit.bci(), monitorEnter));
+        }
+
+        kit.getFrameState().clearLocals();
+
+        Signature jniSignature = new SimpleSignature(jniArgumentTypes, jniReturnType);
+        ValueNode returnValue = kit.createCFunctionCall(callAddress, jniArguments, jniSignature, StatusSupport.STATUS_IN_NATIVE, false);
+
+        if (getOriginal().isSynchronized()) {
+            MonitorIdNode monitorId = kit.getFrameState().peekMonitorId();
+            ValueNode monitorObject = kit.getFrameState().popLock();
+            MonitorExitNode monitorExit = kit.append(new MonitorExitNode(monitorObject, monitorId, null));
+            monitorExit.setStateAfter(kit.getFrameState().create(kit.bci(), monitorExit));
+        }
+
+        if (javaReturnType.getJavaKind().isObject()) {
+            returnValue = kit.unboxHandle(returnValue); // before destroying handles in epilogue
+        }
+        kit.nativeCallEpilogue(handleFrame);
+        kit.rethrowPendingException();
+        if (javaReturnType.getJavaKind().isObject()) {
+            // Just before return to always run the epilogue and never suppress a pending exception
+            returnValue = kit.checkObjectType(returnValue, (ResolvedJavaType) javaReturnType, false);
+        }
+        kit.createReturn(returnValue, javaReturnType.getJavaKind());
+
+        return kit.finalizeGraph();
+    }
+}
