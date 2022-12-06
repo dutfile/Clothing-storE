@@ -104,4 +104,106 @@ public abstract class DirectCallNode extends Node {
     public abstract boolean isInlinable();
 
     /**
-     * Returns <code>true</code> if the {@link CallTarget} is forced to be inlined
+     * Returns <code>true</code> if the {@link CallTarget} is forced to be inlined. A
+     * {@link DirectCallNode} can either be inlined manually by invoking {@link #forceInlining()} or
+     * by the runtime system which may at any point decide to inline.
+     *
+     * @return true if this method was inlined else false.
+     * @since 0.8 or earlier
+     */
+    public abstract boolean isInliningForced();
+
+    /**
+     * Enforces the runtime system to inline the {@link CallTarget} at this call site. If the
+     * runtime system does not support inlining or it is already inlined this method has no effect.
+     * The runtime system may decide to not inline calls which were forced to inline.
+     *
+     * @since 0.8 or earlier
+     */
+    public abstract void forceInlining();
+
+    /**
+     * Returns <code>true</code> if the runtime system supports cloning and the {@link RootNode}
+     * returns <code>true</code> in {@link RootNode#isCloningAllowed()}.
+     *
+     * @return <code>true</code> if the target is allowed to be cloned.
+     * @since 0.8 or earlier
+     */
+    public abstract boolean isCallTargetCloningAllowed();
+
+    /**
+     * Clones the {@link CallTarget} instance returned by {@link #getCallTarget()} in an
+     * uninitialized state for this {@link DirectCallNode}. This can be sensible to gather call site
+     * sensitive profiling information for this {@link DirectCallNode}. If
+     * {@link #isCallTargetCloningAllowed()} returns <code>false</code> this method has no effect
+     * and returns <code>false</code>.
+     *
+     * @since 0.8 or earlier
+     */
+    public abstract boolean cloneCallTarget();
+
+    /**
+     * Returns <code>true</code> if the target of the {@link DirectCallNode} was cloned by the
+     * runtime system or by the guest language implementation.
+     *
+     * @return if the target was split
+     * @since 0.8 or earlier
+     */
+    public final boolean isCallTargetCloned() {
+        return getClonedCallTarget() != null;
+    }
+
+    /**
+     * Returns the split {@link CallTarget} if this call site's {@link CallTarget} is cloned.
+     *
+     * @return the split {@link CallTarget}
+     * @since 0.8 or earlier
+     */
+    public abstract CallTarget getClonedCallTarget();
+
+    /**
+     * Returns the used call target when {@link #call(java.lang.Object[])} is invoked. If the
+     * {@link CallTarget} was split this method returns the {@link CallTarget} returned by
+     * {@link #getClonedCallTarget()}.
+     *
+     * @return the used {@link CallTarget} when node is called
+     * @since 0.8 or earlier
+     */
+    public CallTarget getCurrentCallTarget() {
+        CallTarget split = getClonedCallTarget();
+        if (split != null) {
+            return split;
+        } else {
+            return getCallTarget();
+        }
+    }
+
+    /**
+     * Returns the {@link RootNode} associated with {@link CallTarget} returned by
+     * {@link #getCurrentCallTarget()}. If the stored {@link CallTarget} does not contain a
+     * {@link RootNode} this method returns <code>null</code>.
+     *
+     * @see #getCurrentCallTarget()
+     * @return the root node of the used call target
+     * @since 0.8 or earlier
+     */
+    public final RootNode getCurrentRootNode() {
+        CallTarget target = getCurrentCallTarget();
+        if (target instanceof RootCallTarget) {
+            return ((RootCallTarget) target).getRootNode();
+        }
+        return null;
+    }
+
+    /** @since 0.8 or earlier */
+    @Override
+    public String toString() {
+        return String.format("%s(target=%s)", getClass().getSimpleName(), getCurrentCallTarget());
+    }
+
+    /** @since 0.8 or earlier */
+    public static DirectCallNode create(CallTarget target) {
+        return Truffle.getRuntime().createDirectCallNode(target);
+    }
+
+}
