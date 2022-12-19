@@ -148,4 +148,160 @@ abstract class IntGetFieldNode extends AbstractGetFieldNode {
     @Idempotent
     boolean isValueField(Meta meta) {
         return getField() == meta.java_lang_Integer_value;
- 
+    }
+}
+
+abstract class BooleanGetFieldNode extends AbstractGetFieldNode {
+    BooleanGetFieldNode(Field f) {
+        super(f);
+        assert f.getKind() == JavaKind.Boolean;
+    }
+
+    @Override
+    public int getField(VirtualFrame frame, BytecodeNode root, StaticObject receiver, int at, int statementIndex) {
+        root.notifyFieldAccess(frame, statementIndex, getField(), receiver);
+        EspressoFrame.putInt(frame, at, executeGetField(receiver) ? 1 : 0);
+        return slotCount;
+    }
+
+    abstract boolean executeGetField(StaticObject receiver);
+
+    @Specialization(guards = "receiver.isEspressoObject()")
+    boolean doEspresso(StaticObject receiver) {
+        return getField().getBoolean(receiver);
+    }
+
+    @Specialization(guards = {"receiver.isForeignObject()", "isValueField(meta)"})
+    boolean doForeignValue(StaticObject receiver,
+                    @Bind("getMeta()") Meta meta,
+                    @CachedLibrary(limit = "CACHED_LIBRARY_LIMIT") InteropLibrary interopLibrary,
+                    @Cached BranchProfile error) {
+        try {
+            return interopLibrary.asBoolean(receiver.rawForeignObject(getLanguage()));
+        } catch (UnsupportedMessageException e) {
+            error.enter();
+            throw meta.throwExceptionWithMessage(meta.java_lang_ClassCastException, "Foreign object is not boolean");
+        }
+    }
+
+    @Specialization(guards = {"receiver.isForeignObject()", "!isValueField(meta)"}, limit = "CACHED_LIBRARY_LIMIT")
+    boolean doForeign(StaticObject receiver,
+                    @Bind("getLanguage()") EspressoLanguage language,
+                    @Bind("getMeta()") Meta meta,
+                    @CachedLibrary("receiver.rawForeignObject(language)") InteropLibrary interopLibrary,
+                    @Cached ToEspressoNode toEspressoNode,
+                    @Cached BranchProfile error) {
+        Object value = getForeignField(receiver, interopLibrary, language, meta, error);
+        try {
+            return (boolean) toEspressoNode.execute(value, meta._boolean);
+        } catch (UnsupportedTypeException e) {
+            error.enter();
+            throw meta.throwExceptionWithMessage(meta.java_lang_ClassCastException, "Foreign field %s cannot be cast to boolean", fieldName);
+        }
+    }
+
+    @Idempotent
+    boolean isValueField(Meta meta) {
+        return getField() == meta.java_lang_Boolean_value;
+    }
+}
+
+abstract class CharGetFieldNode extends AbstractGetFieldNode {
+    CharGetFieldNode(Field f) {
+        super(f);
+        assert f.getKind() == JavaKind.Char;
+    }
+
+    @Override
+    public int getField(VirtualFrame frame, BytecodeNode root, StaticObject receiver, int at, int statementIndex) {
+        root.notifyFieldAccess(frame, statementIndex, getField(), receiver);
+        EspressoFrame.putInt(frame, at, executeGetField(receiver));
+        return slotCount;
+    }
+
+    abstract char executeGetField(StaticObject receiver);
+
+    @Specialization(guards = "receiver.isEspressoObject()")
+    char doEspresso(StaticObject receiver) {
+        return getField().getChar(receiver);
+    }
+
+    @Specialization(guards = {"receiver.isForeignObject()", "isValueField(meta)"})
+    char doForeignValue(StaticObject receiver,
+                    @Bind("getMeta()") Meta meta,
+                    @CachedLibrary(limit = "CACHED_LIBRARY_LIMIT") InteropLibrary interopLibrary,
+                    @Cached BranchProfile error) {
+        try {
+            String foreignString = interopLibrary.asString(receiver.rawForeignObject(getLanguage()));
+            if (foreignString.length() != 1) {
+                error.enter();
+                throw meta.throwExceptionWithMessage(meta.java_lang_ClassCastException, "Multicharacter foreign string cannot be cast to char");
+            }
+            return foreignString.charAt(0);
+        } catch (UnsupportedMessageException e) {
+            error.enter();
+            throw meta.throwExceptionWithMessage(meta.java_lang_ClassCastException, "Non-string foreign object cannot be cast to character");
+        }
+    }
+
+    @Specialization(guards = {"receiver.isForeignObject()", "!isValueField(meta)"}, limit = "CACHED_LIBRARY_LIMIT")
+    char doForeign(StaticObject receiver,
+                    @Bind("getLanguage()") EspressoLanguage language,
+                    @Bind("getMeta()") Meta meta,
+                    @CachedLibrary("receiver.rawForeignObject(language)") InteropLibrary interopLibrary,
+                    @Cached ToEspressoNode toEspressoNode,
+                    @Cached BranchProfile error) {
+        Object value = getForeignField(receiver, interopLibrary, language, meta, error);
+        try {
+            return (char) toEspressoNode.execute(value, meta._char);
+        } catch (UnsupportedTypeException e) {
+            error.enter();
+            throw meta.throwExceptionWithMessage(meta.java_lang_ClassCastException, "Foreign field %s cannot be cast to char", fieldName);
+        }
+    }
+
+    @Idempotent
+    boolean isValueField(Meta meta) {
+        return getField() == meta.java_lang_Character_value;
+    }
+}
+
+abstract class ShortGetFieldNode extends AbstractGetFieldNode {
+    ShortGetFieldNode(Field f) {
+        super(f);
+        assert f.getKind() == JavaKind.Short;
+    }
+
+    @Override
+    public int getField(VirtualFrame frame, BytecodeNode root, StaticObject receiver, int at, int statementIndex) {
+        root.notifyFieldAccess(frame, statementIndex, getField(), receiver);
+        EspressoFrame.putInt(frame, at, executeGetField(receiver));
+        return slotCount;
+    }
+
+    abstract short executeGetField(StaticObject receiver);
+
+    @Specialization(guards = "receiver.isEspressoObject()")
+    short doEspresso(StaticObject receiver) {
+        return getField().getShort(receiver);
+    }
+
+    @Specialization(guards = {"receiver.isForeignObject()", "isValueField(meta)"})
+    short doForeignValue(StaticObject receiver,
+                    @Bind("getMeta()") Meta meta,
+                    @CachedLibrary(limit = "CACHED_LIBRARY_LIMIT") InteropLibrary interopLibrary,
+                    @Cached BranchProfile error) {
+        try {
+            return interopLibrary.asShort(receiver.rawForeignObject(getLanguage()));
+        } catch (UnsupportedMessageException e) {
+            error.enter();
+            throw meta.throwExceptionWithMessage(meta.java_lang_ClassCastException, "Foreign object does not fit in short");
+        }
+    }
+
+    @Specialization(guards = {"receiver.isForeignObject()", "!isValueField(meta)"}, limit = "CACHED_LIBRARY_LIMIT")
+    short doForeign(StaticObject receiver,
+                    @Bind("getLanguage()") EspressoLanguage language,
+                    @Bind("getMeta()") Meta meta,
+                    @CachedLibrary("receiver.rawForeignObject(language)") InteropLibrary interopLibrary,
+              
