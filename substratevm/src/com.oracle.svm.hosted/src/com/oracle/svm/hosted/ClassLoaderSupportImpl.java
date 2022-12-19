@@ -170,3 +170,125 @@ public class ClassLoaderSupportImpl extends ClassLoaderSupport {
                     Stream<Path> filtered = pathStream;
                     if (ClassUtil.CLASS_MODULE_PATH_EXCLUDE_DIRECTORIES_ROOT.equals(entry)) {
                         filtered = filtered.filter(Predicate.not(ClassUtil.CLASS_MODULE_PATH_EXCLUDE_DIRECTORIES::contains));
+                    }
+                    filtered.forEach(queue::push);
+                }
+            } else {
+                if (collector.isIncluded(null, relativeFilePath, Path.of(relativeFilePath).toUri())) {
+                    try (InputStream is = Files.newInputStream(entry)) {
+                        collector.addResource(null, relativeFilePath, is, false);
+                    }
+                }
+            }
+        }
+
+        for (String entry : allEntries) {
+            int last = entry.lastIndexOf(RESOURCES_INTERNAL_PATH_SEPARATOR);
+            String key = last == -1 ? "" : entry.substring(0, last);
+            List<String> dirContent = matchedDirectoryResources.get(key);
+            if (dirContent != null && !dirContent.contains(entry)) {
+                dirContent.add(entry.substring(last + 1));
+            }
+        }
+
+        matchedDirectoryResources.forEach((dir, content) -> {
+            content.sort(Comparator.naturalOrder());
+            collector.addDirectoryResource(null, dir, String.join(System.lineSeparator(), content), false);
+        });
+    }
+
+    private static void scanJar(Path jarPath, ResourceCollector collector) throws IOException {
+        try (JarFile jf = new JarFile(jarPath.toFile())) {
+            Enumeration<JarEntry> entries = jf.entries();
+            while (entries.hasMoreElements()) {
+                JarEntry entry = entries.nextElement();
+                if (entry.isDirectory()) {
+                    String dirName = entry.getName().substring(0, entry.getName().length() - 1);
+                    if (collector.isIncluded(null, dirName, jarPath.toUri())) {
+                        // Register the directory with empty content to preserve Java behavior
+                        collector.addDirectoryResource(null, dirName, "", true);
+                    }
+                } else {
+                    if (collector.isIncluded(null, entry.getName(), jarPath.toUri())) {
+                        try (InputStream is = jf.getInputStream(entry)) {
+                            collector.addResource(null, entry.getName(), is, true);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Override
+    public List<ResourceBundle> getResourceBundle(String bundleSpec, Locale locale) {
+        String[] specParts = bundleSpec.split(":", 2);
+        String moduleName;
+        String bundleName;
+        if (specParts.length > 1) {
+            moduleName = specParts[0];
+            bundleName = specParts[1];
+        } else {
+            moduleName = null;
+            bundleName = specParts[0];
+        }
+        String packageName = packageName(bundleName);
+        Set<Module> modules;
+        if (ResourcesFeature.MODULE_NAME_ALL_UNNAMED.equals(moduleName)) {
+            modules = Collections.emptySet();
+        } else if (moduleName != null) {
+            modules = classLoaderSupport.findModule(moduleName).stream().collect(Collectors.toSet());
+        } else {
+            modules = packageToModules.getOrDefault(packageName, Collections.emptySet());
+        }
+        if (modules.isEmpty()) {
+            /* If bundle is not located in any module get it via classloader (from ALL_UNNAMED) */
+            return Collections.singletonList(ResourceBundle.getBundle(bundleName, locale, imageClassLoader));
+        }
+        ArrayList<ResourceBundle> resourceBundles = new ArrayList<>();
+        Module builderModule = ClassLoaderSupportImpl.class.getModule();
+        for (Module module : modules) {
+            if (builderModule.isNamed()) {
+                Modules.addOpens(module, packageName, builderModule);
+            } else {
+                Modules.addOpensToAllUnnamed(module, packageName);
+            }
+            resourceBundles.add(ResourceBundle.getBundle(bundleName, locale, module));
+        }
+        return resourceBundles;
+    }
+
+    private static String packageName(String bundleName) {
+        int classSep = bundleName.replace('/', '.').lastIndexOf('.');
+        if (classSep == -1) {
+            return ""; /* unnamed package */
+        }
+        return bundleName.substring(0, classSep);
+    }
+
+    private void buildPackageToModulesMap(NativeImageClassLoaderSupport cls) {
+        for (ModuleLayer layer : NativeImageClassLoaderSupport.allLayers(cls.moduleLayerForImageBuild)) {
+            for (Module module : layer.modules()) {
+                for (String packageName : module.getDescriptor().packages()) {
+                    addToPackageNameModules(module, packageName);
+                }
+            }
+        }
+    }
+
+    private void addToPackageNameModules(Module moduleName, String packageName) {
+        Set<Module> prevValue = packageToModules.get(packageName);
+        if (prevValue == null) {
+            /* Mostly packageName is only used in a single module */
+            packageToModules.put(packageName, Collections.singleton(moduleName));
+        } else if (prevValue.size() == 1) {
+            /* Transition to HashSet - happens rarely */
+            HashSet<Module> newValue = new HashSet<>();
+            newValue.add(prevValue.iterator().next());
+            newValue.add(moduleName);
+            packageToModules.put(packageName, newValue);
+        } else if (prevValue.size() > 1) {
+            /* Add to exiting HashSet - happens rarely */
+            prevValue.add(moduleName);
+        }
+    }
+}
