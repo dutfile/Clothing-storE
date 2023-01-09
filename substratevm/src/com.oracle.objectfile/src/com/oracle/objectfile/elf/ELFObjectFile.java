@@ -375,4 +375,212 @@ public class ELFObjectFile extends ObjectFile {
             } else {
                 // TODO: use explicit enum values
                 switch (this) {
-                    case L
+                    case LOOS:
+                        return (short) 0xFE00;
+                    case HIOS:
+                        return (short) 0xFEFF;
+                    case LOPROC:
+                        return (short) 0xFF00;
+                    case HIPROC:
+                        return (short) 0xFFFF;
+                }
+            }
+            throw new IllegalStateException("should not reach here");
+        }
+    }
+
+    /**
+     * Encoding: little endian or big endian.
+     */
+    public enum ELFEncoding {
+        ELFDATA2LSB(1),
+        ELFDATA2MSB(2);
+
+        private final int value;
+
+        ELFEncoding(int value) {
+            this.value = value;
+        }
+
+        public byte value() {
+            return (byte) value;
+        }
+
+        public ByteOrder toByteOrder() {
+            return (this == ELFEncoding.ELFDATA2LSB) ? ByteOrder.LITTLE_ENDIAN : (this == ELFEncoding.ELFDATA2MSB) ? ByteOrder.BIG_ENDIAN : ByteOrder.nativeOrder();
+        }
+
+        public static ELFEncoding getSystemNativeValue() {
+            return ELFDATA2LSB; // FIXME: query
+        }
+    }
+
+    /**
+     * ABI encoding.
+     */
+    public enum ELFOsAbi {
+        ELFOSABI_SYSV(0),
+        ELFOSABI_HPUX(1),
+        ELFOSABI_STANDALONE(255);
+
+        private final int value;
+
+        ELFOsAbi(int value) {
+            this.value = value;
+        }
+
+        public byte value() {
+            return (byte) value;
+        }
+
+        public static ELFOsAbi getSystemNativeValue() {
+            return ELFOSABI_SYSV; // FIXME: query system
+        }
+    }
+
+    /**
+     * File class: 32 or 64 bit.
+     */
+    public enum ELFClass {
+        ELFCLASS32(1),
+        ELFCLASS64(2);
+
+        private final int value;
+
+        ELFClass(int value) {
+            this.value = value;
+        }
+
+        public byte value() {
+            return (byte) value;
+        }
+
+        public static ELFClass getSystemNativeValue() {
+            return ELFCLASS64; // FIXME: query system
+        }
+    }
+
+    /**
+     * Representation of an ELF binary header. ELF stores the section count in the header itself.
+     */
+    public class ELFHeader extends ObjectFile.Header {
+
+        /*
+         * We no longer store every constituent field. Rather, some are modeled by the containing
+         * ELFObjectFile's contents.
+         */
+        class Struct {
+
+            final IdentStruct ident;
+            final ELFType type;
+            final ELFMachine machine;
+            int version;
+            long entry;
+            long phoff;
+            long shoff;
+            int flags;
+            short ehsize;
+            short phentsize;
+            short phnum;
+            short shentsize;
+            short shnum;
+            short shstrndx;
+
+            Struct(ELFType type, ELFMachine machine) {
+                ident = new IdentStruct();
+                this.type = type;
+                this.machine = machine;
+            }
+
+            /**
+             * The very first 16 bytes of an {@link ELFHeader ELF header} are the so-called ident.
+             * The ident encodes various low-level file characteristics. It is a str
+             */
+            class IdentStruct {
+
+                public char[] magic = new char[4];
+                public ELFClass fileClass = ELFClass.getSystemNativeValue(); // default
+                public ELFEncoding dataEncoding = ELFEncoding.getSystemNativeValue(); // default
+                public char version;
+                public ELFOsAbi osabi = ELFOsAbi.getSystemNativeValue();
+                public char abiVersion;
+
+                IdentStruct(char[] magic, ELFClass fileClass, ELFEncoding dataEncoding, char version, ELFOsAbi osabi, char abiVersion) {
+                    this.magic = magic;
+                    this.fileClass = fileClass;
+                    this.dataEncoding = dataEncoding;
+                    this.version = version;
+                    this.osabi = osabi;
+                    this.abiVersion = abiVersion;
+                }
+
+                IdentStruct() {
+                    this.magic = Arrays.copyOf(IDENT_MAGIC, IDENT_MAGIC.length);
+                    assert Arrays.equals(IDENT_MAGIC, magic);
+                }
+
+                void write(OutputAssembler out) {
+                    int pos = out.pos();
+
+                    byte[] magicBlob = new byte[IDENT_MAGIC.length];
+                    for (int i = 0; i < IDENT_MAGIC.length; ++i) {
+                        magicBlob[i] = (byte) magic[i];
+                    }
+                    out.writeBlob(magicBlob);
+
+                    out.writeByte(fileClass.value());
+                    out.writeByte(dataEncoding.value());
+                    out.writeByte((byte) version);
+                    out.writeByte(osabi.value());
+                    out.writeByte((byte) abiVersion);
+
+                    int nWritten = out.pos() - pos;
+                    for (int i = 0; i < IDENT_LENGTH - nWritten; ++i) {
+                        out.writeByte((byte) 0);
+                    }
+                }
+
+                @Override
+                public String toString() {
+                    return String.format("ELF Ident:%n\t[class %s, encoding %s, version %d, OS/ABI %s, ABI version %d]", fileClass, dataEncoding, (int) version, osabi, (int) abiVersion);
+                }
+            }
+
+            public void write(OutputAssembler out) {
+                ident.write(out);
+                // FIXME: the following is specific to 64-bit ELF files
+                out.write2Byte(type.toShort());
+                out.write2Byte(machine.toShort());
+                out.write4Byte(version);
+                switch (getFileClass()) {
+                    case ELFCLASS32:
+                        out.write4Byte(toIntExact(entry));
+                        out.write4Byte(toIntExact(phoff));
+                        out.write4Byte(toIntExact(shoff));
+                        break;
+                    case ELFCLASS64:
+                        out.write8Byte(entry);
+                        out.write8Byte(phoff);
+                        out.write8Byte(shoff);
+                        break;
+                    default:
+                        throw new RuntimeException(getFileClass().toString());
+                }
+                out.write4Byte(flags);
+                out.write2Byte(ehsize);
+                out.write2Byte(phentsize);
+                out.write2Byte(phnum);
+                out.write2Byte(shentsize);
+                out.write2Byte(shnum);
+                out.write2Byte(shstrndx);
+            }
+
+            public int getWrittenSize() {
+                // we just write ourselves to a dummy buffer and count
+                OutputAssembler oa = AssemblyBuffer.createOutputAssembler();
+                write(oa);
+                return oa.pos();
+            }
+        }
+
+        public ELFHeader(String n
