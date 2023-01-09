@@ -930,4 +930,133 @@ public class ELFObjectFile extends ObjectFile {
         }
 
         @Override
-        public Iterable<BuildDependency> getDependencies(Map<Element, LayoutDecision
+        public Iterable<BuildDependency> getDependencies(Map<Element, LayoutDecisionMap> decisions) {
+            /*
+             * Our contents depend on
+             *
+             * - the content, size and offset of shstrtab (Q. Why content? A. Because we write
+             * string *indices*.)
+             *
+             * - the size and offset of every other element in the file. (Q. Why size? A. Because
+             * the SHT entry includes the size.)
+             *
+             * - the vaddrs of every allocated section
+             */
+            HashSet<BuildDependency> deps = ObjectFile.defaultDependencies(decisions, this);
+
+            LayoutDecision ourContent = decisions.get(this).getDecision(LayoutDecision.Kind.CONTENT);
+
+            // to construct a dependency, first we must have constructed the decisions
+            deps.add(BuildDependency.createOrGet(ourContent, decisions.get(shstrtab).getDecision(LayoutDecision.Kind.SIZE)));
+            deps.add(BuildDependency.createOrGet(ourContent, decisions.get(shstrtab).getDecision(LayoutDecision.Kind.OFFSET)));
+            deps.add(BuildDependency.createOrGet(ourContent, decisions.get(shstrtab).getDecision(LayoutDecision.Kind.CONTENT)));
+
+            decisions.get(shstrtab).getDecision(LayoutDecision.Kind.OFFSET);
+            decisions.get(shstrtab).getDecision(LayoutDecision.Kind.CONTENT);
+
+            for (Element e : getElements()) {
+                if (e != this && e != shstrtab) {
+                    deps.add(BuildDependency.createOrGet(ourContent, decisions.get(e).getDecision(LayoutDecision.Kind.OFFSET)));
+                    deps.add(BuildDependency.createOrGet(ourContent, decisions.get(e).getDecision(LayoutDecision.Kind.SIZE)));
+                }
+            }
+
+            return deps;
+        }
+
+        @Override
+        public int getOrDecideSize(Map<Element, LayoutDecisionMap> alreadyDecided, int sizeHint) {
+            // our size is:
+            // one per section in the file, plus one dummy, times the size of one entry
+            SectionHeaderEntryStruct s = new SectionHeaderEntryStruct();
+            OutputAssembler oa = AssemblyBuffer.createOutputAssembler(getDataEncoding().toByteOrder());
+            s.write(oa);
+            int entrySize = oa.pos();
+            return (elements.sectionsCount() + 1) * entrySize;
+
+        }
+
+        @Override
+        public byte[] getOrDecideContent(Map<Element, LayoutDecisionMap> alreadyDecided, byte[] contentHint) {
+            // we get our content by writing EntryStructs to a bytebuffer
+            OutputAssembler oa = AssemblyBuffer.createOutputAssembler(getDataEncoding().toByteOrder());
+            write(oa, alreadyDecided);
+            if (contentHint != null) {
+                // FIXME: (for roundtripping) now we've written our own content,
+                // if we were passed a hint,
+                // check it's equal (verbatim) to the hint content
+            }
+            return oa.getBlob();
+        }
+
+        // forward everything we don't implement to the ObjectFile-supplied defaults
+        @Override
+        public LayoutDecisionMap getDecisions(LayoutDecisionMap copyingIn) {
+            return defaultDecisions(this, copyingIn);
+        }
+
+        @Override
+        public int getOrDecideOffset(Map<Element, LayoutDecisionMap> alreadyDecided, int offsetHint) {
+            return defaultGetOrDecideOffset(alreadyDecided, this, offsetHint);
+        }
+
+        @Override
+        public int getOrDecideVaddr(Map<Element, LayoutDecisionMap> alreadyDecided, int vaddrHint) {
+            return defaultGetOrDecideVaddr(alreadyDecided, this, vaddrHint);
+        }
+
+        public void write(OutputAssembler out, Map<Element, LayoutDecisionMap> alreadyDecided) {
+            // get a string table for the defined section names
+            // -- the shstrtab's contents must already be decided.
+            LayoutDecision shstrtabDecision = alreadyDecided.get(shstrtab).getDecision(LayoutDecision.Kind.CONTENT);
+            byte[] shstrtabContents = (byte[]) shstrtabDecision.getValue();
+            StringTable strings = new StringTable(shstrtabContents);
+            // writing the whole section header table, by iterating over sections in the file
+            SectionHeaderEntryStruct ent = new SectionHeaderEntryStruct();
+            assert ent.isNullEntry();
+            ent.write(out);
+
+            // Assign a section header number (index) to every section.
+            // We preserve the ordering returned by getSections().
+            HashMap<Section, Integer> sectionIndices = new HashMap<>();
+            Iterable<Section> sections = getSections();
+            Iterator<Section> iter = sections.iterator();
+            int currentSectionIndex = 0;
+            while (iter.hasNext()) {
+                ++currentSectionIndex; // i.e. we start from index 1, because 0 is the null entry
+                Section s = iter.next();
+                sectionIndices.put(s, currentSectionIndex);
+                // cross-check against getSectionByIndex
+                assert getSectionByIndex(currentSectionIndex) == s;
+            }
+            assert elements.sectionsCount() == currentSectionIndex;
+
+            /*
+             * NOTE: we MUST do this iteration in the order returned by getSections()! Our header
+             * write() code relies on this, to get the SHT index of shstrtab correct.
+             */
+            for (Section s : getSections()) {
+                /**
+                 * TODO: do we need to do a simplified topsort to get the link right? YES, but a
+                 * simple two-pass approach will work: first assign an index to every section, then
+                 * write the content in sequence.
+                 *
+                 * Note that we MUST preserve the order returned by getSections()! Our header
+                 * write() code relies on this, to get the SHT index of shstrtab correct.
+                 */
+
+                ELFSection es = (ELFSection) s;
+                ent.namePtr = strings.indexFor(nameForElement(s));
+                ent.type = es.getType();
+                /*
+                 * CHECK that the Impl and the flags agree on whether we're loadable.
+                 */
+                assert s.getImpl().isLoadable() == es.getFlags().contains(ELFSectionFlag.ALLOC);
+                ent.flags = ObjectFile.flagSetAsLong(es.getFlags());
+                ent.fileOffset = (int) alreadyDecided.get(es).getDecidedValue(LayoutDecision.Kind.OFFSET);
+
+                if (es.getFlags().contains(ELFSectionFlag.ALLOC) && runtimeDebugInfoGeneration) {
+                    // For runtimeDebugInfoGeneration we allow virtualAddress to be set
+                    ent.virtualAddress = (int) alreadyDecided.get(es).getDecidedValue(LayoutDecision.Kind.VADDR);
+                } else {
+                    // We are building a relocatable object file -> v
