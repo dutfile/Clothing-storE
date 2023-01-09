@@ -1059,4 +1059,165 @@ public class ELFObjectFile extends ObjectFile {
                     // For runtimeDebugInfoGeneration we allow virtualAddress to be set
                     ent.virtualAddress = (int) alreadyDecided.get(es).getDecidedValue(LayoutDecision.Kind.VADDR);
                 } else {
-                    // We are building a relocatable object file -> v
+                    // We are building a relocatable object file -> virtualAddress has to be zero.
+                    ent.virtualAddress = 0L;
+                }
+
+                ent.sectionSize = (int) alreadyDecided.get(es).getDecidedValue(LayoutDecision.Kind.SIZE);
+                if (ent.sectionSize == 0) {
+                    // For NobitsSections we have to use getMemSize as sectionSize
+                    ent.sectionSize = es.getMemSize(alreadyDecided);
+                }
+
+                Section linkedSection = es.getLinkedSection();
+                ent.link = (linkedSection == null) ? 0 : sectionIndices.get(linkedSection);
+                ent.info = (int) es.getLinkedInfo();
+                ent.addrAlign = es.getAlignment();
+                ent.entrySize = es.getEntrySize();
+                ent.write(out);
+            }
+        }
+    }
+
+    @Override
+    public Set<Segment> getSegments() {
+        return new HashSet<>();
+    }
+
+    public ELFEncoding getDataEncoding() {
+        return dataEncoding;
+    }
+
+    @Override
+    public ByteOrder getByteOrder() {
+        return getDataEncoding().toByteOrder();
+    }
+
+    @Override
+    public void setByteOrder(ByteOrder byteOrder) {
+        dataEncoding = byteOrder == ByteOrder.LITTLE_ENDIAN ? ELFEncoding.ELFDATA2LSB : ELFEncoding.ELFDATA2MSB;
+    }
+
+    public char getVersion() {
+        return version;
+    }
+
+    public ELFOsAbi getOsAbi() {
+        return osabi;
+    }
+
+    public int getAbiVersion() {
+        return abiVersion;
+    }
+
+    public ELFClass getFileClass() {
+        return fileClass;
+    }
+
+    @Override
+    public int getWordSizeInBytes() {
+        return fileClass == ELFClass.ELFCLASS64 ? 8 : 4;
+    }
+
+    @Override
+    public boolean shouldRecordDebugRelocations() {
+        return true;
+    }
+
+    public ELFMachine getMachine() {
+        return machine;
+    }
+
+    public void setMachine(ELFMachine machine) {
+        this.machine = machine;
+    }
+
+    public long getFlags() {
+        return processorFlags;
+    }
+
+    @SuppressWarnings("unused")
+    public ELFRelocationSection getOrCreateDynamicRelocSection(ELFSymtab syms, boolean withExplicitAddends) {
+        throw new AssertionError("can't create dynamic relocations in this kind of ELF file");
+    }
+
+    public ELFRelocationSection getOrCreateRelocSection(ELFUserDefinedSection elfUserDefinedSection, ELFSymtab syms, boolean withExplicitAddends) {
+        String nameStem = withExplicitAddends ? ".rela" : ".rel";
+        /*
+         * We create one rel/rela per section.
+         */
+        String name = nameStem + elfUserDefinedSection.getName();
+
+        Element el = elementForName(name);
+        ELFRelocationSection rs;
+        if (el == null) {
+            rs = new ELFRelocationSection(this, name, elfUserDefinedSection, syms, withExplicitAddends);
+        } else if (el instanceof ELFRelocationSection) {
+            rs = (ELFRelocationSection) el;
+        } else {
+            throw new IllegalStateException(name + " section exists but is not an ELFRelocationSection");
+        }
+        return rs;
+    }
+
+    @Override
+    public SymbolTable getSymbolTable() {
+        return (SymbolTable) elementForName(".symtab");
+    }
+
+    @Override
+    protected int getMinimumFileSize() {
+        return 0;
+    }
+
+    @Override
+    public void installDebugInfo(DebugInfoProvider debugInfoProvider) {
+        DwarfDebugInfo dwarfSections = new DwarfDebugInfo(getMachine(), getByteOrder());
+        /* We need an implementation for each generated DWARF section. */
+        DwarfStrSectionImpl elfStrSectionImpl = dwarfSections.getStrSectionImpl();
+        DwarfAbbrevSectionImpl elfAbbrevSectionImpl = dwarfSections.getAbbrevSectionImpl();
+        DwarfFrameSectionImpl frameSectionImpl = dwarfSections.getFrameSectionImpl();
+        DwarfLocSectionImpl elfLocSectionImpl = dwarfSections.getLocSectionImpl();
+        DwarfInfoSectionImpl elfInfoSectionImpl = dwarfSections.getInfoSectionImpl();
+        DwarfARangesSectionImpl elfARangesSectionImpl = dwarfSections.getARangesSectionImpl();
+        DwarfLineSectionImpl elfLineSectionImpl = dwarfSections.getLineSectionImpl();
+        /* Now we can create the section elements with empty content. */
+        newUserDefinedSection(elfStrSectionImpl.getSectionName(), elfStrSectionImpl);
+        newUserDefinedSection(elfAbbrevSectionImpl.getSectionName(), elfAbbrevSectionImpl);
+        newUserDefinedSection(frameSectionImpl.getSectionName(), frameSectionImpl);
+        newUserDefinedSection(elfLocSectionImpl.getSectionName(), elfLocSectionImpl);
+        newUserDefinedSection(elfInfoSectionImpl.getSectionName(), elfInfoSectionImpl);
+        newUserDefinedSection(elfARangesSectionImpl.getSectionName(), elfARangesSectionImpl);
+        newUserDefinedSection(elfLineSectionImpl.getSectionName(), elfLineSectionImpl);
+        /*
+         * Add symbols for the base of all DWARF sections whose content may need to be referenced
+         * using a section global offset. These need to be written using a base relative reloc so
+         * that they get updated if the section is merged with DWARF content from other ELF objects
+         * during image linking.
+         */
+        createDefinedSymbol(elfAbbrevSectionImpl.getSectionName(), elfAbbrevSectionImpl.getElement(), 0, 0, false, false);
+        createDefinedSymbol(elfInfoSectionImpl.getSectionName(), elfInfoSectionImpl.getElement(), 0, 0, false, false);
+        createDefinedSymbol(elfLineSectionImpl.getSectionName(), elfLineSectionImpl.getElement(), 0, 0, false, false);
+        createDefinedSymbol(elfStrSectionImpl.getSectionName(), elfStrSectionImpl.getElement(), 0, 0, false, false);
+        createDefinedSymbol(elfLocSectionImpl.getSectionName(), elfLocSectionImpl.getElement(), 0, 0, false, false);
+        /*
+         * The byte[] for each implementation's content are created and written under
+         * getOrDecideContent. Doing that ensures that all dependent sections are filled in and then
+         * sized according to the declared dependencies. However, if we leave it at that then
+         * associated reloc sections only get created when the first reloc is inserted during
+         * content write that's too late for them to have layout constraints included in the layout
+         * decision set and causes an NPE during reloc section write. So we need to create the
+         * relevant reloc sections here in advance.
+         */
+        elfStrSectionImpl.getOrCreateRelocationElement(0);
+        elfAbbrevSectionImpl.getOrCreateRelocationElement(0);
+        frameSectionImpl.getOrCreateRelocationElement(0);
+        elfInfoSectionImpl.getOrCreateRelocationElement(0);
+        elfLocSectionImpl.getOrCreateRelocationElement(0);
+        elfARangesSectionImpl.getOrCreateRelocationElement(0);
+        elfLineSectionImpl.getOrCreateRelocationElement(0);
+        /* Ok now we can populate the debug info model. */
+        dwarfSections.installDebugInfo(debugInfoProvider);
+    }
+
+    @
