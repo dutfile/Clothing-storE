@@ -184,4 +184,195 @@ public class ELFObjectFile extends ObjectFile {
     @Override
     public Symbol createDefinedSymbol(String name, Element baseSection, long position, int size, boolean isCode, boolean isGlobal) {
         ELFSymtab symtab = createSymbolTable();
-        return symtab.newDefinedEntry(name, (Section) baseSection, position, size, isGloba
+        return symtab.newDefinedEntry(name, (Section) baseSection, position, size, isGlobal, isCode);
+    }
+
+    @Override
+    public Symbol createUndefinedSymbol(String name, int size, boolean isCode) {
+        ELFSymtab symtab = createSymbolTable();
+        return symtab.newUndefinedEntry(name, isCode);
+    }
+
+    @Override
+    protected Segment getOrCreateSegment(String maybeSegmentName, String sectionName, boolean writable, boolean executable) {
+        return null;
+    }
+
+    @Override
+    public ELFUserDefinedSection newUserDefinedSection(Segment segment, String name, int alignment, ElementImpl impl) {
+        ELFUserDefinedSection userDefined = new ELFUserDefinedSection(this, name, alignment, SectionType.PROGBITS, impl);
+        assert userDefined.getImpl() == impl;
+        if (segment != null) {
+            getOrCreateSegment(segment.getName(), name, true, false).add(userDefined);
+        }
+        if (impl != null) {
+            impl.setElement(userDefined);
+        }
+        return userDefined;
+    }
+
+    @Override
+    public ELFProgbitsSection newProgbitsSection(Segment segment, String name, int alignment, boolean writable, boolean executable, ProgbitsSectionImpl impl) {
+        EnumSet<ELFSectionFlag> flags = EnumSet.noneOf(ELFSectionFlag.class);
+        flags.add(ELFSectionFlag.ALLOC);
+        if (executable) {
+            flags.add(ELFSectionFlag.EXECINSTR);
+        }
+        if (writable) {
+            flags.add(ELFSectionFlag.WRITE);
+        }
+        ELFProgbitsSection progbits = new ELFProgbitsSection(this, name, alignment, impl, flags);
+        impl.setElement(progbits);
+        return progbits;
+    }
+
+    @Override
+    public ELFNobitsSection newNobitsSection(Segment segment, String name, NobitsSectionImpl impl) {
+        ELFNobitsSection nobits = new ELFNobitsSection(this, name, impl);
+        impl.setElement(nobits);
+        return nobits;
+    }
+
+    public ELFSection getSectionByIndex(int i) {
+        // if this cast fails, our sectionIndexToElementIndex logic is wrong
+        return (ELFSection) elements.get(elements.sectionIndexToElementIndex(i - 1));
+        // NOTE: two levels of translation here: ELF (1-based) shndx to section index (0-based) to
+        // element index
+    }
+
+    public int getIndexForSection(ELFSection s) {
+        return elements.elementIndexToSectionIndex(elements.indexOf(s)) + 1;
+    }
+
+    @Override
+    protected boolean elementsCanSharePage(Element s1, Element s2, int off1, int off2) {
+        assert s1 instanceof ELFSection;
+        assert s2 instanceof ELFSection;
+        ELFSection es1 = (ELFSection) s1;
+        ELFSection es2 = (ELFSection) s2;
+
+        boolean flagsCompatible = ELFSectionFlag.flagSetAsIfSegmentFlags(es1.getFlags()).equals(ELFSectionFlag.flagSetAsIfSegmentFlags(es2.getFlags()));
+
+        return flagsCompatible && super.elementsCanSharePage(es1, es2, off1, off2);
+    }
+
+    public abstract class ELFSection extends ObjectFile.Section {
+
+        final SectionType type;
+
+        EnumSet<ELFSectionFlag> flags;
+
+        public ELFSection(String name, SectionType type) {
+            this(name, type, EnumSet.noneOf(ELFSectionFlag.class));
+        }
+
+        public ELFSection(String name, SectionType type, EnumSet<ELFSectionFlag> flags) {
+            this(name, getWordSizeInBytes(), type, flags, -1);
+        }
+
+        /**
+         * Constructs an ELF section of given name, type, flags and section index.
+         *
+         * @param name the section name
+         * @param type the section type
+         * @param flags the section's flags
+         * @param sectionIndex the desired index in the ELF section header table
+         */
+        public ELFSection(String name, int alignment, SectionType type, EnumSet<ELFSectionFlag> flags, int sectionIndex) {
+            // ELF sections are aligned at least to a word boundary.
+            super(name, alignment, (sectionIndex == -1) ? -1 : elements.sectionIndexToElementIndex(sectionIndex - 1));
+            this.type = type;
+            this.flags = flags;
+        }
+
+        @Override
+        public ELFObjectFile getOwner() {
+            return ELFObjectFile.this;
+        }
+
+        public SectionType getType() {
+            return type;
+        }
+
+        @Override
+        public boolean isLoadable() {
+            /*
+             * NOTE the following distinction: whether a section is loadable is a property of the
+             * section (abstractly). (This is also why we we delegate to the impl.)
+             *
+             * Whether an ELF section is explicitly loaded is a property of the PHT contents. The
+             * code in ObjectFile WILL assign vaddrs for all loadable sections! So
+             * isExplicitlyLoaded is actually irrelevant.
+             */
+
+            // if we are our own impl, just go with what the flags say
+            if (getImpl() == this) {
+                return flags.contains(ELFSectionFlag.ALLOC);
+            }
+
+            // otherwise, the impl and flags should agree
+            boolean implIsLoadable = getImpl().isLoadable();
+            // our constructors and impl-setter are responsible for syncing flags with impl
+            assert implIsLoadable == flags.contains(ELFSectionFlag.ALLOC);
+
+            return implIsLoadable;
+        }
+
+        @Override
+        public boolean isReferenceable() {
+            if (getImpl() == this) {
+                return isLoadable();
+            }
+
+            return getImpl().isReferenceable();
+        }
+
+        /*
+         * NOTE that ELF has sh_link and sh_info for recording section links, but since these are
+         * specific to particular section types, we leave their representation to subclasses (i.e.
+         * an ELFSymtab has a reference to its strtab, etc.). We just define no-op getters which
+         * selected subclasses will overrode
+         */
+
+        public ELFSection getLinkedSection() {
+            return null;
+        }
+
+        public long getLinkedInfo() {
+            return 0;
+        }
+
+        public int getEntrySize() {
+            return 0; // means "does not hold a table of fixed-size entries"
+        }
+
+        public EnumSet<ELFSectionFlag> getFlags() {
+            return flags;
+        }
+
+        public void setFlags(EnumSet<ELFSectionFlag> flags) {
+            this.flags = flags;
+        }
+    }
+
+    /**
+     * ELF file type.
+     */
+    public enum ELFType {
+        NONE,
+        REL,
+        EXEC,
+        DYN,
+        CORE,
+        LOOS,
+        HIOS,
+        LOPROC,
+        HIPROC;
+
+        public short toShort() {
+            if (ordinal() < 5) {
+                return (short) ordinal();
+            } else {
+                // TODO: use explicit enum values
+                switch (this) {
+                    case L
