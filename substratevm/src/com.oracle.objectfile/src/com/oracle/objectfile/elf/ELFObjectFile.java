@@ -1220,4 +1220,9 @@ public class ELFObjectFile extends ObjectFile {
         dwarfSections.installDebugInfo(debugInfoProvider);
     }
 
-    @
+    @SuppressWarnings("unused")
+    static boolean useExplicitAddend(long addend) {
+        // For now, we are always using explicit addends
+        return true;
+    }
+}
