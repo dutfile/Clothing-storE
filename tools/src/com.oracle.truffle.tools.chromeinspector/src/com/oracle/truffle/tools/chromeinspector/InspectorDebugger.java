@@ -146,4 +146,178 @@ public final class InspectorDebugger extends DebuggerDomain {
             lock.lock();
             try {
                 startSession();
- 
+            } finally {
+                lock.unlock();
+            }
+            debuggerSession.suspendNextExecution();
+        }
+    }
+
+    private void startSession() {
+        Debugger tdbg = context.getEnv().lookup(context.getEnv().getInstruments().get("debugger"), Debugger.class);
+        suspendedCallback = new SuspendedCallbackImpl();
+        debuggerSession = tdbg.startSession(suspendedCallback, SourceElement.ROOT, SourceElement.STATEMENT);
+        debuggerSession.setSourcePath(context.getSourcePath());
+        debuggerSession.setSteppingFilter(SuspensionFilter.newBuilder().ignoreLanguageContextInitialization(!context.isInspectInitialization()).includeInternal(context.isInspectInternal()).build());
+        scriptsHandler = context.acquireScriptsHandler(debuggerSession);
+        breakpointsHandler = new BreakpointsHandler(debuggerSession, scriptsHandler, () -> eventHandler);
+    }
+
+    @Override
+    public void doEnable() {
+        if (debuggerSession == null) {
+            startSession();
+        }
+        scriptsHandler.addLoadScriptListener(new LoadScriptListenerImpl());
+    }
+
+    @Override
+    public void doDisable() {
+        assert debuggerSession != null;
+        scriptsHandler.setDebuggerSession(null);
+        debuggerSession.close();
+        debuggerSession = null;
+        suspendedCallback.dispose();
+        suspendedCallback = null;
+        context.releaseScriptsHandler();
+        scriptsHandler = null;
+        breakpointsHandler = null;
+        synchronized (suspendLock) {
+            if (!running) {
+                running = true;
+                suspendLock.notifyAll();
+            }
+        }
+    }
+
+    @Override
+    protected void notifyDisabled() {
+        // We might call startSession() in the constructor, without doEnable().
+        // That means that doDisable() might not have been called.
+        if (debuggerSession != null) {
+            doDisable();
+        }
+    }
+
+    @Override
+    public void setAsyncCallStackDepth(int maxDepth) throws CommandProcessException {
+        if (maxDepth >= 0) {
+            debuggerSession.setAsynchronousStackDepth(maxDepth);
+        } else {
+            throw new CommandProcessException("Invalid async call stack depth: " + maxDepth);
+        }
+    }
+
+    @Override
+    public void setBlackboxPatterns(String[] patterns) {
+        final Pattern[] compiledPatterns = new Pattern[patterns.length];
+        for (int i = 0; i < patterns.length; i++) {
+            compiledPatterns[i] = Pattern.compile(patterns[i]);
+        }
+        debuggerSession.setSteppingFilter(SuspensionFilter.newBuilder().ignoreLanguageContextInitialization(!context.isInspectInitialization()).includeInternal(context.isInspectInternal()).sourceIs(
+                        source -> !sourceMatchesBlackboxPatterns(source, compiledPatterns)).build());
+    }
+
+    @Override
+    public void setPauseOnExceptions(String state) throws CommandProcessException {
+        switch (state) {
+            case "none":
+                breakpointsHandler.setExceptionBreakpoint(false, false);
+                break;
+            case "uncaught":
+                breakpointsHandler.setExceptionBreakpoint(false, true);
+                break;
+            case "all":
+                breakpointsHandler.setExceptionBreakpoint(true, true);
+                break;
+            default:
+                throw new CommandProcessException("Unknown Pause on exceptions mode: " + state);
+        }
+
+    }
+
+    @Override
+    public Params getPossibleBreakpoints(Location start, Location end, boolean restrictToFunction) throws CommandProcessException {
+        if (start == null) {
+            throw new CommandProcessException("Start location required.");
+        }
+        int scriptId = start.getScriptId();
+        if (end != null && scriptId != end.getScriptId()) {
+            throw new CommandProcessException("Different location scripts: " + scriptId + ", " + end.getScriptId());
+        }
+        Script script = scriptsHandler.getScript(scriptId);
+        if (script == null) {
+            throw new CommandProcessException("Unknown scriptId: " + scriptId);
+        }
+        JSONObject json = new JSONObject();
+        JSONArray arr = new JSONArray();
+        Source source = script.getSourceLoaded();
+        if (source.hasCharacters() && source.getLength() > 0) {
+            int lc = source.getLineCount();
+            int l1 = start.getLine();
+            int c1 = start.getColumn();
+            if (c1 <= 0) {
+                c1 = 1;
+            }
+            if (l1 > lc) {
+                l1 = lc;
+                c1 = source.getLineLength(l1);
+            }
+            int l2;
+            int c2;
+            if (end != null) {
+                l2 = end.getLine();
+                c2 = end.getColumn();
+                // The end should be exclusive, but not all clients adhere to that.
+                if (l1 != l2 || c1 != c2) {
+                    // Only when start != end consider end as exclusive:
+                    if (l2 > lc) {
+                        l2 = lc;
+                        c2 = source.getLineLength(l2);
+                    } else {
+                        if (c2 <= 1) {
+                            l2 = l2 - 1;
+                            if (l2 <= 0) {
+                                l2 = 1;
+                            }
+                            c2 = source.getLineLength(l2);
+                        } else {
+                            c2 = c2 - 1;
+                        }
+                    }
+                    if (l1 > l2) {
+                        l1 = l2;
+                    }
+                }
+            } else {
+                l2 = l1;
+                c2 = source.getLineLength(l2);
+            }
+            if (c2 == 0) {
+                c2 = 1; // 1-based column on zero-length line
+            }
+            if (l1 == l2 && c2 < c1) {
+                c1 = c2;
+            }
+            SourceSection range = source.createSection(l1, c1, l2, c2);
+            Iterable<SourceSection> locations = SuspendableLocationFinder.findSuspendableLocations(range, restrictToFunction, debuggerSession, context.getEnv());
+            for (SourceSection ss : locations) {
+                arr.put(new Location(scriptId, ss.getStartLine(), ss.getStartColumn()).toJSON());
+            }
+        }
+        json.put("locations", arr);
+        return new Params(json);
+    }
+
+    @Override
+    public Params getScriptSource(String scriptId) throws CommandProcessException {
+        if (scriptId == null) {
+            throw new CommandProcessException("A scriptId required.");
+        }
+        CharSequence characters = getScript(scriptId).getCharacters();
+        JSONObject json = new JSONObject();
+        json.put("scriptSource", characters.toString());
+        return new Params(json);
+    }
+
+    private 
