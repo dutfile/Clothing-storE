@@ -583,4 +583,182 @@ public class ELFObjectFile extends ObjectFile {
             }
         }
 
-        public ELFHeader(String n
+        public ELFHeader(String name) { // create an "empty" default ELF header
+            this(name, 0);
+        }
+
+        public ELFHeader(String name, int processorFlags) { // create an "empty" default ELF header
+            super(name);
+            ELFObjectFile.this.version = 1;
+            ELFObjectFile.this.processorFlags = processorFlags;
+        }
+
+        @Override
+        public Iterable<BuildDependency> getDependencies(Map<Element, LayoutDecisionMap> decisions) {
+            // our content depends on the section header table size and offset,
+            // and, if present, the program header table size and offset
+
+            // We don't use the default dependencies, because our offset mustn't depend on anything.
+            // Also, our size MUST NOT depend on our content, because other offsets in the file
+            // (e.g. SHT, PHT) must be decided before content, and we need to give a size so that
+            // that nextAvailableOffset remains defined.
+            // So, our size comes first.
+            HashSet<BuildDependency> dependencies = new HashSet<>();
+
+            LayoutDecision ourContent = decisions.get(this).getDecision(LayoutDecision.Kind.CONTENT);
+            LayoutDecision ourOffset = decisions.get(this).getDecision(LayoutDecision.Kind.OFFSET);
+            LayoutDecision ourSize = decisions.get(this).getDecision(LayoutDecision.Kind.SIZE);
+
+            LayoutDecision shtSize = decisions.get(sht).getDecision(LayoutDecision.Kind.SIZE);
+            LayoutDecision shtOffset = decisions.get(sht).getDecision(LayoutDecision.Kind.OFFSET);
+
+            // Mark that our offset depends on our size.
+            dependencies.add(BuildDependency.createOrGet(ourOffset, ourSize));
+            dependencies.add(BuildDependency.createOrGet(ourContent, shtSize));
+            dependencies.add(BuildDependency.createOrGet(ourContent, shtOffset));
+
+            return dependencies;
+        }
+
+        @Override
+        public byte[] getOrDecideContent(Map<Element, LayoutDecisionMap> alreadyDecided, byte[] contentHint) {
+            // we serialize ourselves by writing a Struct to a bytebuffer
+            OutputAssembler oa = AssemblyBuffer.createOutputAssembler(getDataEncoding().toByteOrder());
+            /* Also creates ident struct, which we need to populate. */
+            Struct contents = new Struct(getType(), getMachine());
+
+            // don't assign magic -- its default value is correct
+            contents.ident.fileClass = getFileClass();
+            contents.ident.dataEncoding = getDataEncoding();
+            contents.ident.version = getVersion();
+            contents.ident.osabi = getOsAbi();
+            contents.ident.abiVersion = (char) getAbiVersion();
+            contents.version = getVersion();
+            contents.entry = 0;
+            contents.shoff = (int) alreadyDecided.get(sht).getDecidedValue(LayoutDecision.Kind.OFFSET);
+            contents.flags = (int) getFlags();
+            // NOTE: header size depends on ident contents (32/64)
+            contents.ehsize = (short) contents.getWrittenSize();
+            contents.shentsize = (short) (new SectionHeaderEntryStruct()).getWrittenSize();
+            int shtSize = (int) alreadyDecided.get(sht).getDecidedValue(LayoutDecision.Kind.SIZE);
+            assert shtSize % contents.shentsize == 0;
+            contents.shnum = (short) (shtSize / contents.shentsize);
+            // how to deduce index of shstrtab in the SHT? it's
+            // the position of shstrtab in getSections(), starting from 1
+            // because SHT has a null entry in the first position
+            Iterator<?> i = getSections().iterator();
+            short index = 1;
+            boolean sawShStrTab = false;
+            for (; i.hasNext(); ++index) {
+                if (i.next() == ELFObjectFile.this.shstrtab) {
+                    sawShStrTab = true;
+                    break;
+                }
+            }
+            contents.shstrndx = sawShStrTab ? index : 0;
+            contents.write(oa);
+
+            if (contentHint != null) {
+                // FIXME: (for roundtripping) now we've written our own content,
+                // if we were passed a hint,
+                // check it's equal (verbatim) to the hint content
+            }
+            return oa.getBlob();
+        }
+
+        @Override
+        public int getOrDecideOffset(Map<Element, LayoutDecisionMap> alreadyDecided, int offsetHint) {
+            return 0; // we're always at 0
+        }
+
+        @Override
+        public int getOrDecideSize(Map<Element, LayoutDecisionMap> alreadyDecided, int sizeHint) {
+            int size = (new Struct(getType(), getMachine())).getWrittenSize();
+            assert sizeHint == -1 || sizeHint == size;
+            return size;
+        }
+
+        public short getShNum() {
+            return (short) ELFObjectFile.this.elements.sectionsCount();
+        }
+
+        public ELFType getType() {
+            return ELFType.REL;
+        }
+    }
+
+    /**
+     * ELF section type.
+     */
+    public enum SectionType {
+        NULL,
+        PROGBITS,
+        SYMTAB,
+        STRTAB,
+        RELA,
+        HASH,
+        DYNAMIC,
+        NOTE,
+        NOBITS,
+        REL,
+        SHLIB,
+        DYNSYM,
+        LOOS,
+        HIOS,
+        LOPROC,
+        HIPROC;
+
+        public int toInt() {
+            if (ordinal() < 12) {
+                return ordinal();
+            } else {
+                switch (this) {
+                    case LOOS:
+                        return 0x60000000;
+                    case HIOS:
+                        return 0x6fffffff;
+                    case LOPROC:
+                        return 0x70000000;
+                    case HIPROC:
+                        return 0x7fffffff;
+                }
+            }
+            throw new IllegalStateException("should not reach here");
+        }
+    }
+
+    public enum SegmentType {
+        NULL,
+        LOAD,
+        DYNAMIC,
+        INTERP,
+        NOTE,
+        SHLIB,
+        PHDR,
+        TLS,
+        NUM;
+    }
+
+    public enum ELFSectionFlag implements ValueEnum {
+        WRITE(0x01),
+        ALLOC(0x2),
+        EXECINSTR(0x4),
+        MASKPROC(0xf0000000);
+
+        private final int value;
+
+        ELFSectionFlag(int value) {
+            this.value = value;
+        }
+
+        @Override
+        public long value() {
+            return value;
+        }
+
+        public static EnumSet<ELFSegmentFlag> flagSetAsIfSegmentFlags(EnumSet<ELFSectionFlag> flags) {
+            EnumSet<ELFSegmentFlag> out = EnumSet.of(ELFSegmentFlag.R);
+            if (flags.contains(ELFSectionFlag.WRITE)) {
+                out.add(ELFSegmentFlag.W);
+            }
+            if (flags.contains(ELFSectionFlag.EXE
