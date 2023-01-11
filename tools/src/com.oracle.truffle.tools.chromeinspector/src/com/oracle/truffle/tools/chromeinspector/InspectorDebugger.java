@@ -320,4 +320,166 @@ public final class InspectorDebugger extends DebuggerDomain {
         return new Params(json);
     }
 
-    private 
+    private Script getScript(String scriptId) throws CommandProcessException {
+        Script script;
+        try {
+            script = scriptsHandler.getScript(Integer.parseInt(scriptId));
+            if (script == null) {
+                throw new CommandProcessException("Unknown scriptId: " + scriptId);
+            }
+        } catch (NumberFormatException nfe) {
+            throw new CommandProcessException(nfe.getMessage());
+        }
+        return script;
+    }
+
+    @Override
+    public void pause() {
+        DebuggerSuspendedInfo susp = suspendedInfo;
+        if (susp == null) {
+            debuggerSession.suspendNextExecution();
+        }
+    }
+
+    @Override
+    public void resume(CommandPostProcessor postProcessor) {
+        DebuggerSuspendedInfo susp = suspendedInfo;
+        if (susp != null) {
+            postProcessor.setPostProcessJob(() -> doResume());
+        }
+    }
+
+    @Override
+    public void stepInto(CommandPostProcessor postProcessor) {
+        DebuggerSuspendedInfo susp = suspendedInfo;
+        if (susp != null) {
+            susp.getSuspendedEvent().prepareStepInto(STEP_CONFIG);
+            delayUnlock.set(true);
+            postProcessor.setPostProcessJob(() -> doResume());
+        }
+    }
+
+    @Override
+    public void stepOver(CommandPostProcessor postProcessor) {
+        DebuggerSuspendedInfo susp = suspendedInfo;
+        if (susp != null) {
+            susp.getSuspendedEvent().prepareStepOver(STEP_CONFIG);
+            delayUnlock.set(true);
+            postProcessor.setPostProcessJob(() -> doResume());
+        }
+    }
+
+    @Override
+    public void stepOut(CommandPostProcessor postProcessor) {
+        DebuggerSuspendedInfo susp = suspendedInfo;
+        if (susp != null) {
+            susp.getSuspendedEvent().prepareStepOut(STEP_CONFIG);
+            delayUnlock.set(true);
+            postProcessor.setPostProcessJob(() -> doResume());
+        }
+    }
+
+    private void doResume() {
+        synchronized (suspendLock) {
+            if (!running) {
+                running = true;
+                suspendLock.notifyAll();
+            }
+        }
+        // Wait for onSuspend() to finish
+        try {
+            onSuspendPhaser.awaitAdvanceInterruptibly(0);
+        } catch (InterruptedException ex) {
+        }
+    }
+
+    private CallFrame[] createCallFrames(Iterable<DebugStackFrame> frames, SuspendAnchor topAnchor, DebugValue returnValue) {
+        return createCallFrames(frames, topAnchor, returnValue, null);
+    }
+
+    CallFrame[] refreshCallFrames(Iterable<DebugStackFrame> frames, SuspendAnchor topAnchor, CallFrame[] oldFrames) {
+        DebugValue returnValue = null;
+        if (oldFrames.length > 0 && oldFrames[0].getReturnValue() != null) {
+            returnValue = oldFrames[0].getReturnValue().getDebugValue();
+        }
+        return createCallFrames(frames, topAnchor, returnValue, oldFrames);
+    }
+
+    private CallFrame[] createCallFrames(Iterable<DebugStackFrame> frames, SuspendAnchor topAnchor, DebugValue returnValue, CallFrame[] oldFrames) {
+        List<CallFrame> cfs = new ArrayList<>();
+        int depth = 0;
+        int depthAll = -1;
+        if (scriptsHandler == null || debuggerSession == null) {
+            return new CallFrame[0];
+        }
+        for (DebugStackFrame frame : frames) {
+            depthAll++;
+            SourceSection sourceSection = frame.getSourceSection();
+            if (sourceSection == null || !sourceSection.isAvailable()) {
+                continue;
+            }
+            if (!context.isInspectInternal() && frame.isInternal()) {
+                continue;
+            }
+            Source source = sourceSection.getSource();
+            if (!context.isInspectInternal() && source.isInternal()) {
+                // should not be, double-check
+                continue;
+            }
+            Script script = scriptsHandler.assureLoaded(source);
+            List<Scope> scopes = new ArrayList<>();
+            DebugScope dscope;
+            try {
+                dscope = frame.getScope();
+            } catch (DebugException ex) {
+                PrintWriter err = context.getErr();
+                if (err != null) {
+                    err.println("getScope() has caused " + ex);
+                    ex.printStackTrace(err);
+                }
+                dscope = null;
+            }
+            String scopeType = "block";
+            boolean wasFunction = false;
+            SourceSection functionSourceSection = null;
+            if (dscope == null) {
+                functionSourceSection = sourceSection;
+            }
+            Scope[] oldScopes;
+            if (oldFrames != null && oldFrames.length > depth) {
+                oldScopes = oldFrames[depth].getScopeChain();
+            } else {
+                oldScopes = null;
+            }
+            List<DebugValue> receivers = new ArrayList<>();
+            int thisIndex = -1;  // index of "this" receiver in `receivers` array
+            int scopeIndex = 0;  // index of language implementation scope
+            TriState isJS = TriState.UNDEFINED;
+            while (dscope != null) {
+                if (wasFunction) {
+                    scopeType = "closure";
+                } else if (dscope.isFunctionScope()) {
+                    scopeType = "local";
+                    functionSourceSection = dscope.getSourceSection();
+                    wasFunction = true;
+                }
+                boolean scopeAdded = addScope(scopes, dscope, scopeType, scopeIndex, oldScopes);
+                if (scopeAdded) {
+                    DebugValue receiver = dscope.getReceiver();
+                    receivers.add(receiver);
+                    if (receiver != null) {
+                        if (thisIndex == -1 && "this".equals(receiver.getName())) {
+                            // There is one receiver named "this".
+                            thisIndex = scopes.size() - 1;
+                        } else {
+                            // There are multiple receivers, or the receiver is not named as "this"
+                            // Unless we're in JavaScript, we'll not provide frame's "this",
+                            // we'll add the receiver(s) to scope variables instead.
+                            if (TriState.UNDEFINED == isJS) {
+                                isJS = TriState.valueOf(LanguageChecks.isJS(receiver.getOriginalLanguage()));
+                            }
+                            // JavaScript needs to provide frame's "this",
+                            // therefore we need to keep the index for JS.
+                            if (TriState.FALSE == isJS) {
+                                thisIndex = -2;
+                            }
