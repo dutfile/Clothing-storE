@@ -643,4 +643,149 @@ public final class InspectorDebugger extends DebuggerDomain {
         if (functionObject != null) {
             DebugValue functionValue = functionObject.getDebugValue();
             try {
-                return context.executeInSuspendThread(new Su
+                return context.executeInSuspendThread(new SuspendThreadExecutable<Params>() {
+                    @Override
+                    public Params executeCommand() throws CommandProcessException {
+                        return breakpointsHandler.createFunctionBreakpoint(functionValue, condition);
+                    }
+
+                    @Override
+                    public Params processException(DebugException dex) {
+                        return new Params(new JSONObject());
+                    }
+                });
+            } catch (NoSuspendedThreadException e) {
+                return new Params(new JSONObject());
+            }
+        } else {
+            throw new CommandProcessException("Function with object ID " + functionObjectId + " does not exist.");
+        }
+    }
+
+    @Override
+    public void removeBreakpoint(String id) throws CommandProcessException {
+        if (!breakpointsHandler.removeBreakpoint(id)) {
+            throw new CommandProcessException("No breakpoint with id '" + id + "'");
+        }
+    }
+
+    @Override
+    public void continueToLocation(Location location, CommandPostProcessor postProcessor) throws CommandProcessException {
+        if (location == null) {
+            throw new CommandProcessException("Must specify location.");
+        }
+        breakpointsHandler.createOneShotBreakpoint(location);
+        resume(postProcessor);
+    }
+
+    static String getEvalNonInteractiveMessage() {
+        return "<Can not evaluate in a non-interactive language>";
+    }
+
+    @Override
+    public Params evaluateOnCallFrame(String callFrameId, String expressionOrig, String objectGroup,
+                    boolean includeCommandLineAPI, boolean silent, boolean returnByValue,
+                    boolean generatePreview, boolean throwOnSideEffect) throws CommandProcessException {
+        if (callFrameId == null) {
+            throw new CommandProcessException("A callFrameId required.");
+        }
+        if (expressionOrig == null) {
+            throw new CommandProcessException("An expression required.");
+        }
+        int frameId;
+        try {
+            frameId = Integer.parseInt(callFrameId);
+        } catch (NumberFormatException ex) {
+            throw new CommandProcessException(ex.getLocalizedMessage());
+        }
+        ConsoleUtilitiesAPI cuAPI;
+        if (includeCommandLineAPI) {
+            cuAPI = ConsoleUtilitiesAPI.parse(expressionOrig);
+        } else {
+            cuAPI = null;
+        }
+        final String expression;
+        if (cuAPI != null) {
+            expression = cuAPI.getExpression();
+        } else {
+            expression = expressionOrig;
+        }
+        JSONObject jsonResult;
+        try {
+            jsonResult = context.executeInSuspendThread(new SuspendThreadExecutable<JSONObject>() {
+                @Override
+                public JSONObject executeCommand() throws CommandProcessException {
+                    if (frameId >= suspendedInfo.getCallFrames().length) {
+                        throw new CommandProcessException("Too big callFrameId: " + frameId);
+                    }
+                    CallFrame cf = suspendedInfo.getCallFrames()[frameId];
+                    JSONObject json = new JSONObject();
+                    if (runSpecialFunctions(expression, cf, json)) {
+                        return json;
+                    }
+                    DebugValue value = getVarValue(expression, cf);
+                    if (value == null) {
+                        try {
+                            value = cf.getFrame().eval(expression);
+                            suspendedInfo.refreshFrames();
+                        } catch (IllegalStateException ex) {
+                            // Not an interactive language
+                        }
+                    }
+                    if (value == null) {
+                        LanguageInfo languageInfo = cf.getFrame().getLanguage();
+                        if (languageInfo == null || !languageInfo.isInteractive()) {
+                            String errorMessage = getEvalNonInteractiveMessage();
+                            ExceptionDetails exceptionDetails = new ExceptionDetails(errorMessage);
+                            json.put("exceptionDetails", exceptionDetails.createJSON(context));
+                            JSONObject err = new JSONObject();
+                            err.putOpt("value", errorMessage);
+                            err.putOpt("type", "string");
+                            json.put("result", err);
+                        }
+                    }
+                    if (value != null) {
+                        if (cuAPI != null) {
+                            value = cuAPI.process(value, breakpointsHandler);
+                            if (value == null) {
+                                return json;
+                            }
+                        }
+                        RemoteObject ro = new RemoteObject(value, generatePreview, context);
+                        context.getRemoteObjectsHandler().register(ro, objectGroup);
+                        json.put("result", ro.toJSON());
+                    }
+                    return json;
+                }
+
+                @Override
+                public JSONObject processException(DebugException dex) {
+                    JSONObject json = new JSONObject();
+                    InspectorRuntime.fillExceptionDetails(json, dex, context);
+                    DebugValue exceptionObject = dex.getExceptionObject();
+                    if (exceptionObject != null) {
+                        RemoteObject ro = context.createAndRegister(exceptionObject, generatePreview);
+                        json.put("result", ro.toJSON());
+                    } else {
+                        JSONObject err = new JSONObject();
+                        err.putOpt("value", dex.getLocalizedMessage());
+                        err.putOpt("type", "string");
+                        json.put("result", err);
+                    }
+                    return json;
+                }
+            });
+        } catch (NoSuspendedThreadException e) {
+            jsonResult = new JSONObject();
+            JSONObject err = new JSONObject();
+            err.putOpt("value", e.getLocalizedMessage());
+            jsonResult.put("result", err);
+        }
+        return new Params(jsonResult);
+    }
+
+    private boolean runSpecialFunctions(String expression, CallFrame cf, JSONObject json) {
+        // Test whether code-completion on an object was requested:
+        Matcher completionMatcher = FUNCTION_COMPLETION_PATTERN.matcher(expression);
+        if (completionMatcher.matches()) {
+            String objectOfCompletion = completi
