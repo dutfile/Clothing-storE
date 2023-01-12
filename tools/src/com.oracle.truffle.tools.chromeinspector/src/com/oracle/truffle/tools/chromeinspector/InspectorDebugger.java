@@ -788,4 +788,157 @@ public final class InspectorDebugger extends DebuggerDomain {
         // Test whether code-completion on an object was requested:
         Matcher completionMatcher = FUNCTION_COMPLETION_PATTERN.matcher(expression);
         if (completionMatcher.matches()) {
-            String objectOfCompletion = completi
+            String objectOfCompletion = completionMatcher.group("object");
+            DebugValue value = getVarValue(objectOfCompletion, cf);
+            if (value == null) {
+                try {
+                    value = cf.getFrame().eval(objectOfCompletion);
+                } catch (IllegalStateException ex) {
+                    // Not an interactive language
+                }
+            }
+            if (value != null) {
+                JSONObject result = InspectorRuntime.createCodecompletion(value, null, context, false);
+                json.put("result", result);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Get value of variable "name", if any. */
+    static DebugValue getVarValue(String name, CallFrame cf) {
+        for (Scope scope : cf.getScopeChain()) {
+            DebugScope debugScope = scope.getObject().getScope();
+            DebugValue var = debugScope.getDeclaredValue(name);
+            if (var != null) {
+                return var;
+            }
+            DebugValue receiver = debugScope.getReceiver();
+            if (receiver != null && name.equals(receiver.getName())) {
+                return receiver;
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public Params restartFrame(long cmdId, String callFrameId, CommandPostProcessor postProcessor) throws CommandProcessException {
+        if (callFrameId == null) {
+            throw new CommandProcessException("A callFrameId required.");
+        }
+        int frameId;
+        try {
+            frameId = Integer.parseInt(callFrameId);
+        } catch (NumberFormatException ex) {
+            throw new CommandProcessException(ex.getLocalizedMessage());
+        }
+        DebuggerSuspendedInfo susp = suspendedInfo;
+        if (susp != null) {
+            if (frameId >= susp.getCallFrames().length) {
+                throw new CommandProcessException("Too big callFrameId: " + frameId);
+            }
+            CallFrame cf = susp.getCallFrames()[frameId];
+            susp.getSuspendedEvent().prepareUnwindFrame(cf.getFrame());
+            postProcessor.setPostProcessJob(() -> {
+                silentResume = true;
+                commandLazyResponse = (DebuggerSuspendedInfo suspInfo) -> {
+                    JSONObject res = new JSONObject();
+                    res.put("callFrames", getFramesParam(suspInfo.getCallFrames()));
+                    return new Event(cmdId, new Result(new Params(res)));
+                };
+                runningUnwind = true;
+                doResume();
+            });
+        }
+        return new Params(null);
+    }
+
+    @Override
+    public void setVariableValue(int scopeNumber, String variableName, CallArgument newValue, String callFrameId) throws CommandProcessException {
+        if (variableName == null) {
+            throw new CommandProcessException("A variableName required.");
+        }
+        if (newValue == null) {
+            throw new CommandProcessException("A newValue required.");
+        }
+        if (callFrameId == null) {
+            throw new CommandProcessException("A callFrameId required.");
+        }
+        int frameId;
+        try {
+            frameId = Integer.parseInt(callFrameId);
+        } catch (NumberFormatException ex) {
+            throw new CommandProcessException(ex.getLocalizedMessage());
+        }
+        try {
+            context.executeInSuspendThread(new SuspendThreadExecutable<Void>() {
+                @Override
+                public Void executeCommand() throws CommandProcessException {
+                    DebuggerSuspendedInfo susp = suspendedInfo;
+                    if (susp != null) {
+                        if (frameId >= susp.getCallFrames().length) {
+                            throw new CommandProcessException("Too big callFrameId: " + frameId);
+                        }
+                        CallFrame cf = susp.getCallFrames()[frameId];
+                        Scope[] scopeChain = cf.getScopeChain();
+                        if (scopeNumber < 0 || scopeNumber >= scopeChain.length) {
+                            throw new CommandProcessException("Wrong scopeNumber: " + scopeNumber + ", there are " + scopeChain.length + " scopes.");
+                        }
+                        Scope scope = scopeChain[scopeNumber];
+                        DebugScope debugScope = scope.getObject().getScope();
+                        DebugValue debugValue = debugScope.getDeclaredValue(variableName);
+                        Pair<DebugValue, Object> evaluatedValue = susp.lastEvaluatedValue.getAndSet(null);
+                        try {
+                            if (evaluatedValue != null && Objects.equals(evaluatedValue.getRight(), newValue.getPrimitiveValue())) {
+                                debugValue.set(evaluatedValue.getLeft());
+                            } else {
+                                context.setValue(debugValue, newValue);
+                            }
+                        } catch (DebugException ex) {
+                            PrintWriter err = context.getErr();
+                            if (err != null) {
+                                err.println("set of " + debugValue.getName() + " has caused " + ex);
+                                ex.printStackTrace(err);
+                            }
+                            throw ex;
+                        }
+                    }
+                    return null;
+                }
+
+                @Override
+                public Void processException(DebugException dex) {
+                    return null;
+                }
+            });
+        } catch (NoSuspendedThreadException ex) {
+            throw new CommandProcessException(ex.getLocalizedMessage());
+        }
+    }
+
+    @Override
+    public void setReturnValue(CallArgument newValue) throws CommandProcessException {
+        if (newValue == null) {
+            throw new CommandProcessException("A newValue required.");
+        }
+        try {
+            context.executeInSuspendThread(new SuspendThreadExecutable<Void>() {
+                @Override
+                public Void executeCommand() throws CommandProcessException {
+                    DebuggerSuspendedInfo susp = suspendedInfo;
+                    if (susp != null) {
+                        SuspendedEvent suspendedEvent = susp.getSuspendedEvent();
+                        DebugValue returnValue = context.getDebugValue(newValue, suspendedEvent.getSession());
+                        susp.getSuspendedEvent().setReturnValue(returnValue);
+                    }
+                    return null;
+                }
+
+                @Override
+                public Void processException(DebugException dex) {
+                    return null;
+                }
+            });
+        } catch (NoSuspendedThreadException ex) {
+            throw 
