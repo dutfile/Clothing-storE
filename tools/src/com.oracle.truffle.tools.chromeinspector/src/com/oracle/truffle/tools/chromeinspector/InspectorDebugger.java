@@ -483,3 +483,164 @@ public final class InspectorDebugger extends DebuggerDomain {
                             if (TriState.FALSE == isJS) {
                                 thisIndex = -2;
                             }
+                        }
+
+                    }
+                }
+                dscope = getParent(dscope);
+                scopeIndex++;
+            }
+            try {
+                dscope = debuggerSession.getTopScope(source.getLanguage());
+            } catch (DebugException ex) {
+                PrintWriter err = context.getErr();
+                if (err != null) {
+                    err.println("getTopScope() has caused " + ex);
+                    ex.printStackTrace(err);
+                }
+            }
+            while (dscope != null) {
+                addScope(scopes, dscope, "global", scopeIndex, oldScopes);
+                dscope = getParent(dscope);
+                scopeIndex++;
+            }
+            RemoteObject returnObj = null;
+            if (depthAll == 0 && returnValue != null) {
+                returnObj = context.getRemoteObjectsHandler().getRemote(returnValue);
+            }
+            RemoteObject thisObj;
+            if (thisIndex < -1) {
+                for (int i = 0; i < receivers.size(); i++) {
+                    DebugValue receiver = receivers.get(i);
+                    if (receiver != null) {
+                        scopes.get(i).getObject().setScopeReceiver(receiver);
+                    }
+                }
+                thisObj = null;
+            } else if (thisIndex == -1) {
+                // no added scope, no receiver
+                thisObj = null;
+            } else {
+                thisObj = context.getRemoteObjectsHandler().getRemote(receivers.get(thisIndex));
+            }
+            SuspendAnchor anchor = (depthAll == 0) ? topAnchor : SuspendAnchor.BEFORE;
+            CallFrame cf = new CallFrame(frame, depth++, script, sourceSection, anchor, functionSourceSection,
+                            thisObj, returnObj, scopes.toArray(new Scope[scopes.size()]));
+            cfs.add(cf);
+        }
+        return cfs.toArray(new CallFrame[cfs.size()]);
+    }
+
+    private boolean addScope(List<Scope> scopes, DebugScope dscope, String scopeType, int scopeIndex, Scope[] oldScopes) {
+        if (dscope.isFunctionScope() || dscope.getDeclaredValues().iterator().hasNext()) {
+            // provide only scopes that have some variables
+            String lastId = getLastScopeId(oldScopes, scopeIndex);
+            // Create the new scope with the ID of the old one to refresh the content
+            scopes.add(createScope(scopeType, dscope, scopeIndex, lastId));
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    private static String getLastScopeId(Scope[] oldScopes, int scopeIndex) {
+        if (oldScopes != null) {
+            for (Scope scope : oldScopes) {
+                if (scope.getInternalIndex() == scopeIndex) {
+                    return scope.getObject().getId();
+                }
+            }
+        }
+        return null;
+    }
+
+    private Scope createScope(String scopeType, DebugScope dscope, int index, String lastId) {
+        RemoteObject scopeVars = new RemoteObject(dscope, lastId);
+        context.getRemoteObjectsHandler().register(scopeVars);
+        return new Scope(scopeType, scopeVars, dscope.getName(), null, null, index);
+    }
+
+    private DebugScope getParent(DebugScope dscope) {
+        DebugScope parentScope;
+        try {
+            parentScope = dscope.getParent();
+        } catch (DebugException ex) {
+            PrintWriter err = context.getErr();
+            if (err != null) {
+                err.println("Scope.getParent() has caused " + ex);
+                ex.printStackTrace(err);
+            }
+            parentScope = null;
+        }
+        return parentScope;
+    }
+
+    @Override
+    public Params searchInContent(String scriptId, String query, boolean caseSensitive, boolean isRegex) throws CommandProcessException {
+        if (scriptId.isEmpty() || query.isEmpty()) {
+            throw new CommandProcessException("Must specify both scriptId and query.");
+        }
+        Source source = getScript(scriptId).getSource();
+        JSONArray matchLines;
+        try {
+            matchLines = LineSearch.matchLines(source, query, caseSensitive, isRegex);
+        } catch (PatternSyntaxException ex) {
+            throw new CommandProcessException(ex.getDescription());
+        }
+        JSONObject match = new JSONObject();
+        match.put("properties", matchLines);
+        return new Params(match);
+    }
+
+    @Override
+    public void setBreakpointsActive(Optional<Boolean> active) throws CommandProcessException {
+        if (!active.isPresent()) {
+            throw new CommandProcessException("Must specify active argument.");
+        }
+        debuggerSession.setBreakpointsActive(Breakpoint.Kind.SOURCE_LOCATION, active.get());
+    }
+
+    @Override
+    public void setSkipAllPauses(Optional<Boolean> skip) throws CommandProcessException {
+        if (!skip.isPresent()) {
+            throw new CommandProcessException("Must specify 'skip' argument.");
+        }
+        boolean active = !skip.get();
+        for (Breakpoint.Kind kind : Breakpoint.Kind.values()) {
+            debuggerSession.setBreakpointsActive(kind, active);
+        }
+    }
+
+    @Override
+    public Params setBreakpointByUrl(String url, String urlRegex, int line, int column, String condition) throws CommandProcessException {
+        if (url.isEmpty() && urlRegex.isEmpty()) {
+            throw new CommandProcessException("Must specify either url or urlRegex.");
+        }
+        if (line <= 0) {
+            throw new CommandProcessException("Must specify line number.");
+        }
+        if (!url.isEmpty()) {
+            return breakpointsHandler.createURLBreakpoint(url, line, column, condition);
+        } else {
+            return breakpointsHandler.createURLBreakpoint(Pattern.compile(urlRegex), line, column, condition);
+        }
+    }
+
+    @Override
+    public Params setBreakpoint(Location location, String condition) throws CommandProcessException {
+        if (location == null) {
+            throw new CommandProcessException("Must specify location.");
+        }
+        return breakpointsHandler.createBreakpoint(location, condition);
+    }
+
+    @Override
+    public Params setBreakpointOnFunctionCall(String functionObjectId, String condition) throws CommandProcessException {
+        if (functionObjectId == null) {
+            throw new CommandProcessException("Must specify function object ID.");
+        }
+        RemoteObject functionObject = context.getRemoteObjectsHandler().getRemote(functionObjectId);
+        if (functionObject != null) {
+            DebugValue functionValue = functionObject.getDebugValue();
+            try {
+                return context.executeInSuspendThread(new Su
