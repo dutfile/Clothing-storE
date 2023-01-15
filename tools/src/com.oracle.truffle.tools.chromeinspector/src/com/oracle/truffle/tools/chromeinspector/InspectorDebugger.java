@@ -941,4 +941,155 @@ public final class InspectorDebugger extends DebuggerDomain {
                 }
             });
         } catch (NoSuspendedThreadException ex) {
-            throw 
+            throw new CommandProcessException(ex.getLocalizedMessage());
+        }
+    }
+
+    public boolean sourceMatchesBlackboxPatterns(Source source, Pattern[] patterns) {
+        String uri = scriptsHandler.getSourceURL(source);
+        for (Pattern pattern : patterns) {
+            // Check whether pattern corresponds to:
+            // 1) the name of a file
+            if (pattern.pattern().equals(source.getName())) {
+                return true;
+            }
+            // 2) regular expression to target
+            Matcher matcher = pattern.matcher(uri);
+            if (matcher.matches() || pattern.pattern().endsWith("$") && matcher.find()) {
+                return true;
+            }
+            // 3) an entire folder that contains scripts to blackbox
+            String path = source.getPath();
+            int idx = path != null ? path.lastIndexOf(File.separatorChar) : -1;
+            if (idx > 0) {
+                path = path.substring(0, idx);
+                if (path.endsWith(File.separator + pattern.pattern())) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private class LoadScriptListenerImpl implements LoadScriptListener {
+
+        @Override
+        public void loadedScript(Script script) {
+            JSONObject jsonParams = new JSONObject();
+            jsonParams.put("scriptId", Integer.toString(script.getId()));
+            jsonParams.put("url", script.getUrl());
+            jsonParams.put("startLine", 0);
+            jsonParams.put("startColumn", 0);
+            Source source = script.getSource();
+            int lastLine;
+            int lastColumn;
+            int length;
+            if (source.hasCharacters()) {
+                lastLine = source.getLineCount() - 1;
+                if (lastLine < 0) {
+                    lastLine = 0;
+                    lastColumn = 0;
+                } else {
+                    lastColumn = source.getLineLength(lastLine + 1);
+                    int srcMapLine = lastLine + 1;
+                    CharSequence line;
+                    do {
+                        line = source.getCharacters(srcMapLine);
+                        srcMapLine--;
+                        // Node.js wraps source into a function,
+                        // skip empty lines and end of a function.
+                    } while (srcMapLine > 0 && (line.length() == 0 || "});".equals(line)));
+                    CharSequence sourceMapURL = (srcMapLine > 0) ? getSourceMapURL(source, srcMapLine) : null;
+                    if (sourceMapURL != null) {
+                        jsonParams.put("sourceMapURL", sourceMapURL.toString());
+                        lastLine = srcMapLine - 1;
+                        lastColumn = source.getLineLength(lastLine + 1);
+                    }
+                }
+                length = source.getLength();
+            } else {
+                lastLine = 3;
+                lastColumn = 0;
+                length = script.getCharacters().length();
+            }
+            jsonParams.put("endLine", lastLine);
+            jsonParams.put("endColumn", lastColumn);
+            jsonParams.put("executionContextId", context.getId());
+            jsonParams.put("hash", script.getHash());
+            jsonParams.put("length", length);
+            Params params = new Params(jsonParams);
+            Event scriptParsed = new Event("Debugger.scriptParsed", params);
+            eventHandler.event(scriptParsed);
+        }
+
+        private CharSequence getSourceMapURL(Source source, int lastLine) {
+            String mapKeyword = "sourceMappingURL=";
+            int mapKeywordLength = mapKeyword.length();
+            CharSequence line = source.getCharacters(lastLine + 1);
+            int lineLength = line.length();
+            int i = 0;
+            while (i < lineLength && Character.isWhitespace(line.charAt(i))) {
+                i++;
+            }
+            if (i + 3 < lineLength && line.charAt(i) == '/' && line.charAt(i + 1) == '/' &&
+                            (line.charAt(i + 2) == '#' || line.charAt(i + 2) == '@')) {
+                i += 3;
+            } else {
+                return null;
+            }
+            while (i < lineLength && Character.isWhitespace(line.charAt(i))) {
+                i++;
+            }
+            if (i + mapKeywordLength < lineLength && line.subSequence(i, i + mapKeywordLength).equals(mapKeyword)) {
+                i += mapKeywordLength;
+            } else {
+                return null;
+            }
+            return line.subSequence(i, line.length());
+        }
+
+    }
+
+    private class SuspendedCallbackImpl implements SuspendedCallback {
+
+        private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1, new SchedulerThreadFactory());
+        private final AtomicReference<ScheduledFuture<?>> future = new AtomicReference<>();
+        private Thread locked = null;
+
+        @Override
+        public void onSuspend(SuspendedEvent se) {
+            try {
+                context.waitForRunPermission();
+            } catch (InterruptedException ex) {
+            }
+            SourceSection ss = se.getSourceSection();
+            lock();
+            onSuspendPhaser.register();
+            try {
+                Event paused;
+                Lock lock = domainLock.readLock();
+                lock.lock();
+                try {
+                    if (debuggerSession == null) {
+                        // Debugger has been disabled while waiting on locks
+                        return;
+                    }
+                    DebugValue returnValue = se.getReturnValue();
+                    if (se.hasSourceElement(SourceElement.ROOT) && se.getBreakpoints().isEmpty()) {
+                        if ((!se.hasSourceElement(SourceElement.STATEMENT) && se.getSuspendAnchor() == SuspendAnchor.BEFORE) ||
+                                        (se.getSuspendAnchor() == SuspendAnchor.AFTER && returnValue == null)) {
+                            // We're at the begining of a `RootTag` node, or
+                            // we're at the end of `RootTag` node and have no return value.
+                            // We use `RootTag` to intercept return values of functions during
+                            // stepping.
+                            // But if there's no return value, there's no point in suspending at the
+                            // end of a function. That would cause an unnecessary distraction.
+                            se.prepareStepInto(STEP_CONFIG);
+                            return;
+                        }
+                    }
+                    synchronized (suspendLock) {
+                        running = false;
+                    }
+                    if (!runningUnwind) {
+                        scriptsHan
