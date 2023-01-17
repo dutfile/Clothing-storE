@@ -85,4 +85,212 @@ public abstract class BinaryStreamParser {
 
     @ExplodeLoop(kind = FULL_EXPLODE_UNTIL_RETURN)
     public static long peekSignedInt32AndLength(byte[] data, int initialOffset) {
-        int
+        int result = 0;
+        int shift = 0;
+        int currentOffset = initialOffset;
+        byte b = (byte) 0x80;
+        while ((b & 0x80) != 0 && shift != 42) {
+            b = peek1(data, currentOffset);
+            result |= (b & 0x7F) << shift;
+            shift += 7;
+            currentOffset++;
+        }
+
+        if (shift == 42) {
+            throw WasmException.create(Failure.INTEGER_REPRESENTATION_TOO_LONG);
+        } else if (shift == 35 && (b & 0b0111_0000) != ((b & 0b1000) == 0 ? 0 : 0b0111_0000)) {
+            throw WasmException.create(Failure.INTEGER_TOO_LARGE);
+        }
+
+        if (shift != 35 && (b & 0x40) != 0) {
+            result |= (~0 << shift);
+        }
+
+        return packValueAndLength(result, currentOffset - initialOffset);
+    }
+
+    @ExplodeLoop(kind = FULL_EXPLODE_UNTIL_RETURN)
+    public static long peekUnsignedInt64(byte[] data, int initialOffset, boolean checkValid) {
+        long result = 0;
+        int shift = 0;
+        int currentOffset = initialOffset;
+        byte b = (byte) 0x80;
+        while ((b & 0x80) != 0 && shift != 77) {
+            b = peek1(data, currentOffset);
+            result |= ((b & 0x7FL) << shift);
+            shift += 7;
+            currentOffset++;
+        }
+
+        if (checkValid) {
+            if (shift == 77) {
+                throw WasmException.create(Failure.INTEGER_REPRESENTATION_TOO_LONG);
+            } else if (shift == 70 && (b & 0b0111_1110) != 0) {
+                throw WasmException.create(Failure.INTEGER_TOO_LARGE);
+            }
+        }
+
+        return result;
+    }
+
+    @ExplodeLoop(kind = FULL_EXPLODE_UNTIL_RETURN)
+    public static long peekSignedInt64(byte[] data, int initialOffset, boolean checkValid) {
+        long result = 0;
+        int shift = 0;
+        int currentOffset = initialOffset;
+        byte b = (byte) 0x80;
+        while ((b & 0x80) != 0 && shift != 77) {
+            b = peek1(data, currentOffset);
+            result |= ((b & 0x7FL) << shift);
+            shift += 7;
+            currentOffset++;
+        }
+
+        if (checkValid) {
+            if (shift == 77) {
+                throw WasmException.create(Failure.INTEGER_REPRESENTATION_TOO_LONG);
+            } else if (shift == 70 && (b & 0b0111_1110) != ((b & 1) == 0 ? 0 : 0b0111_1110)) {
+                throw WasmException.create(Failure.INTEGER_TOO_LARGE);
+            }
+        }
+
+        if (shift != 70 && (b & 0x40) != 0) {
+            return result | (~0L << shift);
+        }
+        return result;
+    }
+
+    private static long packValueAndLength(int value, int length) {
+        return ((long) length << 32) | (value & 0xffff_ffffL);
+    }
+
+    public static int value(long bits) {
+        return (int) (bits & 0xffff_ffffL);
+    }
+
+    public static int length(long bits) {
+        return (int) ((bits >>> 32) & 0xffff_ffffL);
+    }
+
+    protected int readFloatAsInt32() {
+        return read4();
+    }
+
+    protected long readFloatAsInt64() {
+        return read8();
+    }
+
+    protected byte readMutability() {
+        final byte mut = peekMutability();
+        offset++;
+        return mut;
+    }
+
+    protected byte peekMutability() {
+        final byte mut = peek1();
+        if (mut == GlobalModifier.CONSTANT) {
+            return mut;
+        } else if (mut == GlobalModifier.MUTABLE) {
+            return mut;
+        } else {
+            throw Assert.fail(Failure.MALFORMED_MUTABILITY, "Invalid mutability flag: " + mut);
+        }
+    }
+
+    protected byte read1() {
+        byte value = peek1(data, offset);
+        offset++;
+        return value;
+    }
+
+    protected byte peek1() {
+        return peek1(data, offset);
+    }
+
+    public static byte peek1(byte[] data, int initialOffset) {
+        // Inlined version of Assert.assertUnsignedIntLess(offset, data.length,
+        // Failure.UNEXPECTED_END);
+        if (initialOffset < 0 || initialOffset >= data.length) {
+            throw WasmException.format(Failure.UNEXPECTED_END, "The binary is truncated at: %d", initialOffset);
+        }
+        return data[initialOffset];
+    }
+
+    protected int read4() {
+        int result = 0;
+        for (int i = 0; i != 4; ++i) {
+            int x = Byte.toUnsignedInt(read1());
+            result |= x << 8 * i;
+        }
+        return result;
+    }
+
+    protected long read8() {
+        long result = 0;
+        for (int i = 0; i != 8; ++i) {
+            long x = Byte.toUnsignedLong(read1());
+            result |= x << 8 * i;
+        }
+        return result;
+    }
+
+    protected int offset() {
+        return offset;
+    }
+
+    /**
+     * Reads the block type at the current location. The result is provided as two values. The first
+     * is the actual value of the block type. The second is an indicator if it is a single result
+     * type or a multi-value result.
+     *
+     * @param result The array used for returning the result.
+     *
+     */
+    protected void readBlockType(int[] result, boolean allowRefTypes) {
+        byte type = peek1(data, offset);
+        switch (type) {
+            case WasmType.VOID_TYPE:
+            case WasmType.I32_TYPE:
+            case WasmType.I64_TYPE:
+            case WasmType.F32_TYPE:
+            case WasmType.F64_TYPE:
+                offset++;
+                result[0] = type;
+                result[1] = SINGLE_RESULT_VALUE;
+                break;
+            case WasmType.FUNCREF_TYPE:
+            case WasmType.EXTERNREF_TYPE:
+                Assert.assertTrue(allowRefTypes, Failure.MALFORMED_VALUE_TYPE);
+                offset++;
+                result[0] = type;
+                result[1] = SINGLE_RESULT_VALUE;
+                break;
+            default:
+                long valueAndLength = peekSignedInt32AndLength(data, offset);
+                result[0] = value(valueAndLength);
+                Assert.assertIntGreaterOrEqual(result[0], 0, Failure.UNSPECIFIED_MALFORMED);
+                result[1] = MULTI_RESULT_VALUE;
+                offset += length(valueAndLength);
+        }
+    }
+
+    protected static byte peekValueType(byte[] data, int offset, boolean allowRefTypes) {
+        byte b = peek1(data, offset);
+        switch (b) {
+            case WasmType.I32_TYPE:
+            case WasmType.I64_TYPE:
+            case WasmType.F32_TYPE:
+            case WasmType.F64_TYPE:
+                break;
+            case WasmType.FUNCREF_TYPE:
+            case WasmType.EXTERNREF_TYPE:
+                Assert.assertTrue(allowRefTypes, Failure.MALFORMED_VALUE_TYPE);
+                break;
+            default:
+                Assert.fail(Failure.MALFORMED_VALUE_TYPE, String.format("Invalid value type: 0x%02X", b));
+        }
+        return b;
+    }
+
+    protected byte readValueType(boolean allowRefTypes) {
+        byte b = peekValueType(data, offset, allo
