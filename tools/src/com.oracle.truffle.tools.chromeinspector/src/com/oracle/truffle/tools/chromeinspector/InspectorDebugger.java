@@ -1252,4 +1252,54 @@ public final class InspectorDebugger extends DebuggerDomain {
             unlock();
             ScheduledFuture<?> sf = future.getAndSet(null);
             if (sf != null) {
-             
+                sf.cancel(true);
+            }
+            scheduler.shutdown();
+            try {
+                scheduler.awaitTermination(30, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+            }
+        }
+    }
+
+    private static class SchedulerThreadFactory implements ThreadFactory {
+
+        private final ThreadGroup group;
+
+        @SuppressWarnings("deprecation")
+        SchedulerThreadFactory() {
+            SecurityManager s = System.getSecurityManager();
+            this.group = (s != null) ? s.getThreadGroup() : Thread.currentThread().getThreadGroup();
+        }
+
+        @Override
+        public Thread newThread(Runnable r) {
+            Thread t = new Thread(group, r, "Suspend Unlocking Scheduler");
+            t.setDaemon(true);
+            t.setPriority(Thread.NORM_PRIORITY);
+            return t;
+        }
+    }
+
+    private static JSONArray getFramesParam(CallFrame[] callFrames) {
+        JSONArray array = new JSONArray();
+        for (CallFrame cf : callFrames) {
+            array.put(cf.toJSON());
+        }
+        return array;
+    }
+
+    private JSONObject findAsyncStackTrace(List<List<DebugStackTraceElement>> asyncStacks) {
+        if (asyncStacks.isEmpty()) {
+            return null;
+        }
+        StackTrace stackTrace = new StackTrace(context, asyncStacks);
+        return stackTrace.toJSON();
+    }
+
+    private interface CommandLazyResponse {
+
+        Event getResponse(DebuggerSuspendedInfo suspendedInfo);
+
+    }
+}
