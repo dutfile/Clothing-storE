@@ -47,4 +47,6 @@ public class DirEntry {
     }
 
     public String getPathString() {
-        re
+        return path.toString();
+    }
+}
