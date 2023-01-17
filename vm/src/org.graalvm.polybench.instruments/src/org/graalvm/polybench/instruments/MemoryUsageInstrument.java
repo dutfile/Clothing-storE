@@ -150,4 +150,182 @@ public final class MemoryUsageInstrument extends TruffleInstrument {
 
         env.getInstrumenter().attachThreadsListener(new ThreadsListener() {
             @Override
-            publ
+            public void onThreadInitialized(TruffleContext context, Thread thread) {
+                synchronized (MemoryUsageInstrument.this) {
+                    threads.add(thread);
+                    threadsArray = threads.toArray(new Thread[0]);
+                }
+            }
+
+            @Override
+            public void onThreadDisposed(TruffleContext context, Thread thread) {
+                synchronized (MemoryUsageInstrument.this) {
+                    threads.remove(thread);
+                    threadsArray = threads.toArray(new Thread[0]);
+                }
+            }
+        }, true);
+    }
+
+    final class GetAllocatedBytesFunction extends BaseFunction {
+
+        @Override
+        @SuppressWarnings("deprecation") // GR-41711: we still need Thread.getId() for JDK17 support
+        Object call(Node node) {
+            long report = 0;
+            synchronized (MemoryUsageInstrument.this) {
+                for (Thread thread : threads) {
+                    report = report + THREAD_BEAN.getThreadAllocatedBytes(thread.getId());
+                }
+            }
+            return report;
+        }
+    }
+
+    final class GetContextHeapSize extends BaseFunction {
+
+        @Override
+        Object call(Node node) {
+            return currentEnv.calculateContextHeapSize(currentEnv.getEnteredContext(), Long.MAX_VALUE, new AtomicBoolean());
+        }
+    }
+
+    final class StartContextMemoryTrackingFunction extends BaseFunction {
+
+        @Override
+        Object call(Node node) {
+            TruffleContext context = currentEnv.getEnteredContext();
+            MemoryTracking tracking = memoryTrackedContexts.computeIfAbsent(context, (c) -> new MemoryTracking(c));
+            synchronized (tracking) {
+                if (tracking.task != null) {
+                    throw new IllegalStateException("still running");
+                }
+
+                tracking.previousProperties = null;
+                tracking.task = new ContextHeapSizeThreadLocalTask(tracking);
+                // force update on start
+                tracking.task.computeUpdate(true);
+                tracking.timer = new Timer();
+                tracking.timer.schedule(tracking.task, 0L, 1L);
+
+                return NullValue.NULL;
+            }
+        }
+    }
+
+    final class StopContextMemoryTrackingFunction extends BaseFunction {
+
+        @Override
+        Object call(Node node) {
+            TruffleContext context = currentEnv.getEnteredContext();
+            MemoryTracking tracking = memoryTrackedContexts.computeIfAbsent(context, (c) -> new MemoryTracking(c));
+            synchronized (tracking) {
+                if (tracking.previousProperties != null) {
+                    return tracking.previousProperties;
+                }
+                if (tracking.timer == null) {
+                    return NullValue.NULL;
+                }
+                tracking.task.cancel();
+                tracking.timer.cancel();
+                tracking.timer = null;
+
+                Map<String, Object> properties = new HashMap<>();
+
+                // force update on stop
+                tracking.task.computeUpdate(true);
+
+                LongSummaryStatistics statistics = tracking.task.statistics;
+                properties.put("contextHeapCount", statistics.getCount());
+                properties.put("contextHeapAverage", statistics.getAverage());
+                properties.put("contextHeapMin", statistics.getMin());
+                properties.put("contextHeapMax", statistics.getMax());
+
+                // stop running actions for other threads
+                tracking.previousProperties = new ReadOnlyProperties(properties);
+                tracking.task.cancelled.set(true);
+                tracking.task = null;
+
+            }
+            return tracking.previousProperties;
+        }
+    }
+
+    static class MemoryTracking {
+
+        final TruffleContext context;
+
+        volatile ContextHeapSizeThreadLocalTask task;
+        ReadOnlyProperties previousProperties;
+        Timer timer;
+
+        MemoryTracking(TruffleContext context) {
+            this.context = context;
+        }
+    }
+
+    final class ContextHeapSizeThreadLocalTask extends TimerTask {
+
+        final LongSummaryStatistics statistics = new LongSummaryStatistics();
+        final AtomicBoolean cancelled = new AtomicBoolean();
+        final ConcurrentHashMap<Thread, Thread> seenThreads = new ConcurrentHashMap<>();
+
+        volatile long previousSize;
+        volatile long previousMax;
+        final AtomicLong previousThreadAllocatedBytes = new AtomicLong();
+
+        long totalAllocatedMemory;
+        final MemoryTracking tracking;
+
+        ContextHeapSizeThreadLocalTask(MemoryTracking tracking) {
+            this.tracking = tracking;
+        }
+
+        @Override
+        public void run() {
+            computeUpdate(false);
+        }
+
+        void computeUpdate(boolean force) {
+            if (needsUpdate() || force) {
+                boolean activeOnCurrentThread = tracking.context.isActive();
+                Future<Void> paused = null;
+                long heapSize;
+                try {
+                    if (!activeOnCurrentThread) {
+                        paused = tracking.context.pause();
+                    }
+                    try {
+                        heapSize = currentEnv.calculateContextHeapSize(tracking.context, Long.MAX_VALUE, cancelled);
+                    } catch (CancellationException e) {
+                        return;
+                    }
+                } finally {
+                    if (paused != null) {
+                        tracking.context.resume(paused);
+                    }
+                }
+                synchronized (tracking) {
+                    if (tracking.task == null) {
+                        // cancelled
+                        return;
+                    }
+                    this.statistics.accept(heapSize);
+                    this.previousSize = heapSize;
+                    this.previousMax = statistics.getMax();
+                    this.previousThreadAllocatedBytes.set(getThreadAllocatedBytes());
+                }
+            }
+        }
+
+        private boolean needsUpdate() {
+            long threadAllocatedBytes = getThreadAllocatedBytes();
+            /*
+             * The idea is that this scales with the maximum retained memory. We recompute the total
+             * consumption only if at least a 16th of the heap was freshly allocated. The idea is to
+             * strike a trade off between overhead and precision as computation may be quite
+             * expensive.
+             */
+            long allocationUpdateDiffBytes = previousMax / 16;
+            long previousAllocatedBytes;
+            boolean update = f
