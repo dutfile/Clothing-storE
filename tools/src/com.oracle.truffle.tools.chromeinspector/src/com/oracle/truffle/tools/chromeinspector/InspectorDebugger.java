@@ -1092,4 +1092,164 @@ public final class InspectorDebugger extends DebuggerDomain {
                         running = false;
                     }
                     if (!runningUnwind) {
-                        scriptsHan
+                        scriptsHandler.assureLoaded(ss.getSource());
+                        context.setLastLanguage(ss.getSource().getLanguage(), ss.getSource().getMimeType());
+                    } else {
+                        runningUnwind = false;
+                    }
+                    JSONObject jsonParams = new JSONObject();
+                    if (!se.hasSourceElement(SourceElement.ROOT)) {
+                        // It is misleading to see return values on call exit,
+                        // when we show it at function exit
+                        returnValue = null;
+                    }
+                    CallFrame[] callFrames = createCallFrames(se.getStackFrames(), se.getSuspendAnchor(), returnValue);
+                    suspendedInfo = new DebuggerSuspendedInfo(InspectorDebugger.this, se, callFrames);
+                    context.setSuspendedInfo(suspendedInfo);
+                    if (commandLazyResponse != null) {
+                        paused = commandLazyResponse.getResponse(suspendedInfo);
+                        commandLazyResponse = null;
+                    } else {
+                        jsonParams.put("callFrames", getFramesParam(callFrames));
+                        jsonParams.putOpt("asyncStackTrace", findAsyncStackTrace(se.getAsynchronousStacks()));
+                        List<Breakpoint> breakpoints = se.getBreakpoints();
+                        JSONArray bpArr = new JSONArray();
+                        Set<Breakpoint.Kind> kinds = new HashSet<>(1);
+                        for (Breakpoint bp : breakpoints) {
+                            String id = breakpointsHandler.getId(bp);
+                            if (id != null) {
+                                bpArr.put(id);
+                            }
+                            kinds.add(bp.getKind());
+                        }
+                        jsonParams.put("reason", getHaltReason(kinds));
+                        JSONObject data = getHaltData(se);
+                        if (data != null) {
+                            jsonParams.put("data", data);
+                        }
+                        jsonParams.put("hitBreakpoints", bpArr);
+
+                        Params params = new Params(jsonParams);
+                        paused = new Event("Debugger.paused", params);
+                    }
+                } finally {
+                    lock.unlock();
+                }
+                eventHandler.event(paused);
+                List<CancellableRunnable> executables;
+                for (;;) {
+                    executables = null;
+                    synchronized (suspendLock) {
+                        if (!running && suspendThreadExecutables.isEmpty()) {
+                            if (context.isSynchronous()) {
+                                running = true;
+                            } else {
+                                try {
+                                    suspendLock.wait();
+                                } catch (InterruptedException ex) {
+                                }
+                            }
+                        }
+                        if (!suspendThreadExecutables.isEmpty()) {
+                            executables = new LinkedList<>();
+                            CancellableRunnable r;
+                            while ((r = suspendThreadExecutables.poll()) != null) {
+                                executables.add(r);
+                            }
+                        }
+                        if (running) {
+                            suspendedInfo = null;
+                            context.setSuspendedInfo(null);
+                            break;
+                        }
+                    }
+                    if (executables != null) {
+                        for (CancellableRunnable r : executables) {
+                            r.run();
+                        }
+                        executables = null;
+                    }
+                }
+                if (executables != null) {
+                    for (CancellableRunnable r : executables) {
+                        r.cancel();
+                    }
+                }
+                if (!silentResume) {
+                    Event resumed = new Event("Debugger.resumed", null);
+                    eventHandler.event(resumed);
+                } else {
+                    silentResume = false;
+                }
+            } finally {
+                onSuspendPhaser.arriveAndDeregister();
+                if (delayUnlock.getAndSet(false)) {
+                    future.set(scheduler.schedule(() -> {
+                        unlock();
+                    }, 1, TimeUnit.SECONDS));
+                } else {
+                    unlock();
+                }
+            }
+        }
+
+        private synchronized void lock() {
+            Thread current = Thread.currentThread();
+            if (locked != current) {
+                while (locked != null) {
+                    try {
+                        wait();
+                    } catch (InterruptedException ex) {
+                    }
+                }
+                locked = current;
+            } else {
+                ScheduledFuture<?> sf = future.getAndSet(null);
+                if (sf != null) {
+                    sf.cancel(true);
+                }
+            }
+        }
+
+        private synchronized void unlock() {
+            locked = null;
+            notify();
+        }
+
+        private String getHaltReason(Set<Breakpoint.Kind> kinds) {
+            if (kinds.size() > 1) {
+                return "ambiguous";
+            } else {
+                if (kinds.contains(Breakpoint.Kind.HALT_INSTRUCTION)) {
+                    return "debugCommand";
+                } else if (kinds.contains(Breakpoint.Kind.EXCEPTION)) {
+                    return "exception";
+                } else {
+                    return "other";
+                }
+            }
+        }
+
+        private JSONObject getHaltData(SuspendedEvent se) {
+            DebugException exception = se.getException();
+            if (exception == null) {
+                return null;
+            }
+            boolean uncaught = exception.getCatchLocation() == null;
+            DebugValue exceptionObject = exception.getExceptionObject();
+            JSONObject data;
+            if (exceptionObject != null) {
+                RemoteObject remoteObject = context.createAndRegister(exceptionObject, false);
+                data = remoteObject.toJSON();
+            } else {
+                data = new JSONObject();
+            }
+            data.put("uncaught", uncaught);
+            return data;
+        }
+
+        private void dispose() {
+            unlock();
+            ScheduledFuture<?> sf = future.getAndSet(null);
+            if (sf != null) {
+             
