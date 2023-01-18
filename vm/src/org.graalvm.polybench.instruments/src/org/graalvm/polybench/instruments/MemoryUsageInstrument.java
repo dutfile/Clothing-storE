@@ -328,4 +328,129 @@ public final class MemoryUsageInstrument extends TruffleInstrument {
              */
             long allocationUpdateDiffBytes = previousMax / 16;
             long previousAllocatedBytes;
-            boolean update = f
+            boolean update = false;
+            do {
+                previousAllocatedBytes = this.previousThreadAllocatedBytes.get();
+                update = (threadAllocatedBytes - previousAllocatedBytes) > allocationUpdateDiffBytes;
+            } while (update && !this.previousThreadAllocatedBytes.compareAndSet(previousAllocatedBytes, threadAllocatedBytes));
+            return update;
+        }
+
+        @SuppressWarnings("deprecation") // GR-41711: we still need Thread.getId() for JDK17 support
+        private long getThreadAllocatedBytes() {
+            long threadAllocatedBytes = 0;
+            for (Thread thread : threadsArray) {
+                threadAllocatedBytes += THREAD_BEAN.getThreadAllocatedBytes(thread.getId());
+            }
+            return threadAllocatedBytes;
+        }
+
+    }
+
+    @ExportLibrary(InteropLibrary.class)
+    @SuppressWarnings("static-method")
+    static final class ReadOnlyProperties implements TruffleObject {
+
+        private final Map<String, Object> map;
+
+        ReadOnlyProperties(Map<String, Object> map) {
+            this.map = map;
+        }
+
+        @ExportMessage
+        boolean hasMembers() {
+            return true;
+        }
+
+        @SuppressWarnings("unused")
+        @ExportMessage
+        @TruffleBoundary
+        Object getMembers(boolean includeInternal) throws UnsupportedMessageException {
+            return new ReadonlyStringArray(map.keySet().toArray(new String[0]));
+        }
+
+        @ExportMessage
+        @TruffleBoundary
+        Object readMember(String member) throws UnknownIdentifierException {
+            if (!map.containsKey(member)) {
+                throw UnknownIdentifierException.create(member);
+            }
+            return map.get(member);
+        }
+
+        @ExportMessage
+        @TruffleBoundary
+        boolean isMemberReadable(String member) {
+            return map.containsKey(member);
+        }
+
+    }
+
+    @ExportLibrary(InteropLibrary.class)
+    @SuppressWarnings("static-method")
+    static final class ReadonlyStringArray implements TruffleObject {
+
+        private final String[] members;
+
+        ReadonlyStringArray(String[] members) {
+            this.members = members;
+        }
+
+        @ExportMessage
+        boolean hasArrayElements() {
+            return true;
+        }
+
+        @ExportMessage
+        Object readArrayElement(long index) throws InvalidArrayIndexException {
+            if (!isArrayElementReadable(index)) {
+                throw InvalidArrayIndexException.create(index);
+            }
+            return members[(int) index];
+        }
+
+        @ExportMessage
+        long getArraySize() {
+            return members.length;
+        }
+
+        @ExportMessage
+        boolean isArrayElementReadable(long index) {
+            return index < members.length;
+        }
+
+    }
+
+    @ExportLibrary(InteropLibrary.class)
+    static final class NullValue implements TruffleObject {
+
+        static final NullValue NULL = new NullValue();
+
+        @SuppressWarnings("static-method")
+        @ExportMessage
+        boolean isNull() {
+            return true;
+        }
+    }
+
+    @ExportLibrary(InteropLibrary.class)
+    public abstract class BaseFunction implements TruffleObject {
+
+        @ExportMessage
+        final boolean isExecutable() {
+            return true;
+        }
+
+        @ExportMessage
+        @TruffleBoundary
+        Object execute(Object[] args, @CachedLibrary("this") InteropLibrary interop) throws ArityException {
+            if (args.length != 0) {
+                throw ArityException.create(0, 0, args.length);
+            }
+            return call(interop);
+        }
+
+        abstract Object call(Node node);
+    }
+
+}
