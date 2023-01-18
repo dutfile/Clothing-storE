@@ -185,4 +185,12 @@ public final class AnnotationValue extends AnnotationMemberValue {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        AnnotationValue that = (Annot
+        AnnotationValue that = (AnnotationValue) o;
+        return isAnnotationFormatException() == that.isAnnotationFormatException() && Objects.equals(type, that.type) && members.equals(that.members);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(isAnnotationFormatException(), type, members);
+    }
+}
