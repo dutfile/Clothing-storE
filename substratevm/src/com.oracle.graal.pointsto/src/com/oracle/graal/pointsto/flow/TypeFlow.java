@@ -200,4 +200,194 @@ public abstract class TypeFlow<T> {
             return graphRef;
         }
         if (source instanceof BytecodePosition && !isClone) {
-            BytecodePosition po
+            BytecodePosition position = (BytecodePosition) source;
+            return ((PointsToAnalysisMethod) position.getMethod()).getTypeFlow().getMethodFlowsGraph();
+        }
+        return null;
+    }
+
+    public AnalysisMethod method() {
+        if (graphRef != null) {
+            return graphRef.getMethod();
+        }
+        if (source instanceof BytecodePosition) {
+            BytecodePosition position = (BytecodePosition) source;
+            return (AnalysisMethod) position.getMethod();
+        }
+        return null;
+    }
+
+    public T getSource() {
+        return source;
+    }
+
+    public boolean isClone() {
+        return isClone;
+    }
+
+    public boolean isContextInsensitive() {
+        return false;
+    }
+
+    public AnalysisType getDeclaredType() {
+        return declaredType;
+    }
+
+    public TypeState getState() {
+        return state;
+    }
+
+    public boolean isAllInstantiated() {
+        return this instanceof AllInstantiatedTypeFlow;
+    }
+
+    public void setState(PointsToAnalysis bb, TypeState state) {
+        assert !bb.extendedAsserts() || this instanceof InstanceOfTypeFlow ||
+                        state.verifyDeclaredType(bb, declaredType) : "declaredType: " + declaredType.toJavaName(true) + " state: " + state;
+        this.state = state;
+    }
+
+    public void setSlot(int slot) {
+        this.slot = slot;
+    }
+
+    public int getSlot() {
+        return this.slot;
+    }
+
+    /**
+     * Return true if this flow is saturated. When an observer becomes saturated it doesn't
+     * immediately remove itslef from all its inputs. The inputs lazily remove it on next update.
+     */
+    public boolean isSaturated() {
+        return isSaturated;
+    }
+
+    /**
+     * Can this type flow saturate? By default all type flows can saturate, with the exception of a
+     * few ones that need to track all their types, e.g., AllInstantiated, AllSynchronized, etc.
+     */
+    public boolean canSaturate() {
+        return true;
+    }
+
+    /**
+     * Mark this flow as saturated. Each flow starts with isSaturated as false and once it is set to
+     * true it cannnot be changed.
+     */
+    public void setSaturated() {
+        isSaturated = true;
+    }
+
+    public boolean addState(PointsToAnalysis bb, TypeState add) {
+        return addState(bb, add, true);
+    }
+
+    /* Add state and notify inputs of the result. */
+    public boolean addState(PointsToAnalysis bb, TypeState add, boolean postFlow) {
+        PointsToStats.registerTypeFlowUpdate(bb, this, add);
+
+        TypeState before;
+        TypeState after;
+        TypeState filteredAdd;
+        do {
+            before = state;
+            filteredAdd = filter(bb, add);
+            after = TypeState.forUnion(bb, before, filteredAdd);
+            if (after.equals(before)) {
+                return false;
+            }
+        } while (!STATE_UPDATER.compareAndSet(this, before, after));
+
+        PointsToStats.registerTypeFlowSuccessfulUpdate(bb, this, add);
+
+        assert !bb.extendedAsserts() || checkTypeState(bb, before, after);
+
+        if (checkSaturated(bb, after)) {
+            onSaturated(bb);
+        } else if (postFlow) {
+            bb.postFlow(this);
+        }
+
+        return true;
+    }
+
+    private boolean checkTypeState(PointsToAnalysis bb, TypeState before, TypeState after) {
+        assert bb.extendedAsserts();
+
+        if (bb.analysisPolicy().relaxTypeFlowConstraints()) {
+            return true;
+        }
+
+        if (this instanceof InstanceOfTypeFlow || this instanceof FilterTypeFlow) {
+            /*
+             * The type state of an InstanceOfTypeFlow doesn't contain only types assignable from
+             * its declared type. The InstanceOfTypeFlow keeps track of all the types discovered
+             * during analysis and there is always a corresponding filter type flow that implements
+             * the filter operation based on the declared type.
+             *
+             * Similarly, since a FilterTypeFlow implements complex logic, i.e., the filter can be
+             * either inclusive or exclusive and it can filter exact types or complete type
+             * hierarchies, the types in its type state are not necessary assignable from its
+             * declared type.
+             */
+            return true;
+        }
+        assert after.verifyDeclaredType(bb, declaredType) : String.format("The type state of %s contains types that are not assignable from its declared type %s. " +
+                        "%nState before: %s. %nState after: %s", format(false, true), declaredType.toJavaName(true), formatState(bb, before), formatState(bb, after));
+        return true;
+    }
+
+    private static String formatState(PointsToAnalysis bb, TypeState typeState) {
+        if (TypeStateUtils.closeToAllInstantiated(bb, typeState)) {
+            return "close to AllInstantiated";
+        }
+        return typeState.toString();
+    }
+
+    // manage uses
+
+    public boolean addUse(PointsToAnalysis bb, TypeFlow<?> use) {
+        return addUse(bb, use, true, false);
+    }
+
+    public boolean addUse(PointsToAnalysis bb, TypeFlow<?> use, boolean propagateTypeState) {
+        return addUse(bb, use, propagateTypeState, false);
+    }
+
+    private boolean addUse(PointsToAnalysis bb, TypeFlow<?> use, boolean propagateTypeState, boolean registerInput) {
+        if (isSaturated() && propagateTypeState) {
+            /* Let the use know that this flow is already saturated. */
+            notifyUseOfSaturation(bb, use);
+            return false;
+        }
+        if (doAddUse(bb, use, registerInput)) {
+            if (propagateTypeState) {
+                if (isSaturated()) {
+                    /*
+                     * If the flow became saturated while the use was *in-flight*, i.e., after the
+                     * check at method entry, but before the use was actually registered, then the
+                     * use would have missed the saturated signal. Let the use know that this flow
+                     * became saturated.
+                     */
+                    notifyUseOfSaturation(bb, use);
+                    /* And unlink the use. */
+                    removeUse(use);
+                    return false;
+                } else {
+                    use.addState(bb, getState());
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
+    protected void notifyUseOfSaturation(PointsToAnalysis bb, TypeFlow<?> use) {
+        use.onInputSaturated(bb, this);
+    }
+
+    protected boolean doAddUse(PointsToAnalysis bb, TypeFlow<?> use, boolean registerInput) {
+        if (use.isSaturated()) {
+            /* The use is already saturated so it will not be linked. */
+ 
