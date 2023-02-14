@@ -390,4 +390,174 @@ public abstract class TypeFlow<T> {
     protected boolean doAddUse(PointsToAnalysis bb, TypeFlow<?> use, boolean registerInput) {
         if (use.isSaturated()) {
             /* The use is already saturated so it will not be linked. */
- 
+            return false;
+        }
+        if (use.equals(this)) {
+            return false;
+        }
+        if (bb.trackTypeFlowInputs() || registerInput) {
+            use.addInput(this);
+        }
+        return ConcurrentLightHashSet.addElement(this, USE_UPDATER, use);
+    }
+
+    public boolean removeUse(TypeFlow<?> use) {
+        return ConcurrentLightHashSet.removeElement(this, USE_UPDATER, use);
+    }
+
+    public void clearUses() {
+        ConcurrentLightHashSet.clear(this, USE_UPDATER);
+    }
+
+    public Collection<TypeFlow<?>> getUses() {
+        return ConcurrentLightHashSet.getElements(this, USE_UPDATER);
+    }
+
+    // manage observers
+
+    /** Register object that will be notified when the state of this flow changes. */
+    public void addObserver(PointsToAnalysis bb, TypeFlow<?> observer) {
+        addObserver(bb, observer, true, false);
+    }
+
+    public boolean addObserver(PointsToAnalysis bb, TypeFlow<?> observer, boolean triggerUpdate) {
+        return addObserver(bb, observer, triggerUpdate, false);
+    }
+
+    private boolean addObserver(PointsToAnalysis bb, TypeFlow<?> observer, boolean triggerUpdate, boolean registerObservees) {
+        if (isSaturated() && triggerUpdate) {
+            /* Let the observer know that this flow is already saturated. */
+            notifyObserverOfSaturation(bb, observer);
+            return false;
+        }
+        if (doAddObserver(bb, observer, registerObservees)) {
+            if (triggerUpdate) {
+                if (isSaturated()) {
+                    /* This flow is already saturated, notify the observer. */
+                    notifyObserverOfSaturation(bb, observer);
+                    removeObserver(observer);
+                    return false;
+                } else if (!this.state.isEmpty()) {
+                    /* Only trigger an observer update if this flow has a non-empty state. */
+                    /*
+                     * Notify the observer after registering. This flow might have already reached a
+                     * fixed point and might never notify its observers otherwise.
+                     */
+                    bb.postTask(ignore -> observer.onObservedUpdate(bb));
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
+    protected void notifyObserverOfSaturation(PointsToAnalysis bb, TypeFlow<?> observer) {
+        observer.onObservedSaturated(bb, this);
+    }
+
+    private boolean doAddObserver(PointsToAnalysis bb, TypeFlow<?> observer, boolean registerObservees) {
+        /*
+         * An observer is linked even if it is already saturated itself, hence no
+         * 'observer.isSaturated()' check is performed here. For observers the saturation state is
+         * that of the values flowing through and not that of the objects they observe.
+         * 
+         * Some observers may need to continue to observe the state of their receiver object until
+         * the receiver object saturates itself, e.g., instance field stores, other observers may
+         * deregister themselves from observing the receiver object when they saturate, e.g.,
+         * instance field loads.
+         */
+        if (observer.equals(this)) {
+            return false;
+        }
+        if (bb.trackTypeFlowInputs() || registerObservees) {
+            observer.addObservee(this);
+        }
+        return ConcurrentLightHashSet.addElement(this, OBSERVERS_UPDATER, observer);
+    }
+
+    public boolean removeObserver(TypeFlow<?> observer) {
+        observer.removeObservee(this);
+        return ConcurrentLightHashSet.removeElement(this, OBSERVERS_UPDATER, observer);
+    }
+
+    public void clearObservers() {
+        ConcurrentLightHashSet.clear(this, OBSERVERS_UPDATER);
+    }
+
+    public Collection<TypeFlow<?>> getObservers() {
+        return ConcurrentLightHashSet.getElements(this, OBSERVERS_UPDATER);
+    }
+
+    // manage observees
+
+    public void addObservee(TypeFlow<?> observee) {
+        ConcurrentLightHashSet.addElement(this, OBSERVEES_UPDATER, observee);
+    }
+
+    public Collection<TypeFlow<?>> getObservees() {
+        return ConcurrentLightHashSet.getElements(this, OBSERVEES_UPDATER);
+    }
+
+    public boolean removeObservee(TypeFlow<?> observee) {
+        return ConcurrentLightHashSet.removeElement(this, OBSERVEES_UPDATER, observee);
+    }
+
+    public void clearObservees() {
+        ConcurrentLightHashSet.clear(this, OBSERVEES_UPDATER);
+    }
+
+    // manage inputs
+
+    public void addInput(TypeFlow<?> input) {
+        ConcurrentLightHashSet.addElement(this, INPUTS_UPDATER, input);
+    }
+
+    public Collection<TypeFlow<?>> getInputs() {
+        return ConcurrentLightHashSet.getElements(this, INPUTS_UPDATER);
+    }
+
+    public void clearInputs() {
+        ConcurrentLightHashSet.clear(this, INPUTS_UPDATER);
+    }
+
+    public TypeState filter(@SuppressWarnings("unused") PointsToAnalysis bb, TypeState newState) {
+        return newState;
+    }
+
+    /**
+     * Filter type states using a flow's declared type. This is used when the type flow constraints
+     * are relaxed to make sure that only compatible types are flowing through certain flows, e.g.,
+     * stored to fields or passed to parameters. When the type flow constraints are not relaxed
+     * incompatible types flowing through such flows will result in an analysis error.
+     */
+    public TypeState declaredTypeFilter(PointsToAnalysis bb, TypeState newState) {
+        if (!bb.analysisPolicy().relaxTypeFlowConstraints()) {
+            /* Type flow constraints are enforced, so no default filtering is done. */
+            return newState;
+        }
+        if (declaredType == null) {
+            /* The declared type of the operation is not known, no filtering can be done. */
+            return newState;
+        }
+        if (declaredType.equals(bb.getObjectType())) {
+            /* If the declared type is Object type there is no need to filter. */
+            return newState;
+        }
+        /* By default, filter all type flows with the declared type. */
+        return TypeState.forIntersection(bb, newState, declaredType.getAssignableTypes(true));
+    }
+
+    /**
+     * In Java, interface types are not checked by the bytecode verifier. So even when, e.g., a
+     * method parameter has the declared type Comparable, any Object can be passed in. We therefore
+     * need to filter out interface types, as well as arrays of interface types, in many places
+     * where we use the declared type.
+     *
+     * Places where interface types need to be filtered: method parameters, method return values,
+     * and field loads (including unsafe memory loads).
+     * 
+     * Places where interface types need not be filtered: array element loads (because all array
+     * stores have an array store check).
+     */
+    public static AnalysisType filterUncheckedInterface(AnalysisType type) {
+    
