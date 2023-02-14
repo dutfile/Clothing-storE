@@ -560,4 +560,163 @@ public abstract class TypeFlow<T> {
      * stores have an array store check).
      */
     public static AnalysisType filterUncheckedInterface(AnalysisType type) {
-    
+        if (type != null) {
+            AnalysisType elementalType = type.getElementalType();
+            if (elementalType.isInterface()) {
+                return type.getUniverse().objectType().getArrayClass(type.getArrayDimension());
+            }
+        }
+        return type;
+    }
+
+    public void update(PointsToAnalysis bb) {
+        TypeState curState = getState();
+        for (TypeFlow<?> use : getUses()) {
+            if (use.isSaturated()) {
+                removeUse(use);
+            } else {
+                use.addState(bb, curState);
+            }
+        }
+
+        for (TypeFlow<?> observer : getObservers()) {
+            observer.onObservedUpdate(bb);
+        }
+    }
+
+    /** Notify the observer that the observed type flow state has changed. */
+    public void onObservedUpdate(@SuppressWarnings("unused") PointsToAnalysis bb) {
+
+    }
+
+    /** Check if the type state is saturated, i.e., its type count is beyond the limit. */
+    boolean checkSaturated(PointsToAnalysis bb, TypeState typeState) {
+        if (!bb.analysisPolicy().removeSaturatedTypeFlows()) {
+            /* If the type flow saturation optimization is disabled just return false. */
+            return false;
+        }
+        if (!canSaturate()) {
+            /* This type flow needs to track all its individual types. */
+            return false;
+        }
+        return typeState.typesCount() > bb.analysisPolicy().typeFlowSaturationCutoff();
+    }
+
+    /** Called when this type flow becomes saturated. */
+    protected void onSaturated(PointsToAnalysis bb) {
+        assert bb.analysisPolicy().removeSaturatedTypeFlows() : "The type flow saturation optimization is disabled.";
+        assert canSaturate() : "This type flow cannot saturate.";
+        /*
+         * Array type flow aliasing needs to be enabled for the type flow saturation optimization to
+         * work correctly. When the receiver object of an array load/store operation is saturated,
+         * i.e., it will stop sending updates, the load/store needs to subscribe for updates
+         * directly to the type flow of the receiver object declared type. However, the declared
+         * type cannot always be statically infered from the graphs, thus a conservative
+         * approximation such as the Object type can be used. Therefore, all array type flows need
+         * to be modeled using a unique elements type flow abstraction.
+         */
+        assert bb.analysisPolicy().aliasArrayTypeFlows() : "Array type flows must be aliased.";
+
+        if (isSaturated()) {
+            /* This flow is already marked as saturated. */
+            return;
+        }
+
+        /* Mark the flow as saturated, this will lead to lazy removal from *all* its inputs. */
+        setSaturated();
+        /* Run flow-specific saturation tasks, e.g., stop observing receivers. */
+        onSaturated();
+        /* Notify uses and observers that this input is saturated and unlink them. */
+        notifySaturated(bb);
+    }
+
+    protected void onSaturated() {
+        // hook for flow-specific saturation tasks
+    }
+
+    /*** Notify the uses and observers that this flow is saturated and unlink them. */
+    private void notifySaturated(PointsToAnalysis bb) {
+        for (TypeFlow<?> use : getUses()) {
+            use.onInputSaturated(bb, this);
+            removeUse(use);
+        }
+        for (TypeFlow<?> observer : getObservers()) {
+            observer.onObservedSaturated(bb, this);
+            removeObserver(observer);
+        }
+    }
+
+    /** This flow will swap itself out at all uses and observers. */
+    protected void swapOut(PointsToAnalysis bb, TypeFlow<?> newFlow) {
+        for (TypeFlow<?> use : getUses()) {
+            swapAtUse(bb, newFlow, use);
+        }
+        for (TypeFlow<?> observer : getObservers()) {
+            swapAtObserver(bb, newFlow, observer);
+        }
+    }
+
+    protected void swapAtUse(PointsToAnalysis bb, TypeFlow<?> newFlow, TypeFlow<?> use) {
+        removeUse(use);
+        newFlow.addUse(bb, use);
+    }
+
+    protected void swapAtObserver(PointsToAnalysis bb, TypeFlow<?> newFlow, TypeFlow<?> observer) {
+        removeObserver(observer);
+        /* Notify the observer that its observed flow has changed. */
+        observer.replacedObservedWith(bb, newFlow);
+    }
+
+    /**
+     * Notified by an input that it is saturated and it will stop sending updates.
+     */
+    protected void onInputSaturated(PointsToAnalysis bb, @SuppressWarnings("unused") TypeFlow<?> input) {
+        assert bb.analysisPolicy().removeSaturatedTypeFlows() : "The type flow saturation optimization is disabled.";
+        if (!canSaturate()) {
+            /* This type flow needs to track all its individual types. */
+            return;
+        }
+        /*
+         * By default when a type flow is notified that one of its inputs is saturated it will just
+         * pass this information to its uses and observers and unlink them. Subclases should
+         * override this method and provide custom behavior.
+         */
+        onSaturated(bb);
+    }
+
+    /**
+     * Notified by an observed flow that it is saturated.
+     */
+    public void onObservedSaturated(@SuppressWarnings("unused") PointsToAnalysis bb, @SuppressWarnings("unused") TypeFlow<?> observed) {
+    }
+
+    /**
+     * When an "observed -> observer" link is updated the observer needs to be notified as well so
+     * it can update its internal reference. This link update can happen when the observed becomes
+     * saturated and it will stop sending updates. It is then usually replaced with a conservative
+     * approximation, e.g., the flow of the receiver type for a special invoke operation or of the
+     * field declaring class for a field access operation. By default the observers don't use the
+     * null state of the observed, therefore the non-null type flow is used.
+     * 
+     * The overloaded {@link #replacedObservedWith(PointsToAnalysis, TypeFlow)} can be used for
+     * replacing the observed with a custom type flow.
+     * 
+     */
+    public void replaceObservedWith(PointsToAnalysis bb, AnalysisType newObservedType) {
+        replacedObservedWith(bb, newObservedType.getTypeFlow(bb, false));
+    }
+
+    public void replacedObservedWith(PointsToAnalysis bb, TypeFlow<?> newObservedFlow) {
+        /*
+         * It is important that the observed reference is set before the observer is actually
+         * registered. The observer registration will trigger an update and the observer may need
+         * the reference to the new observed.
+         */
+        setObserved(newObservedFlow);
+        newObservedFlow.addObserver(bb, this);
+    }
+
+    /**
+     * Set the type flow that this flow is observing.
+     */
+    protected void setObserved(@SuppressWarnings("unused") TypeFlow<?> newObser
