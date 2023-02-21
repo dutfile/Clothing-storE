@@ -719,4 +719,46 @@ public abstract class TypeFlow<T> {
     /**
      * Set the type flow that this flow is observing.
      */
-    protected void setObserved(@SuppressWarnings("unused") TypeFlow<?> newObser
+    protected void setObserved(@SuppressWarnings("unused") TypeFlow<?> newObservedFlow) {
+        /*
+         * By default this operation is a NOOP. Subtypes that keep a reference to an observed type
+         * flow should override this method and update their internal reference.
+         */
+    }
+
+    void updateSource(T newSource) {
+        source = newSource;
+
+        validateSource();
+    }
+
+    public String formatSource() {
+        if (source instanceof BytecodePosition) {
+            BytecodePosition position = (BytecodePosition) source;
+            return position.getMethod().asStackTraceElement(position.getBCI()).toString();
+        }
+        if (source == null && method() != null) {
+            return method().asStackTraceElement(-1).toString();
+        }
+        return "<unknown-position>";
+    }
+
+    public String format(boolean withState, boolean withSource) {
+        return ClassUtil.getUnqualifiedName(getClass()) + (withSource ? " at " + formatSource() : "") + (withState ? " with state <" + getState() + '>' : "");
+    }
+
+    @Override
+    public String toString() {
+        return format(true, true);
+    }
+
+    @Override
+    public final boolean equals(Object other) {
+        return other == this;
+    }
+
+    @Override
+    public final int hashCode() {
+        return System.identityHashCode(this);
+    }
+}
